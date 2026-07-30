@@ -1386,6 +1386,19 @@ public sealed class SettingsWindow : Form
         UpdateActiveCategoryHeader(tabIndex);
     }
 
+    // 中文注释：供外部入口（标题栏插件图标/插件下拉“管理插件...”）直达“插件”分类页。
+    public void NavigateToPluginSection()
+    {
+        for (var i = 0; i < _tabs.TabPages.Count; i++)
+        {
+            if (_tabs.TabPages[i].Text == "插件")
+            {
+                NavigateToCategory(i);
+                return;
+            }
+        }
+    }
+
     private void WireEvents()
     {
         Shown += (_, _) => UpdateBodySplitterDistance();
@@ -2110,7 +2123,7 @@ public sealed class SettingsWindow : Form
         return _pluginGrid.SelectedRows[0].DataBoundItem as PluginRow;
     }
 
-    private void InstallPluginFromFolder()
+    private async void InstallPluginFromFolder()
     {
         using var dialog = new FolderBrowserDialog
         {
@@ -2121,7 +2134,14 @@ public sealed class SettingsWindow : Form
             return;
         }
 
-        if (!_pluginManager.InstallPluginFromDirectory(dialog.SelectedPath, out var error))
+        var sourcePath = dialog.SelectedPath;
+        // 中文注释：复制大目录（如 Chrome 扩展上千个文件）放后台线程，同步执行会让窗口“未响应”。
+        var (ok, error) = await RunPluginOperationAsync(() =>
+        {
+            var success = _pluginManager.InstallPluginFromDirectory(sourcePath, out var message);
+            return (success, message);
+        });
+        if (!ok)
         {
             MessageBox.Show($"安装失败：{error}", "插件安装", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
@@ -2132,7 +2152,7 @@ public sealed class SettingsWindow : Form
         _log("插件已安装（目录）");
     }
 
-    private void InstallPluginFromZip()
+    private async void InstallPluginFromZip()
     {
         using var dialog = new OpenFileDialog
         {
@@ -2144,7 +2164,13 @@ public sealed class SettingsWindow : Form
             return;
         }
 
-        if (!_pluginManager.InstallPluginFromZip(dialog.FileName, out var error))
+        var zipPath = dialog.FileName;
+        var (ok, error) = await RunPluginOperationAsync(() =>
+        {
+            var success = _pluginManager.InstallPluginFromZip(zipPath, out var message);
+            return (success, message);
+        });
+        if (!ok)
         {
             MessageBox.Show($"安装失败：{error}", "插件安装", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
@@ -2153,6 +2179,29 @@ public sealed class SettingsWindow : Form
         _pluginManager.Reload();
         RefreshPluginGrid();
         _log("插件已安装（zip）");
+    }
+
+    // 中文注释：在后台线程执行耗时插件操作（安装复制/卸载删除），期间禁用按钮并显示等待光标，
+    // 避免 UI 线程被大量文件 IO 卡成“未响应”。
+    private async Task<(bool Ok, string Error)> RunPluginOperationAsync(Func<(bool, string)> operation)
+    {
+        _pluginInstallFolderButton.Enabled = false;
+        _pluginInstallZipButton.Enabled = false;
+        UseWaitCursor = true;
+        try
+        {
+            return await Task.Run(operation);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+        finally
+        {
+            UseWaitCursor = false;
+            _pluginInstallFolderButton.Enabled = true;
+            _pluginInstallZipButton.Enabled = true;
+        }
     }
 
     private void ToggleSelectedPlugin(bool enabled)
@@ -2175,7 +2224,7 @@ public sealed class SettingsWindow : Form
         _log(enabled ? $"插件已启用：{selected.Name}" : $"插件已禁用：{selected.Name}");
     }
 
-    private void UninstallSelectedPlugin()
+    private async void UninstallSelectedPlugin()
     {
         var selected = GetSelectedPlugin();
         if (selected is null)
@@ -2194,7 +2243,12 @@ public sealed class SettingsWindow : Form
             return;
         }
 
-        if (!_pluginManager.UninstallPlugin(selected.Id, out var error))
+        var (ok, error) = await RunPluginOperationAsync(() =>
+        {
+            var success = _pluginManager.UninstallPlugin(selected.Id, out var message);
+            return (success, message);
+        });
+        if (!ok)
         {
             MessageBox.Show($"卸载失败：{error}", "插件管理", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
@@ -2291,9 +2345,20 @@ public sealed class SettingsWindow : Form
         var uiDensity = (_uiDensityComboBox.SelectedItem as string) == "紧凑" ? "Compact" : "Normal";
         if (!TryNormalizeTaskbarIconPath(_taskbarIconPathTextBox.Text, out var taskbarIconPath, out var taskbarIconError))
         {
-            MessageBox.Show(taskbarIconError, "保存失败", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            _taskbarIconPathTextBox.Focus();
-            return;
+            // 中文注释：图标文件失效（如已被删除/移动）时不硬阻断整个保存，允许一键回退默认图标继续保存。
+            var choice = MessageBox.Show(
+                $"{taskbarIconError}\n\n是否恢复默认图标并继续保存其他设置？",
+                "任务栏图标",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning);
+            if (choice != DialogResult.Yes)
+            {
+                _taskbarIconPathTextBox.Focus();
+                return;
+            }
+
+            _taskbarIconPathTextBox.Clear();
+            taskbarIconPath = string.Empty;
         }
 
         if (!TryNormalizeShortcutInput("收藏当前页", _shortcutAddBookmarkEnabledCheckBox.Checked, _shortcutAddBookmarkTextBox, _config.ShortcutAddBookmark, out var shortcutAddBookmark) ||
@@ -2487,8 +2552,18 @@ public sealed class SettingsWindow : Form
                 _log);
         }
 
-        _bookmarksSettingsWindow.Show(this);
+        // 中文注释：窗口已可见时再调 Show(owner) 会抛异常，改为激活前置。
+        if (!_bookmarksSettingsWindow.Visible)
+        {
+            _bookmarksSettingsWindow.Show(this);
+        }
+        else if (_bookmarksSettingsWindow.WindowState == FormWindowState.Minimized)
+        {
+            _bookmarksSettingsWindow.WindowState = FormWindowState.Normal;
+        }
+
         _bookmarksSettingsWindow.BringToFront();
+        _bookmarksSettingsWindow.Activate();
     }
 
     private void ImportBookmarks()

@@ -57,7 +57,14 @@ public sealed class MainWindow : Form
     private readonly ToolStripButton _addBookmarkButton = new("收藏当前页");
     private readonly ToolStripButton _toggleBookmarksBarButton = new("隐藏书签栏");
     private readonly ToolStripButton _settingsButton = new("设置");
-    private readonly ToolStripButton _reloadPluginButton = new("重载插件");
+    // 中文注释：插件固定入口：下拉列出已安装插件可直接启停，并提供重载/管理入口，任意页面可见。
+    private readonly ToolStripDropDownButton _pluginButton = new("插件");
+
+    // 中文注释：固定到工具栏的插件快捷按钮（按配置 PinnedPluginIds 动态生成，点击即启/停插件）。
+    private readonly List<ToolStripButton> _pinnedPluginButtons = new();
+
+    // 中文注释：标题栏“插件”按钮：任意页面快捷打开插件下拉（启停/固定到工具栏/管理）。
+    private readonly ToolStripDropDownButton _titlePluginButton = new("插件");
     private readonly ToolStripButton _devToolsButton = new("开发者工具");
     private readonly ToolStripDropDownButton _searchEngineButton = new("搜索:Bing");
     private readonly ToolStripDropDownButton _appearanceButton = new("外观");
@@ -381,7 +388,13 @@ public sealed class MainWindow : Form
         var historyFileName = string.IsNullOrWhiteSpace(_config.HistoryFileName)
             ? "history.json"
             : _config.HistoryFileName.Trim();
-        var pluginRoot = Path.Combine(AppContext.BaseDirectory, _config.PluginsDirectoryName);
+        // 中文注释：插件安装到用户数据目录，避免重新打包/升级时程序目录被清空导致插件丢失（每次都要重新导入）；
+        // 启动时把程序目录 Plugins（内置示例或旧版本安装的插件）自动迁移过去。
+        var pluginRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "LfsunBrowser",
+            "plugins");
+        TryMigrateLegacyPlugins(Path.Combine(AppContext.BaseDirectory, _config.PluginsDirectoryName), pluginRoot);
         var bookmarkPath = ResolveUserDataFilePath(bookmarkFileName, "bookmarks.json");
         var credentialPath = ResolveUserDataFilePath(credentialFileName, "credentials.json");
         var historyPath = ResolveUserDataFilePath(historyFileName, "history.json");
@@ -497,7 +510,7 @@ public sealed class MainWindow : Form
         _titleDragSpacer.Margin = new Padding(8, 0, 8, 0);
         RegisterToolbarItems();
         RebuildTitleBarItems();
-        RebuildTopBarItems();
+        RebuildPinnedPluginButtons();
 
         _bookmarksBar.GripStyle = ToolStripGripStyle.Hidden;
         _bookmarksBar.AutoSize = false;
@@ -767,7 +780,7 @@ public sealed class MainWindow : Form
         _toolbarItemsById[ToolbarButtonIds.Settings] = _settingsButton;
         _toolbarItemsById[ToolbarButtonIds.SearchEngine] = _searchEngineButton;
         _toolbarItemsById[ToolbarButtonIds.Appearance] = _appearanceButton;
-        _toolbarItemsById[ToolbarButtonIds.Plugins] = _reloadPluginButton;
+        _toolbarItemsById[ToolbarButtonIds.Plugins] = _pluginButton;
         _toolbarItemsById[ToolbarButtonIds.DevTools] = _devToolsButton;
         _toolbarItemsById["commandPalette"] = _commandPaletteButton;
         _toolbarItemsById["tabSwitch"] = _tabSwitchButton;
@@ -784,6 +797,8 @@ public sealed class MainWindow : Form
         BuildTitleTabItems();
         _titleNewTabButton.Alignment = ToolStripItemAlignment.Left;
         _titleBar.Items.Add(_titleNewTabButton);
+        _titlePluginButton.Alignment = ToolStripItemAlignment.Left;
+        _titleBar.Items.Add(_titlePluginButton);
         _titleDragSpacer.Alignment = ToolStripItemAlignment.Left;
         _titleBar.Items.Add(_titleDragSpacer);
         _titleWindowCloseButton.Alignment = ToolStripItemAlignment.Right;
@@ -1190,7 +1205,7 @@ public sealed class MainWindow : Form
         // 中文注释：为右上角窗口控制按钮预留稳定空间，避免标签过多时把最小化/最大化/关闭挤出可视区。
         var windowButtonsWidth = (_titleWindowMinButton.Width + _titleWindowMaxButton.Width + _titleWindowCloseButton.Width) + 44;
         var brandWidth = TextRenderer.MeasureText(_appTitleLabel.Text, _titleBar.Font).Width + 48;
-        var workspaceWidth = _workspaceButton.Width + _titleNewTabButton.Width + 86;
+        var workspaceWidth = _workspaceButton.Width + _titleNewTabButton.Width + _titlePluginButton.Width + 86;
         var reserved = windowButtonsWidth + brandWidth + workspaceWidth;
         var minBudget = AppTheme.IsCompact ? 260 : 300;
         return Math.Max(minBudget, ClientSize.Width - reserved);
@@ -1292,6 +1307,16 @@ public sealed class MainWindow : Form
 
                 item.Overflow = ToolStripItemOverflow.AsNeeded;
                 _topBar.Items.Add(item);
+                // 中文注释：固定的插件快捷按钮紧跟在“插件”按钮后，任意页面可见。
+                if (string.Equals(button.Id, ToolbarButtonIds.Plugins, StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var pinnedButton in _pinnedPluginButtons)
+                    {
+                        pinnedButton.Overflow = ToolStripItemOverflow.AsNeeded;
+                        _topBar.Items.Add(pinnedButton);
+                    }
+                }
+
                 hasToolbarItem = true;
                 previousGroup = group;
                 if (!insertedQuickCluster && string.Equals(button.Id, "settings", StringComparison.OrdinalIgnoreCase))
@@ -1566,7 +1591,18 @@ public sealed class MainWindow : Form
         ConfigureToolbarIconButton(_historyButton, AppIconNames.History, "⧖", "历史");
         ConfigureToolbarIconButton(_addBookmarkButton, AppIconNames.Bookmark, "★", "收藏当前页");
         ConfigureToolbarIconButton(_settingsButton, AppIconNames.Settings, "⚙", "设置", emphasized: true);
-        ConfigureToolbarIconButton(_reloadPluginButton, AppIconNames.PluginReload, "⟲", "重载插件");
+        _pluginButton.AutoSize = false;
+        _pluginButton.ToolTipText = "插件\n查看/启停已安装插件，支持重载与管理";
+        _pluginButton.ShowDropDownArrow = false;
+        _pluginButton.Width = compact ? 70 : 82;
+        _pluginButton.Height = compact ? 28 : 32;
+        _pluginButton.Margin = new Padding(3, 1, 3, 1);
+        _pluginButton.BackColor = AppTheme.AccentMuted;
+        _pluginButton.ForeColor = AppTheme.TextPrimary;
+        _pluginButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _pluginButton.Font = AppTheme.CreateFont(compact ? 9F : 9.4F, FontStyle.Bold);
+        ApplyFluentIcon(_pluginButton, AppIconNames.PluginReload, compact ? 14 : 16, AppTheme.TextPrimary);
+        _pluginButton.Text = ComposeIconButtonText(_pluginButton, "✇", "插件");
         ConfigureToolbarIconButton(_devToolsButton, AppIconNames.DevTools, "</>", "开发者工具", shortcutText: "F12");
         ConfigureToolbarIconButton(_commandPaletteButton, AppIconNames.CommandPalette, "⌘", "命令面板", shortcutText: "Ctrl+Shift+P");
         ConfigureToolbarIconButton(_tabSwitchButton, string.Empty, "@", "标签快速切换", shortcutText: "Ctrl+K");
@@ -1658,6 +1694,20 @@ public sealed class MainWindow : Form
         _titleNewTabButton.ToolTipText = "新建空白标签\n快捷键: Ctrl+T";
         ApplyFluentIcon(_titleNewTabButton, AppIconNames.NewTab, compact ? 12 : 13, AppTheme.TextPrimary);
         _titleNewTabButton.Text = ComposeIconButtonText(_titleNewTabButton, "+");
+
+        // 中文注释：标题栏插件入口直接显示“插件”文字，图标容易被误认为刷新而找不到入口。
+        _titlePluginButton.AutoSize = false;
+        _titlePluginButton.Width = compact ? 46 : 52;
+        _titlePluginButton.Height = compact ? 24 : 26;
+        _titlePluginButton.Margin = compact ? new Padding(4, 1, 4, 1) : new Padding(5, 1, 5, 1);
+        _titlePluginButton.BackColor = AppTheme.AccentMuted;
+        _titlePluginButton.ForeColor = AppTheme.TextPrimary;
+        _titlePluginButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _titlePluginButton.ShowDropDownArrow = false;
+        _titlePluginButton.Font = AppTheme.CreateFont(compact ? 9F : 9.6F, FontStyle.Bold);
+        _titlePluginButton.ToolTipText = "插件\n启停、固定到工具栏、管理插件";
+        _titlePluginButton.Image = null;
+        _titlePluginButton.Text = "插件";
 
         _titleDragSpacer.Height = compact ? 24 : 26;
         _titleDragSpacer.Margin = compact ? new Padding(8, 1, 8, 1) : new Padding(10, 1, 10, 1);
@@ -2099,7 +2149,8 @@ public sealed class MainWindow : Form
             RefreshMetrics();
         };
 
-        _reloadPluginButton.Click += (_, _) => _pluginManager.Reload();
+        _pluginButton.DropDownOpening += (_, _) => BuildPluginDropDown(_pluginButton);
+        _titlePluginButton.DropDownOpening += (_, _) => BuildPluginDropDown(_titlePluginButton);
         _devToolsButton.Click += (_, _) => _tabManager.ActiveTab?.OpenDevTools();
 
         _addressTextBox.KeyDown += async (_, eventArgs) =>
@@ -6650,7 +6701,8 @@ public sealed class MainWindow : Form
         DismissTransientMenus();
         var menu = new ContextMenuStrip();
         AppTheme.ApplyContextMenu(menu);
-        menu.Closed += (_, _) => menu.Dispose();
+        // 中文注释：Closed 里同步 Dispose 会让 ModalMenuFilter 收尾时访问已释放菜单而崩溃，延迟到消息循环空闲后再释放。
+        menu.Closed += (_, _) => BeginInvoke(menu.Dispose);
 
         var newTabItem = new ToolStripMenuItem("新建空白标签页");
         newTabItem.Click += async (_, _) =>
@@ -6704,7 +6756,8 @@ public sealed class MainWindow : Form
         DismissTransientMenus();
         var menu = new ContextMenuStrip();
         AppTheme.ApplyContextMenu(menu);
-        menu.Closed += (_, _) => menu.Dispose();
+        // 中文注释：Closed 里同步 Dispose 会让 ModalMenuFilter 收尾时访问已释放菜单而崩溃，延迟到消息循环空闲后再释放。
+        menu.Closed += (_, _) => BeginInvoke(menu.Dispose);
 
         var activeTab = _tabManager.ActiveTab;
         var activeUri = activeTab?.CurrentUri;
@@ -6836,7 +6889,8 @@ public sealed class MainWindow : Form
         DismissTransientMenus();
         var menu = new ContextMenuStrip();
         AppTheme.ApplyContextMenu(menu);
-        menu.Closed += (_, _) => menu.Dispose();
+        // 中文注释：Closed 里同步 Dispose 会让 ModalMenuFilter 收尾时访问已释放菜单而崩溃，延迟到消息循环空闲后再释放。
+        menu.Closed += (_, _) => BeginInvoke(menu.Dispose);
 
         var newTabItem = new ToolStripMenuItem("新建标签页");
         newTabItem.Click += async (_, _) =>
@@ -6890,7 +6944,7 @@ public sealed class MainWindow : Form
         {
             _backButton, _forwardButton, _refreshButton, _newTabButton, _closeTabButton,
             _downloadButton, _historyButton, _addBookmarkButton, _toggleBookmarksBarButton,
-            _settingsButton, _reloadPluginButton, _searchEngineButton, _appearanceButton,
+            _settingsButton, _pluginButton, _searchEngineButton, _appearanceButton,
             _recentTabsButton, _sessionButton, _tabQuickButton, _workspaceButton,
             _commandPaletteButton, _tabSwitchButton,
             _titleNewTabButton, _titleWindowMinButton, _titleWindowMaxButton, _titleWindowCloseButton
@@ -6991,7 +7045,8 @@ public sealed class MainWindow : Form
     {
         var menu = new ContextMenuStrip();
         AppTheme.ApplyContextMenu(menu);
-        menu.Closed += (_, _) => menu.Dispose();
+        // 中文注释：Closed 里同步 Dispose 会让 ModalMenuFilter 收尾时访问已释放菜单而崩溃，延迟到消息循环空闲后再释放。
+        menu.Closed += (_, _) => BeginInvoke(menu.Dispose);
 
         var copyStatusItem = new ToolStripMenuItem("复制状态栏信息");
         copyStatusItem.Click += (_, _) =>
@@ -7247,9 +7302,8 @@ public sealed class MainWindow : Form
                 Log);
         }
 
-        _bookmarksSettingsWindow.Show(this);
+        ShowOwnedWindow(_bookmarksSettingsWindow);
         _bookmarksSettingsWindow.FocusNode(_contextNodeId.Value);
-        _bookmarksSettingsWindow.BringToFront();
     }
 
     private void ShowBookmarksSettingsWindow()
@@ -7262,8 +7316,7 @@ public sealed class MainWindow : Form
                 Log);
         }
 
-        _bookmarksSettingsWindow.Show(this);
-        _bookmarksSettingsWindow.BringToFront();
+        ShowOwnedWindow(_bookmarksSettingsWindow);
     }
 
     private void AddCurrentPageBookmark()
@@ -7300,8 +7353,231 @@ public sealed class MainWindow : Form
                 Log);
         }
 
-        _settingsWindow.Show(this);
-        _settingsWindow.BringToFront();
+        ShowOwnedWindow(_settingsWindow);
+    }
+
+    /// <summary>
+    /// 中文注释：统一的非模态子窗口展示入口；窗口已可见时再调 Show(owner) 会抛
+    /// “已经可见的窗体不能显示为模式对话框”，此处改为激活并前置。
+    /// </summary>
+    private void ShowOwnedWindow(Form window)
+    {
+        if (!window.Visible)
+        {
+            window.Show(this);
+        }
+        else if (window.WindowState == FormWindowState.Minimized)
+        {
+            window.WindowState = FormWindowState.Normal;
+        }
+
+        window.BringToFront();
+        window.Activate();
+    }
+
+    // 中文注释：构建插件下拉菜单（工具栏“插件”按钮与标题栏插件图标共用）：
+    // 列出已安装插件（勾选态=已启用，点击切换），附固定到工具栏/重载/管理入口。
+    private void BuildPluginDropDown(ToolStripDropDownButton target)
+    {
+        target.DropDownItems.Clear();
+        var packages = _pluginManager.DiscoverPackages();
+        if (packages.Count == 0)
+        {
+            target.DropDownItems.Add(new ToolStripMenuItem("（未安装插件）")
+            {
+                Enabled = false
+            });
+        }
+
+        foreach (var package in packages)
+        {
+            var statusSuffix = package.Enabled ? string.Empty : "（已禁用）";
+            if (package.Enabled && !package.IsLoadable)
+            {
+                statusSuffix = $"（{package.LoadStatus}）";
+            }
+
+            var item = new ToolStripMenuItem($"{package.Name}{statusSuffix}")
+            {
+                Checked = package.Enabled,
+                ToolTipText = string.IsNullOrWhiteSpace(package.Description)
+                    ? $"id: {package.Id}"
+                    : $"{package.Description}\nid: {package.Id}"
+            };
+            var pluginId = package.Id;
+            var pluginName = package.Name;
+            var targetEnabled = !package.Enabled;
+            // 中文注释：每个插件展开为子菜单：“在当前页面运行”是主动作（一键填充这类插件靠它触发），启停是次动作。
+            var runItem = new ToolStripMenuItem("▶ 在当前页面运行")
+            {
+                Enabled = package.Enabled && package.IsLoadable,
+                ToolTipText = "立即在当前标签页执行该插件脚本"
+            };
+            runItem.Click += (_, _) => RunPluginOnCurrentPage(pluginId, pluginName);
+            item.DropDownItems.Add(runItem);
+
+            var toggleItem = new ToolStripMenuItem(package.Enabled ? "禁用" : "启用");
+            toggleItem.Click += (_, _) => TogglePluginEnabled(pluginId, targetEnabled);
+            item.DropDownItems.Add(toggleItem);
+            target.DropDownItems.Add(item);
+        }
+
+        target.DropDownItems.Add(new ToolStripSeparator());
+        // 中文注释：勾选即把插件固定为工具栏快捷按钮，取消勾选即移除。
+        var pinMenu = new ToolStripMenuItem("固定到工具栏")
+        {
+            Enabled = packages.Count > 0,
+            ToolTipText = "把常用插件固定在工具栏上，一键启停"
+        };
+        foreach (var package in packages)
+        {
+            var pluginId = package.Id;
+            var pinItem = new ToolStripMenuItem(package.Name)
+            {
+                Checked = _config.PinnedPluginIds.Contains(pluginId, StringComparer.OrdinalIgnoreCase)
+            };
+            pinItem.Click += (_, _) => TogglePluginPinned(pluginId);
+            pinMenu.DropDownItems.Add(pinItem);
+        }
+
+        target.DropDownItems.Add(pinMenu);
+
+        var reloadItem = new ToolStripMenuItem("重载插件");
+        reloadItem.Click += (_, _) =>
+        {
+            _pluginManager.Reload();
+            ShowToast("插件已重载");
+        };
+        target.DropDownItems.Add(reloadItem);
+
+        var manageItem = new ToolStripMenuItem("管理插件...");
+        manageItem.Click += (_, _) => ShowPluginSettings();
+        target.DropDownItems.Add(manageItem);
+    }
+
+    // 中文注释：打开设置窗口并直达“插件”分类页。
+    private void ShowPluginSettings()
+    {
+        ShowSettings();
+        _settingsWindow?.NavigateToPluginSection();
+    }
+
+    // 中文注释：在当前活动标签页上手动执行插件脚本，结果用 Toast 反馈。
+    private async void RunPluginOnCurrentPage(string pluginId, string pluginName)
+    {
+        var tab = _tabManager.ActiveTab;
+        if (tab is null)
+        {
+            ShowToast("没有可运行的标签页");
+            return;
+        }
+
+        try
+        {
+            var (ok, error) = await tab.RunPluginAsync(pluginId);
+            ShowToast(ok ? $"已运行插件：{pluginName}" : $"运行失败：{error}");
+            if (!ok)
+            {
+                Log($"[插件:{pluginId}] 运行失败: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"运行失败：{ex.Message}");
+            Log($"[插件:{pluginId}] 运行异常: {ex.Message}");
+        }
+    }
+
+    private void TogglePluginEnabled(string pluginId, bool enabled)
+    {
+        if (!_pluginManager.SetPluginEnabled(pluginId, enabled, out var error))
+        {
+            ShowToast($"插件操作失败：{error}");
+            return;
+        }
+
+        _pluginManager.Reload();
+        ShowToast(enabled ? "插件已启用，刷新页面后生效" : "插件已禁用，刷新页面后生效");
+        Log($"[插件:{pluginId}] 已{(enabled ? "启用" : "禁用")}");
+        // 中文注释：同步刷新固定按钮的勾选/背景态。
+        RebuildPinnedPluginButtons();
+    }
+
+    // 中文注释：切换插件的工具栏固定状态并持久化。
+    private void TogglePluginPinned(string pluginId)
+    {
+        var existing = _config.PinnedPluginIds
+            .FirstOrDefault(id => string.Equals(id, pluginId, StringComparison.OrdinalIgnoreCase));
+        if (existing is null)
+        {
+            _config.PinnedPluginIds.Add(pluginId);
+            ShowToast("已固定到工具栏");
+        }
+        else
+        {
+            _config.PinnedPluginIds.Remove(existing);
+            ShowToast("已取消固定");
+        }
+
+        SaveConfigSilently();
+        RebuildPinnedPluginButtons();
+    }
+
+    // 中文注释：按配置重建固定插件按钮并刷新工具栏；插件被卸载后自动从配置清理。
+    private void RebuildPinnedPluginButtons()
+    {
+        _pinnedPluginButtons.Clear();
+        if (_config.PinnedPluginIds.Count > 0)
+        {
+            var packages = _pluginManager.DiscoverPackages();
+            var validIds = new List<string>();
+            foreach (var pinnedId in _config.PinnedPluginIds)
+            {
+                var package = packages.FirstOrDefault(p =>
+                    string.Equals(p.Id, pinnedId, StringComparison.OrdinalIgnoreCase));
+                if (package is null)
+                {
+                    continue;
+                }
+
+                validIds.Add(package.Id);
+                var stateText = package.Enabled ? "已启用" : "已禁用";
+                var button = new ToolStripButton(package.Name)
+                {
+                    AutoSize = true,
+                    Margin = new Padding(3, 1, 3, 1),
+                    BackColor = package.Enabled ? AppTheme.AccentHover : AppTheme.AccentMuted,
+                    ForeColor = AppTheme.TextPrimary,
+                    Font = AppTheme.CreateFont(9F, FontStyle.Regular),
+                    Checked = package.Enabled,
+                    ToolTipText = $"{package.Name}（{stateText}）\n点击：在当前页面运行该插件\n启停/取消固定请在“插件”下拉中操作"
+                };
+                var pluginId = package.Id;
+                var pluginName = package.Name;
+                var pluginEnabled = package.Enabled;
+                // 中文注释：固定按钮点击即“在当前页面运行”，未启用时提示先启用；启停改到插件下拉里。
+                button.Click += (_, _) =>
+                {
+                    if (!pluginEnabled)
+                    {
+                        ShowToast($"插件“{pluginName}”已禁用，请在“插件”下拉中启用后再运行");
+                        return;
+                    }
+
+                    RunPluginOnCurrentPage(pluginId, pluginName);
+                };
+                _pinnedPluginButtons.Add(button);
+            }
+
+            // 中文注释：配置里残留的已卸载插件 id 顺手清掉。
+            if (validIds.Count != _config.PinnedPluginIds.Count)
+            {
+                _config.PinnedPluginIds = validIds;
+                SaveConfigSilently();
+            }
+        }
+
+        RebuildTopBarItems();
     }
 
     private void BuildSearchEngineMenu()
@@ -7870,7 +8146,7 @@ public sealed class MainWindow : Form
         _commandPaletteButton.Visible = !isCompactMode;
         _tabSwitchButton.Visible = !isCompactMode;
         _searchEngineButton.Visible = !isCompactMode;
-        _reloadPluginButton.Visible = !isUltraNarrow;
+        _pluginButton.Visible = !isUltraNarrow;
 
         _siteBadgeLabel.Visible = !isCompactMode;
         _siteBadgeLabel.Width = isUltraNarrow
@@ -7903,7 +8179,9 @@ public sealed class MainWindow : Form
         ApplyAdaptiveToolbarButton(_settingsButton, "⚙", "设置", "设置", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
         ApplyAdaptiveToolbarButton(_newTabButton, "+", "新建标签", "新建", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
         ApplyAdaptiveToolbarButton(_closeTabButton, "×", "关闭标签", "关闭", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
-        ApplyAdaptiveToolbarButton(_reloadPluginButton, "⟲", "插件重载", "重载", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
+
+        _pluginButton.Text = ComposeIconButtonText(_pluginButton, "✇", verboseMode ? "插件" : compactMode ? "插件" : null);
+        SetToolbarButtonWidth(_pluginButton, isUltraNarrow ? 44 : 70);
 
         _recentTabsButton.Text = ComposeIconButtonText(_recentTabsButton, "⟲", verboseMode ? "最近关闭" : compactMode ? "最近" : null);
         _sessionButton.Text = ComposeIconButtonText(_sessionButton, "☰", verboseMode ? "会话中心" : compactMode ? "会话" : null);
@@ -8518,8 +8796,7 @@ public sealed class MainWindow : Form
         }
 
         _historyWindow.RefreshData();
-        _historyWindow.Show(this);
-        _historyWindow.BringToFront();
+        ShowOwnedWindow(_historyWindow);
     }
 
     private async Task OpenUrlFromHistoryAsync(string url, bool inNewTab)
@@ -8818,7 +9095,8 @@ public sealed class MainWindow : Form
         DismissTransientMenus();
         var menu = new ContextMenuStrip();
         AppTheme.ApplyContextMenu(menu);
-        menu.Closed += (_, _) => menu.Dispose();
+        // 中文注释：Closed 里同步 Dispose 会让 ModalMenuFilter 收尾时访问已释放菜单而崩溃，延迟到消息循环空闲后再释放。
+        menu.Closed += (_, _) => BeginInvoke(menu.Dispose);
 
         menu.Items.Add(new ToolStripMenuItem("浏览器概览")
         {
@@ -8921,8 +9199,7 @@ public sealed class MainWindow : Form
             _downloadsWindow = new DownloadsWindow(_downloadManager);
         }
 
-        _downloadsWindow.Show(this);
-        _downloadsWindow.BringToFront();
+        ShowOwnedWindow(_downloadsWindow);
     }
 
     private void ShowSessionsWindow()
@@ -8949,8 +9226,7 @@ public sealed class MainWindow : Form
         }
 
         _sessionsWindow.RefreshData();
-        _sessionsWindow.Show(this);
-        _sessionsWindow.BringToFront();
+        ShowOwnedWindow(_sessionsWindow);
     }
 
     private bool TryGetActiveUri(out Uri uri)
@@ -9921,6 +10197,47 @@ public sealed class MainWindow : Form
         catch (Exception ex)
         {
             Log($"{dataLabel}迁移失败: {ex.Message}");
+        }
+    }
+
+    // 中文注释：把程序目录 Plugins 下的插件（内置示例或旧版本安装的）迁移到用户数据目录；
+    // 只补齐用户目录里不存在的插件，已存在的不覆盖，避免回退用户的启用/修改状态。
+    private void TryMigrateLegacyPlugins(string legacyRoot, string targetRoot)
+    {
+        try
+        {
+            if (!Directory.Exists(legacyRoot) ||
+                string.Equals(Path.GetFullPath(legacyRoot), Path.GetFullPath(targetRoot), StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var migrated = 0;
+            foreach (var sourceDirectory in Directory.GetDirectories(legacyRoot))
+            {
+                if (!File.Exists(Path.Combine(sourceDirectory, "manifest.json")))
+                {
+                    continue;
+                }
+
+                var targetDirectory = Path.Combine(targetRoot, Path.GetFileName(sourceDirectory));
+                if (Directory.Exists(targetDirectory))
+                {
+                    continue;
+                }
+
+                PluginManager.CopyDirectoryRecursive(sourceDirectory, targetDirectory);
+                migrated++;
+            }
+
+            if (migrated > 0)
+            {
+                Log($"已迁移 {migrated} 个插件到用户目录: {targetRoot}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log($"插件迁移失败: {ex.Message}");
         }
     }
 

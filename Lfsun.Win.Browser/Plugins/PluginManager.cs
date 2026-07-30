@@ -1,5 +1,7 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization.Metadata;
 using Lfsun.Win.Browser.Core;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -10,6 +12,15 @@ public sealed class PluginManager
 {
     // 中文注释：内容脚本注入能力对应的权限名。
     public const string ContentInjectPermission = "content:inject";
+
+    // 中文注释：写 manifest.json 用的序列化选项；.NET 8 起 JsonNode.ToJsonString 传入新建的
+    // JsonSerializerOptions 时必须显式指定 TypeInfoResolver，否则报
+    // “must specify a TypeInfoResolver setting before being marked as read-only”。
+    private static readonly JsonSerializerOptions ManifestWriteOptions = new()
+    {
+        WriteIndented = true,
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver()
+    };
 
     private readonly string _pluginsRoot;
     private readonly Action<string> _log;
@@ -225,7 +236,7 @@ public sealed class PluginManager
             }
 
             root["enabled"] = enabled;
-            File.WriteAllText(info.ManifestPath, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(info.ManifestPath, root.ToJsonString(ManifestWriteOptions));
             error = string.Empty;
             return true;
         }
@@ -247,7 +258,7 @@ public sealed class PluginManager
 
         try
         {
-            Directory.Delete(info.DirectoryPath, recursive: true);
+            ForceDeleteDirectory(info.DirectoryPath);
             error = string.Empty;
             return true;
         }
@@ -278,18 +289,28 @@ public sealed class PluginManager
 
             if (manifest is null || string.IsNullOrWhiteSpace(manifest.Id))
             {
-                error = "manifest.json 缺少有效 id。";
-                return false;
+                // 中文注释：无 id 时尝试按标准 Chrome/Edge 扩展清单自动转换（仅支持 content_scripts 型扩展）。
+                return TryInstallChromeExtension(sourceDirectory, manifestPath, out error);
             }
 
             var targetDirectory = Path.Combine(_pluginsRoot, manifest.Id.Trim());
-            if (Directory.Exists(targetDirectory))
+            if (!TryClearBrokenPluginDirectory(targetDirectory))
             {
                 error = $"插件 '{manifest.Id}' 已存在。";
                 return false;
             }
 
-            CopyDirectoryRecursive(sourceDirectory, targetDirectory);
+            try
+            {
+                CopyDirectoryRecursive(sourceDirectory, targetDirectory);
+            }
+            catch
+            {
+                // 中文注释：复制中途失败时回滚目标目录，避免留下没有 manifest.json 的残留导致下次安装报“已存在”。
+                ForceDeleteDirectory(targetDirectory);
+                throw;
+            }
+
             error = string.Empty;
             return true;
         }
@@ -393,6 +414,44 @@ public sealed class PluginManager
         }
     }
 
+    // 中文注释：手动在当前页面执行指定插件的全部脚本（“在当前页面运行”入口）；
+    // 由用户主动触发，不受地址匹配限制，方便“一键填充表单”这类点一下才干活的插件。
+    public async Task<(bool Ok, string Error)> RunPluginOnPageAsync(WebView2 webView, string pluginId)
+    {
+        var plugin = _plugins.FirstOrDefault(p =>
+            string.Equals(p.Manifest.Id, pluginId, StringComparison.OrdinalIgnoreCase));
+        if (plugin is null)
+        {
+            return (false, "插件未加载（可能已禁用或被权限拦截，请先启用/重载）");
+        }
+
+        var executed = 0;
+        try
+        {
+            foreach (var scriptBody in plugin.ScriptBodies)
+            {
+                await webView.ExecuteScriptAsync(scriptBody);
+                executed++;
+            }
+
+            foreach (var group in plugin.ContentScriptGroups)
+            {
+                foreach (var scriptBody in group.ScriptBodies)
+                {
+                    await webView.ExecuteScriptAsync(scriptBody);
+                    executed++;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log($"[插件:{pluginId}] 手动执行失败: {ex.Message}");
+            return (false, ex.Message);
+        }
+
+        return executed > 0 ? (true, string.Empty) : (false, "插件没有可执行的脚本");
+    }
+
     // 中文注释：生成带地址守卫的包裹脚本；正则源串用 JSON 序列化转 JS 字符串字面量，避免转义问题。
     private static string BuildGuardedContentScript(string[] patternSources, string scriptBody)
     {
@@ -426,7 +485,8 @@ public sealed class PluginManager
         return denied.Length > 0 ? $"权限拒绝: {string.Join(", ", denied)}" : "可加载";
     }
 
-    private static void CopyDirectoryRecursive(string sourceDirectory, string targetDirectory)
+    // 中文注释：internal 供 MainWindow 启动迁移复用（把程序目录旧插件搬到用户数据目录）。
+    internal static void CopyDirectoryRecursive(string sourceDirectory, string targetDirectory)
     {
         Directory.CreateDirectory(targetDirectory);
 
@@ -434,13 +494,193 @@ public sealed class PluginManager
         {
             var targetFile = Path.Combine(targetDirectory, Path.GetFileName(file));
             File.Copy(file, targetFile, overwrite: true);
+            // 中文注释：清除只读等属性；源目录若是 git 仓库，其对象文件默认只读，复制后会导致覆写/卸载失败。
+            File.SetAttributes(targetFile, FileAttributes.Normal);
         }
 
         foreach (var directory in Directory.GetDirectories(sourceDirectory))
         {
-            var targetSubDirectory = Path.Combine(targetDirectory, Path.GetFileName(directory));
-            CopyDirectoryRecursive(directory, targetSubDirectory);
+            var directoryName = Path.GetFileName(directory);
+            // 中文注释：跳过 .git 等以点开头的元数据目录，插件运行不需要它们，且 git 只读对象文件会卡死卸载。
+            if (directoryName.StartsWith('.'))
+            {
+                continue;
+            }
+
+            CopyDirectoryRecursive(directory, Path.Combine(targetDirectory, directoryName));
         }
+    }
+
+    // 中文注释：递归清除只读属性后再删除目录；直接 Directory.Delete 遇到只读文件（如 git 对象）会报“拒绝访问”。
+    private static void ForceDeleteDirectory(string directory)
+    {
+        if (!Directory.Exists(directory))
+        {
+            return;
+        }
+
+        foreach (var file in Directory.GetFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            File.SetAttributes(file, FileAttributes.Normal);
+        }
+
+        Directory.Delete(directory, recursive: true);
+    }
+
+    // 中文注释：目标目录存在但缺少 manifest.json 时视为历史安装/卸载失败留下的残留，清理后允许重新安装；
+    // 返回 false 表示目录内仍有有效插件（真正的“已存在”）。
+    private static bool TryClearBrokenPluginDirectory(string targetDirectory)
+    {
+        if (!Directory.Exists(targetDirectory))
+        {
+            return true;
+        }
+
+        if (File.Exists(Path.Combine(targetDirectory, "manifest.json")))
+        {
+            return false;
+        }
+
+        ForceDeleteDirectory(targetDirectory);
+        return true;
+    }
+
+    // 中文注释：把标准 Chrome/Edge 扩展（manifest_version + content_scripts）转换为本浏览器插件格式后安装；
+    // background/popup 依赖 Chrome 扩展运行时，无法在 WebView2 中模拟，会明确报不支持。
+    private bool TryInstallChromeExtension(string sourceDirectory, string manifestPath, out string error)
+    {
+        try
+        {
+            var parsed = JsonNode.Parse(File.ReadAllText(manifestPath), documentOptions: new JsonDocumentOptions
+            {
+                CommentHandling = JsonCommentHandling.Skip,
+                AllowTrailingCommas = true
+            });
+            if (parsed is not JsonObject root || root["manifest_version"] is null)
+            {
+                error = "manifest.json 缺少有效 id。";
+                return false;
+            }
+
+            var name = root["name"]?.GetValue<string>()?.Trim() ?? string.Empty;
+            if (name.Length == 0 || name.StartsWith("__MSG_", StringComparison.OrdinalIgnoreCase))
+            {
+                // 中文注释：i18n 占位名（__MSG_xxx__）不解析 _locales，回退用目录名。
+                name = new DirectoryInfo(sourceDirectory).Name;
+            }
+
+            var contentScripts = new JsonArray();
+            if (root["content_scripts"] is JsonArray chromeGroups)
+            {
+                foreach (var groupNode in chromeGroups)
+                {
+                    if (groupNode is not JsonObject group)
+                    {
+                        continue;
+                    }
+
+                    var matches = new JsonArray();
+                    foreach (var match in group["matches"] as JsonArray ?? new JsonArray())
+                    {
+                        var pattern = match?.GetValue<string>();
+                        if (!string.IsNullOrWhiteSpace(pattern))
+                        {
+                            matches.Add(pattern.Trim());
+                        }
+                    }
+
+                    var scripts = new JsonArray();
+                    foreach (var script in group["js"] as JsonArray ?? new JsonArray())
+                    {
+                        var scriptFile = script?.GetValue<string>();
+                        if (!string.IsNullOrWhiteSpace(scriptFile))
+                        {
+                            scripts.Add(scriptFile.Trim());
+                        }
+                    }
+
+                    if (matches.Count > 0 && scripts.Count > 0)
+                    {
+                        contentScripts.Add(new JsonObject { ["matches"] = matches, ["scripts"] = scripts });
+                    }
+                }
+            }
+
+            if (contentScripts.Count == 0)
+            {
+                error = "该扩展没有可转换的内容脚本（content_scripts + js），暂不支持 background/popup 类 Chrome 扩展。";
+                return false;
+            }
+
+            var pluginId = BuildPluginIdFromName(name);
+            var targetDirectory = Path.Combine(_pluginsRoot, pluginId);
+            if (!TryClearBrokenPluginDirectory(targetDirectory))
+            {
+                error = $"插件 '{pluginId}' 已存在。";
+                return false;
+            }
+
+            var description = root["description"]?.GetValue<string>() is { } desc &&
+                              !desc.StartsWith("__MSG_", StringComparison.OrdinalIgnoreCase)
+                ? desc
+                : "由 Chrome 扩展自动转换";
+            var converted = new JsonObject
+            {
+                ["id"] = pluginId,
+                ["name"] = name,
+                ["description"] = description,
+                ["enabled"] = true,
+                ["permissions"] = new JsonArray("content:dom_read", "content:dom_write", ContentInjectPermission),
+                ["contentScripts"] = contentScripts
+            };
+
+            try
+            {
+                CopyDirectoryRecursive(sourceDirectory, targetDirectory);
+                // 中文注释：原始 Chrome 清单保留为 manifest.chrome.json 便于溯源，manifest.json 写入转换结果。
+                File.Move(
+                    Path.Combine(targetDirectory, "manifest.json"),
+                    Path.Combine(targetDirectory, "manifest.chrome.json"),
+                    overwrite: true);
+                File.WriteAllText(
+                    Path.Combine(targetDirectory, "manifest.json"),
+                    converted.ToJsonString(ManifestWriteOptions));
+            }
+            catch
+            {
+                // 中文注释：转换安装中途失败时回滚，避免残留半成品目录阻塞下次安装。
+                ForceDeleteDirectory(targetDirectory);
+                throw;
+            }
+            _log($"[插件:{pluginId}] 已从 Chrome 扩展清单自动转换安装");
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    // 中文注释：从扩展名称派生插件目录 id：小写化，仅保留字母数字，其余折叠为连字符。
+    private static string BuildPluginIdFromName(string name)
+    {
+        var builder = new StringBuilder(name.Length);
+        foreach (var ch in name.Trim().ToLowerInvariant())
+        {
+            if (char.IsLetterOrDigit(ch))
+            {
+                builder.Append(ch);
+            }
+            else if (builder.Length > 0 && builder[^1] != '-')
+            {
+                builder.Append('-');
+            }
+        }
+
+        var id = builder.ToString().Trim('-');
+        return string.IsNullOrEmpty(id) ? $"imported-{Guid.NewGuid():N}"[..17] : id;
     }
 }
 

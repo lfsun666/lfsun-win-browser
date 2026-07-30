@@ -47,6 +47,8 @@ public sealed class BrowserConfig
     public string PluginsDirectoryName { get; set; } = "plugins";
     public bool EnforcePluginPermissions { get; set; } = true;
     public string[] AllowedPluginPermissions { get; set; } = ["content:dom_read", "content:dom_write", "content:inject"];
+    // 中文注释：固定到顶部工具栏的插件 id 列表，顺序即按钮显示顺序。
+    public List<string> PinnedPluginIds { get; set; } = [];
     public bool IsGeneralAutofillEnabled { get; set; } = true;
     public bool IsPasswordAutosaveEnabled { get; set; } = true;
     public bool IsCredentialAutofillEnabled { get; set; } = true;
@@ -151,6 +153,14 @@ public sealed class BrowserConfig
     private static BrowserConfig Normalize(BrowserConfig config)
     {
         config.AllowedPluginPermissions ??= [];
+        // 中文注释：旧版本默认白名单只有 dom_read/dom_write，升级后自动补上 content:inject，
+        // 否则 Chrome 转换插件会一直“权限拒绝: content:inject”；用户自定义过的白名单不受影响。
+        if (config.AllowedPluginPermissions.Length == 2 &&
+            config.AllowedPluginPermissions.Contains("content:dom_read", StringComparer.OrdinalIgnoreCase) &&
+            config.AllowedPluginPermissions.Contains("content:dom_write", StringComparer.OrdinalIgnoreCase))
+        {
+            config.AllowedPluginPermissions = ["content:dom_read", "content:dom_write", "content:inject"];
+        }
         config.DownloadDirectory = string.IsNullOrWhiteSpace(config.DownloadDirectory)
             ? DefaultDownloadDirectory
             : config.DownloadDirectory.Trim();
@@ -483,7 +493,7 @@ public sealed class BrowserConfig
             CreateToolbarButton(ToolbarButtonIds.Settings, "设置", 9),
             CreateToolbarButton(ToolbarButtonIds.SearchEngine, "搜索引擎", 10),
             CreateToolbarButton(ToolbarButtonIds.Appearance, "外观", 11),
-            CreateToolbarButton(ToolbarButtonIds.Plugins, "重载插件", 12),
+            CreateToolbarButton(ToolbarButtonIds.Plugins, "插件", 12),
             CreateToolbarButton(ToolbarButtonIds.DevTools, "开发者工具", 13)
         ];
     }

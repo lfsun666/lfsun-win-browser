@@ -298,6 +298,18 @@ public sealed class BrowserTab : IAsyncDisposable
         _webView?.CoreWebView2?.OpenDevToolsWindow();
     }
 
+    // 中文注释：在当前页面手动执行指定插件（插件下拉“在当前页面运行”/固定按钮点击）。
+    public async Task<(bool Ok, string Error)> RunPluginAsync(string pluginId)
+    {
+        await ResumeIfNeededAsync();
+        if (_webView?.CoreWebView2 is null)
+        {
+            return (false, "页面尚未就绪，请稍后重试");
+        }
+
+        return await _pluginManager.RunPluginOnPageAsync(_webView, pluginId);
+    }
+
     public void SetPinned(bool pinned)
     {
         if (IsPinned == pinned)
