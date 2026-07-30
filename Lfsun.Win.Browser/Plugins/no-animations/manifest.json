@@ -1,0 +1,16 @@
+{
+  "id": "no-animations",
+  "name": "No Animations",
+  "description": "Disable heavy animations to reduce CPU and memory pressure.",
+  "enabled": true,
+  "matches": [
+    "<all_urls>"
+  ],
+  "permissions": [
+    "content:dom_read",
+    "content:dom_write"
+  ],
+  "scripts": [
+    "no-animations.js"
+  ]
+}

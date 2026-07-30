@@ -1,0 +1,13 @@
+{
+  "id": "night-reader",
+  "name": "夜间阅读",
+  "description": "示例内容脚本插件：文档创建时向匹配页面注入夜间反色阅读样式（图片/视频二次反转还原）。默认关闭，可在设置的插件页启用。",
+  "enabled": false,
+  "permissions": ["content:inject"],
+  "contentScripts": [
+    {
+      "matches": ["<all_urls>"],
+      "scripts": ["night-reader.js"]
+    }
+  ]
+}
