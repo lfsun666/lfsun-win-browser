@@ -486,15 +486,18 @@ public sealed class BrowserConfig
             CreateToolbarButton(ToolbarButtonIds.Refresh, "刷新", 2),
             CreateToolbarButton(ToolbarButtonIds.NewTab, "新建标签", 3),
             CreateToolbarButton(ToolbarButtonIds.CloseTab, "关闭标签", 4),
-            CreateToolbarButton(ToolbarButtonIds.Downloads, "下载管理", 5),
-            CreateToolbarButton(ToolbarButtonIds.History, "历史", 6),
-            CreateToolbarButton(ToolbarButtonIds.Bookmark, "收藏当前页", 7),
-            CreateToolbarButton(ToolbarButtonIds.BookmarkBar, "书签栏开关", 8),
-            CreateToolbarButton(ToolbarButtonIds.Settings, "设置", 9),
-            CreateToolbarButton(ToolbarButtonIds.SearchEngine, "搜索引擎", 10),
-            CreateToolbarButton(ToolbarButtonIds.Appearance, "外观", 11),
-            CreateToolbarButton(ToolbarButtonIds.Plugins, "插件", 12),
-            CreateToolbarButton(ToolbarButtonIds.DevTools, "开发者工具", 13)
+            // 中文注释：多开窗口按钮默认放在地址栏左侧（紧跟新建/关闭标签），
+            // 因为地址栏是弹簧控件会占满剩余宽度，排在其右侧的按钮容易被挤进溢出菜单看不到。
+            CreateToolbarButton(ToolbarButtonIds.MultiWindow, "多开窗口", 5),
+            CreateToolbarButton(ToolbarButtonIds.Downloads, "下载管理", 6),
+            CreateToolbarButton(ToolbarButtonIds.History, "历史", 7),
+            CreateToolbarButton(ToolbarButtonIds.Bookmark, "收藏当前页", 8),
+            CreateToolbarButton(ToolbarButtonIds.BookmarkBar, "书签栏开关", 9),
+            CreateToolbarButton(ToolbarButtonIds.Settings, "设置", 10),
+            CreateToolbarButton(ToolbarButtonIds.SearchEngine, "搜索引擎", 11),
+            CreateToolbarButton(ToolbarButtonIds.Appearance, "外观", 12),
+            CreateToolbarButton(ToolbarButtonIds.Plugins, "插件", 13),
+            CreateToolbarButton(ToolbarButtonIds.DevTools, "开发者工具", 14)
         ];
     }
 

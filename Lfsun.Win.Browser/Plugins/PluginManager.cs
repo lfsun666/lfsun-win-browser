@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization.Metadata;
+using System.Text.RegularExpressions;
 using Lfsun.Win.Browser.Core;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
@@ -27,6 +28,14 @@ public sealed class PluginManager
     private bool _enforcePermissions;
     private HashSet<string> _allowedPermissions = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<PluginRuntime> _plugins = new();
+
+    // 中文注释：已注册插件桥的 WebView（弱引用），storage 变更时向其他页面广播 onChanged。
+    private readonly List<WeakReference<CoreWebView2>> _bridgedWebViews = new();
+
+    // 中文注释：探测“手动运行触发事件”的正则：脚本里 document/window.addEventListener('xxx:fill' 或 'xxx:run')。
+    private static readonly Regex RunEventListenerRegex = new(
+        @"(?:document|window)\.addEventListener\(\s*['""]([\w.-]+:(?:fill|run))['""]",
+        RegexOptions.Compiled);
 
     public PluginManager(string pluginsRoot, BrowserConfig config, Action<string> log)
     {
@@ -150,7 +159,11 @@ public sealed class PluginManager
                     continue;
                 }
 
-                _plugins.Add(new PluginRuntime(manifest, scripts, contentScriptGroups));
+                // 中文注释：快捷键/选项页优先取 manifest 声明，缺省回退解析 manifest.chrome.json。
+                var (runShortcut, optionsPage) = ResolvePluginExtras(manifest, pluginDirectory);
+                _plugins.Add(new PluginRuntime(manifest, scripts, contentScriptGroups,
+                    ResolveRunEvents(manifest, scripts, contentScriptGroups),
+                    runShortcut, pluginDirectory, optionsPage));
             }
             catch (Exception ex)
             {
@@ -195,6 +208,7 @@ public sealed class PluginManager
                     .ToArray();
 
                 var status = BuildLoadStatus(manifest, requestedPermissions);
+                var (runShortcut, optionsPage) = ResolvePluginExtras(manifest, pluginDirectory);
                 list.Add(new PluginPackageInfo
                 {
                     Id = manifest.Id,
@@ -205,7 +219,9 @@ public sealed class PluginManager
                     ManifestPath = manifestPath,
                     Permissions = requestedPermissions,
                     IsLoadable = status == "可加载",
-                    LoadStatus = status
+                    LoadStatus = status,
+                    RunShortcut = runShortcut,
+                    OptionsPage = optionsPage
                 });
             }
             catch (Exception ex)
@@ -378,7 +394,7 @@ public sealed class PluginManager
             {
                 try
                 {
-                    await webView.ExecuteScriptAsync(scriptBody);
+                    await webView.ExecuteScriptAsync(BuildChromeScopedScript(plugin.Manifest.Id, scriptBody));
                 }
                 catch (Exception ex)
                 {
@@ -394,6 +410,19 @@ public sealed class PluginManager
     /// </summary>
     public async Task RegisterContentScriptsAsync(CoreWebView2 coreWebView)
     {
+        // 中文注释：先注册 chrome.* 兼容桥（storage 持久化/插件快捷键/选项页识别），
+        // 内容脚本靠它读取 chrome.storage 配置，必须先于内容脚本执行。
+        try
+        {
+            await coreWebView.AddScriptToExecuteOnDocumentCreatedAsync(BuildBridgeScript());
+            _bridgedWebViews.RemoveAll(reference => !reference.TryGetTarget(out _));
+            _bridgedWebViews.Add(new WeakReference<CoreWebView2>(coreWebView));
+        }
+        catch (Exception ex)
+        {
+            _log($"[插件桥] 注册失败: {ex.Message}");
+        }
+
         foreach (var plugin in _plugins)
         {
             foreach (var group in plugin.ContentScriptGroups)
@@ -403,7 +432,7 @@ public sealed class PluginManager
                     try
                     {
                         await coreWebView.AddScriptToExecuteOnDocumentCreatedAsync(
-                            BuildGuardedContentScript(group.MatchPatternSources, scriptBody));
+                            BuildGuardedContentScript(plugin.Manifest.Id, group.MatchPatternSources, scriptBody));
                     }
                     catch (Exception ex)
                     {
@@ -430,7 +459,7 @@ public sealed class PluginManager
         {
             foreach (var scriptBody in plugin.ScriptBodies)
             {
-                await webView.ExecuteScriptAsync(scriptBody);
+                await webView.ExecuteScriptAsync(BuildChromeScopedScript(plugin.Manifest.Id, scriptBody));
                 executed++;
             }
 
@@ -438,10 +467,14 @@ public sealed class PluginManager
             {
                 foreach (var scriptBody in group.ScriptBodies)
                 {
-                    await webView.ExecuteScriptAsync(scriptBody);
+                    await webView.ExecuteScriptAsync(BuildChromeScopedScript(plugin.Manifest.Id, scriptBody));
                     executed++;
                 }
             }
+
+            // 中文注释：内容脚本通常只注册监听器且带防重复守卫，重复执行是空操作；
+            // 真正的动作要靠“运行事件”触发：派发声明/探测到的事件 + 通用 lfsun-plugin:run。
+            await webView.ExecuteScriptAsync(BuildRunEventDispatchScript(plugin));
         }
         catch (Exception ex)
         {
@@ -449,19 +482,597 @@ public sealed class PluginManager
             return (false, ex.Message);
         }
 
-        return executed > 0 ? (true, string.Empty) : (false, "插件没有可执行的脚本");
+        return executed > 0 || plugin.RunEvents.Count > 0
+            ? (true, string.Empty)
+            : (false, "插件没有可执行的脚本");
+    }
+
+    // 中文注释：已加载插件的手动运行快捷键绑定（供主窗体在工具栏/地址栏聚焦时匹配触发）。
+    public IReadOnlyList<(string Id, string Name, string Shortcut)> GetRunShortcutBindings()
+    {
+        return _plugins
+            .Where(plugin => !string.IsNullOrWhiteSpace(plugin.RunShortcut))
+            .Select(plugin => (
+                plugin.Manifest.Id,
+                string.IsNullOrWhiteSpace(plugin.Manifest.Name) ? plugin.Manifest.Id : plugin.Manifest.Name,
+                plugin.RunShortcut))
+            .ToArray();
+    }
+
+    // 中文注释：生成“运行事件”派发脚本：先派发插件声明/探测到的事件，再派发通用 lfsun-plugin:run。
+    private static string BuildRunEventDispatchScript(PluginRuntime plugin)
+    {
+        var names = plugin.RunEvents
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        names.Add("lfsun-plugin:run");
+        var nameArray = string.Join(", ", names.Select(name => JsonSerializer.Serialize(name)));
+        var pluginIdLiteral = JsonSerializer.Serialize(plugin.Manifest.Id);
+        return "(function () {\n" +
+               $"    var __lpNames = [{nameArray}];\n" +
+               $"    var __lpDetail = {{ pluginId: {pluginIdLiteral} }};\n" +
+               "    __lpNames.forEach(function (n) {\n" +
+               "        try { document.dispatchEvent(new CustomEvent(n, { detail: __lpDetail })); } catch (e) {}\n" +
+               "    });\n" +
+               "})();";
+    }
+
+    // 中文注释：确定插件的运行事件：manifest 显式声明优先，否则扫描脚本源码里的触发监听器。
+    private static string[] ResolveRunEvents(
+        PluginManifest manifest,
+        IEnumerable<string> scriptBodies,
+        IEnumerable<PluginContentScriptGroup> contentScriptGroups)
+    {
+        if (!string.IsNullOrWhiteSpace(manifest.RunEvent))
+        {
+            return new[] { manifest.RunEvent.Trim() };
+        }
+
+        var detected = new List<string>();
+        foreach (var body in scriptBodies.Concat(contentScriptGroups.SelectMany(group => group.ScriptBodies)))
+        {
+            foreach (Match match in RunEventListenerRegex.Matches(body))
+            {
+                var name = match.Groups[1].Value;
+                if (!detected.Contains(name, StringComparer.Ordinal))
+                {
+                    detected.Add(name);
+                }
+            }
+        }
+
+        return detected.ToArray();
     }
 
     // 中文注释：生成带地址守卫的包裹脚本；正则源串用 JSON 序列化转 JS 字符串字面量，避免转义问题。
-    private static string BuildGuardedContentScript(string[] patternSources, string scriptBody)
+    // 包裹内声明局部 chrome 变量指向本插件专属垫片，让扩展的 chrome.storage 等调用直接可用。
+    private static string BuildGuardedContentScript(string pluginId, string[] patternSources, string scriptBody)
     {
         var patternArray = string.Join(", ", patternSources.Select(source => JsonSerializer.Serialize(source)));
+        var idLiteral = JsonSerializer.Serialize(pluginId);
         return "(function () {\n" +
                $"    var __lpPatterns = [{patternArray}];\n" +
                "    var __lpHref = window.location.href;\n" +
                "    if (!__lpPatterns.some(function (p) { try { return new RegExp(p, 'i').test(__lpHref); } catch (e) { return false; } })) { return; }\n" +
+               $"    var chrome = window.__lfsunChromeFor ? window.__lfsunChromeFor({idLiteral}) : (window.chrome || {{}});\n" +
                scriptBody + "\n" +
                "})();";
+    }
+
+    // 中文注释：手动运行/地址匹配注入时的包裹：同样提供本插件专属 chrome 垫片。
+    private static string BuildChromeScopedScript(string pluginId, string scriptBody)
+    {
+        var idLiteral = JsonSerializer.Serialize(pluginId);
+        return "(function () {\n" +
+               $"    var chrome = window.__lfsunChromeFor ? window.__lfsunChromeFor({idLiteral}) : (window.chrome || {{}});\n" +
+               scriptBody + "\n" +
+               "})();";
+    }
+
+    // 中文注释：chrome.* 兼容桥模板：__BASES__/__BINDINGS__ 由 BuildBridgeScript 注入。
+    // 提供 chrome.storage.sync/local（经 WebMessage 持久化到插件目录 .storage.json）、
+    // storage.onChanged、runtime.getURL/openOptionsPage、tabs.create，
+    // 并处理插件快捷键（页面聚焦时窗体收不到按键，这里直接派发运行事件）与选项页全局 chrome 挂载。
+    private const string BridgeScriptTemplate = """
+        (function () {
+            if (window.__lfsunPluginBridgeInstalled) { return; }
+            window.__lfsunPluginBridgeInstalled = true;
+            var bases = __BASES__;
+            var bindings = __BINDINGS__;
+            var host = (window.chrome && window.chrome.webview) ? window.chrome.webview : null;
+            var caches = {};
+            var pending = {};
+            var listeners = {};
+            var seq = 0;
+            function post(msg) { if (host) { try { host.postMessage(msg); } catch (e) {} } }
+            if (host) {
+                host.addEventListener('message', function (e) {
+                    var m = e.data;
+                    if (!m || typeof m !== 'object') { return; }
+                    if (m.type === 'lfsun-plugin-storage-data') {
+                        caches[m.pluginId] = m.data || {};
+                        var cb = pending[m.reqId];
+                        delete pending[m.reqId];
+                        if (cb) { cb(caches[m.pluginId]); }
+                    } else if (m.type === 'lfsun-plugin-storage-changed') {
+                        caches[m.pluginId] = m.data || {};
+                        (listeners[m.pluginId] || []).forEach(function (fn) {
+                            try { fn(m.changes || {}, 'sync'); } catch (e2) {}
+                        });
+                    }
+                });
+            }
+            function load(pluginId, cb) {
+                if (caches[pluginId]) { cb(caches[pluginId]); return; }
+                if (!host) { caches[pluginId] = {}; cb(caches[pluginId]); return; }
+                var reqId = 'r' + (++seq);
+                pending[reqId] = cb;
+                post({ type: 'lfsun-plugin-storage-get', pluginId: pluginId, reqId: reqId });
+            }
+            window.__lfsunChromeFor = function (pluginId) {
+                function getItems(keys, cb) {
+                    load(pluginId, function (data) {
+                        var out = {};
+                        if (keys === null || keys === undefined) {
+                            Object.keys(data).forEach(function (k) { out[k] = data[k]; });
+                        } else if (typeof keys === 'string') {
+                            if (data[keys] !== undefined) { out[keys] = data[keys]; }
+                        } else if (Array.isArray(keys)) {
+                            keys.forEach(function (k) { if (data[k] !== undefined) { out[k] = data[k]; } });
+                        } else {
+                            Object.keys(keys).forEach(function (k) { out[k] = data[k] !== undefined ? data[k] : keys[k]; });
+                        }
+                        if (cb) { cb(out); }
+                    });
+                }
+                function setItems(items, cb) {
+                    load(pluginId, function (data) {
+                        var changes = {};
+                        Object.keys(items || {}).forEach(function (k) {
+                            changes[k] = { oldValue: data[k], newValue: items[k] };
+                            data[k] = items[k];
+                        });
+                        post({ type: 'lfsun-plugin-storage-set', pluginId: pluginId, items: items || {} });
+                        (listeners[pluginId] || []).forEach(function (fn) { try { fn(changes, 'sync'); } catch (e) {} });
+                        if (cb) { cb(); }
+                    });
+                }
+                function removeItems(keys, cb) {
+                    load(pluginId, function (data) {
+                        var list = typeof keys === 'string' ? [keys] : (keys || []);
+                        list.forEach(function (k) { delete data[k]; });
+                        post({ type: 'lfsun-plugin-storage-remove', pluginId: pluginId, keys: list });
+                        if (cb) { cb(); }
+                    });
+                }
+                var area = { get: getItems, set: setItems, remove: removeItems };
+                return {
+                    storage: {
+                        sync: area,
+                        local: area,
+                        onChanged: {
+                            addListener: function (fn) { (listeners[pluginId] = listeners[pluginId] || []).push(fn); }
+                        }
+                    },
+                    runtime: {
+                        onMessage: { addListener: function () {} },
+                        getURL: function (p) { return (bases[pluginId] || '') + (p || ''); },
+                        openOptionsPage: function () { post({ type: 'lfsun-plugin-open-options', pluginId: pluginId }); }
+                    },
+                    tabs: {
+                        create: function (opts) { post({ type: 'lfsun-plugin-open-url', pluginId: pluginId, url: (opts && opts.url) || '' }); },
+                        query: function (q, cb) { if (cb) { cb([]); } }
+                    }
+                };
+            };
+            if (bindings.length > 0) {
+                document.addEventListener('keydown', function (e) {
+                    for (var i = 0; i < bindings.length; i++) {
+                        var b = bindings[i];
+                        if ((e.ctrlKey || e.metaKey) === !!b.ctrl && e.shiftKey === !!b.shift && e.altKey === !!b.alt &&
+                            (e.key || '').toUpperCase() === b.key) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            (b.events || []).forEach(function (n) {
+                                try { document.dispatchEvent(new CustomEvent(n, { detail: { pluginId: b.id } })); } catch (err) {}
+                            });
+                            return;
+                        }
+                    }
+                }, true);
+            }
+            var href = window.location.href.toLowerCase();
+            Object.keys(bases).forEach(function (id) {
+                if (bases[id] && href.indexOf(bases[id].toLowerCase()) === 0) {
+                    var shim = window.__lfsunChromeFor(id);
+                    var c = window.chrome = window.chrome || {};
+                    c.storage = shim.storage;
+                    c.tabs = shim.tabs;
+                    c.runtime = c.runtime || {};
+                    c.runtime.onMessage = shim.runtime.onMessage;
+                    c.runtime.getURL = shim.runtime.getURL;
+                    c.runtime.openOptionsPage = shim.runtime.openOptionsPage;
+                }
+            });
+        })();
+        """;
+
+    // 中文注释：按已加载插件生成桥脚本：file:// 基地址表（选项页识别）+ 快捷键绑定表。
+    private string BuildBridgeScript()
+    {
+        var bases = new JsonObject();
+        var bindings = new JsonArray();
+        foreach (var plugin in _plugins)
+        {
+            if (!string.IsNullOrEmpty(plugin.DirectoryPath))
+            {
+                var normalized = plugin.DirectoryPath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                bases[plugin.Manifest.Id] = new Uri(normalized).AbsoluteUri;
+            }
+
+            if (TryParseShortcutParts(plugin.RunShortcut, out var ctrl, out var shift, out var alt, out var key))
+            {
+                var events = new JsonArray();
+                foreach (var name in plugin.RunEvents)
+                {
+                    events.Add(name);
+                }
+
+                bindings.Add(new JsonObject
+                {
+                    ["id"] = plugin.Manifest.Id,
+                    ["ctrl"] = ctrl,
+                    ["shift"] = shift,
+                    ["alt"] = alt,
+                    ["key"] = key,
+                    ["events"] = events
+                });
+            }
+        }
+
+        return BridgeScriptTemplate
+            .Replace("__BASES__", bases.ToJsonString())
+            .Replace("__BINDINGS__", bindings.ToJsonString());
+    }
+
+    // 中文注释：解析快捷键文本为修饰键 + 主键（大写），供桥脚本按 KeyboardEvent 匹配；
+    // 无修饰键的裸键不注册，避免正常打字误触发。
+    internal static bool TryParseShortcutParts(string shortcut, out bool ctrl, out bool shift, out bool alt, out string key)
+    {
+        ctrl = shift = alt = false;
+        key = string.Empty;
+        if (string.IsNullOrWhiteSpace(shortcut))
+        {
+            return false;
+        }
+
+        foreach (var token in shortcut.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            switch (token.ToUpperInvariant())
+            {
+                case "CTRL" or "CONTROL" or "MACCTRL" or "COMMAND" or "CMD":
+                    ctrl = true;
+                    break;
+                case "SHIFT":
+                    shift = true;
+                    break;
+                case "ALT":
+                    alt = true;
+                    break;
+                default:
+                    key = token.ToUpperInvariant();
+                    break;
+            }
+        }
+
+        return key.Length > 0 && (ctrl || alt);
+    }
+
+    // 中文注释：处理页面桥消息（storage 读写/打开选项页或链接）；pluginId 必须命中已加载插件，杜绝路径穿越。
+    public async Task HandleBridgeMessageAsync(CoreWebView2 sender, string messageJson, Func<Uri, Task>? openUrlInNewTab)
+    {
+        try
+        {
+            if (JsonNode.Parse(messageJson) is not JsonObject message)
+            {
+                return;
+            }
+
+            var type = message["type"]?.GetValue<string>() ?? string.Empty;
+            if (!type.StartsWith("lfsun-plugin-", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var pluginId = message["pluginId"]?.GetValue<string>() ?? string.Empty;
+            var plugin = _plugins.FirstOrDefault(p =>
+                string.Equals(p.Manifest.Id, pluginId, StringComparison.OrdinalIgnoreCase));
+            if (plugin is null)
+            {
+                return;
+            }
+
+            switch (type)
+            {
+                case "lfsun-plugin-storage-get":
+                {
+                    var reply = new JsonObject
+                    {
+                        ["type"] = "lfsun-plugin-storage-data",
+                        ["pluginId"] = plugin.Manifest.Id,
+                        ["reqId"] = message["reqId"]?.GetValue<string>() ?? string.Empty,
+                        ["data"] = LoadStorageObject(plugin.Manifest.Id)
+                    };
+                    sender.PostWebMessageAsJson(reply.ToJsonString());
+                    break;
+                }
+
+                case "lfsun-plugin-storage-set":
+                {
+                    if (message["items"] is not JsonObject items)
+                    {
+                        break;
+                    }
+
+                    var (data, changes) = MergeStorage(plugin.Manifest.Id, items);
+                    BroadcastStorageChanged(sender, plugin.Manifest.Id, data, changes);
+                    break;
+                }
+
+                case "lfsun-plugin-storage-remove":
+                {
+                    if (message["keys"] is not JsonArray keys)
+                    {
+                        break;
+                    }
+
+                    var (data, changes) = RemoveStorageKeys(plugin.Manifest.Id, keys);
+                    BroadcastStorageChanged(sender, plugin.Manifest.Id, data, changes);
+                    break;
+                }
+
+                case "lfsun-plugin-open-options":
+                {
+                    if (openUrlInNewTab is not null && TryBuildPluginPageUri(plugin, plugin.OptionsPage, out var optionsUri))
+                    {
+                        await openUrlInNewTab(optionsUri);
+                    }
+
+                    break;
+                }
+
+                case "lfsun-plugin-open-url":
+                {
+                    if (openUrlInNewTab is null)
+                    {
+                        break;
+                    }
+
+                    var raw = message["url"]?.GetValue<string>() ?? string.Empty;
+                    if (Uri.TryCreate(raw, UriKind.Absolute, out var absolute) && !absolute.IsFile)
+                    {
+                        await openUrlInNewTab(absolute);
+                    }
+                    else if (TryBuildPluginPageUri(plugin, raw, out var pageUri))
+                    {
+                        await openUrlInNewTab(pageUri);
+                    }
+
+                    break;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _log($"[插件桥] 处理消息失败: {ex.Message}");
+        }
+    }
+
+    // 中文注释：把插件内相对路径（可带 #锚点）转换为 file:// 地址；文件必须真实存在于插件目录内。
+    private static bool TryBuildPluginPageUri(PluginRuntime plugin, string relativePath, out Uri uri)
+    {
+        uri = null!;
+        if (string.IsNullOrWhiteSpace(relativePath) || string.IsNullOrEmpty(plugin.DirectoryPath))
+        {
+            return false;
+        }
+
+        var hashIndex = relativePath.IndexOf('#');
+        var filePart = hashIndex >= 0 ? relativePath[..hashIndex] : relativePath;
+        var fragment = hashIndex >= 0 ? relativePath[hashIndex..] : string.Empty;
+        var fullPath = Path.GetFullPath(Path.Combine(plugin.DirectoryPath, filePart));
+        if (!fullPath.StartsWith(Path.GetFullPath(plugin.DirectoryPath), StringComparison.OrdinalIgnoreCase) ||
+            !File.Exists(fullPath))
+        {
+            return false;
+        }
+
+        uri = new Uri(new Uri(fullPath).AbsoluteUri + fragment);
+        return true;
+    }
+
+    // 中文注释：插件 chrome.storage 持久化文件（插件目录下 .storage.json，卸载时一并清理）。
+    private string GetStorageFilePath(string pluginId) => Path.Combine(_pluginsRoot, pluginId, ".storage.json");
+
+    private JsonObject LoadStorageObject(string pluginId)
+    {
+        try
+        {
+            var path = GetStorageFilePath(pluginId);
+            if (File.Exists(path) && JsonNode.Parse(File.ReadAllText(path)) is JsonObject data)
+            {
+                return data;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log($"[插件:{pluginId}] 读取存储失败: {ex.Message}");
+        }
+
+        return new JsonObject();
+    }
+
+    private void SaveStorageObject(string pluginId, JsonObject data)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(_pluginsRoot, pluginId));
+            File.WriteAllText(GetStorageFilePath(pluginId), data.ToJsonString(ManifestWriteOptions));
+        }
+        catch (Exception ex)
+        {
+            _log($"[插件:{pluginId}] 保存存储失败: {ex.Message}");
+        }
+    }
+
+    private (JsonObject Data, JsonObject Changes) MergeStorage(string pluginId, JsonObject items)
+    {
+        var data = LoadStorageObject(pluginId);
+        var changes = new JsonObject();
+        foreach (var (key, value) in items)
+        {
+            changes[key] = new JsonObject
+            {
+                ["oldValue"] = data[key]?.DeepClone(),
+                ["newValue"] = value?.DeepClone()
+            };
+            data[key] = value?.DeepClone();
+        }
+
+        SaveStorageObject(pluginId, data);
+        return (data, changes);
+    }
+
+    private (JsonObject Data, JsonObject Changes) RemoveStorageKeys(string pluginId, JsonArray keys)
+    {
+        var data = LoadStorageObject(pluginId);
+        var changes = new JsonObject();
+        foreach (var keyNode in keys)
+        {
+            var key = keyNode?.GetValue<string>();
+            if (string.IsNullOrEmpty(key) || data[key] is null)
+            {
+                continue;
+            }
+
+            changes[key] = new JsonObject { ["oldValue"] = data[key]?.DeepClone() };
+            data.Remove(key);
+        }
+
+        SaveStorageObject(pluginId, data);
+        return (data, changes);
+    }
+
+    // 中文注释：storage 变更后广播给其他标签页（发起页已在本地应用并触发过 onChanged）。
+    private void BroadcastStorageChanged(CoreWebView2? sender, string pluginId, JsonObject data, JsonObject changes)
+    {
+        var payload = new JsonObject
+        {
+            ["type"] = "lfsun-plugin-storage-changed",
+            ["pluginId"] = pluginId,
+            ["data"] = data.DeepClone(),
+            ["changes"] = changes.DeepClone()
+        }.ToJsonString();
+
+        _bridgedWebViews.RemoveAll(reference => !reference.TryGetTarget(out _));
+        foreach (var reference in _bridgedWebViews)
+        {
+            if (!reference.TryGetTarget(out var webView) || ReferenceEquals(webView, sender))
+            {
+                continue;
+            }
+
+            try
+            {
+                webView.PostWebMessageAsJson(payload);
+            }
+            catch
+            {
+                // 中文注释：目标 WebView 可能已释放，忽略。
+            }
+        }
+    }
+
+    // 中文注释：快捷键/选项页解析：manifest 声明优先，缺省回退 manifest.chrome.json（转换安装保留的原始清单）；
+    // 选项页文件不存在时视为无效，避免菜单出现死链接。
+    private static (string RunShortcut, string OptionsPage) ResolvePluginExtras(PluginManifest manifest, string pluginDirectory)
+    {
+        var shortcut = manifest.RunShortcut?.Trim() ?? string.Empty;
+        var optionsPage = manifest.OptionsPage?.Trim() ?? string.Empty;
+        if (shortcut.Length == 0 || optionsPage.Length == 0)
+        {
+            var companionPath = Path.Combine(pluginDirectory, "manifest.chrome.json");
+            if (File.Exists(companionPath))
+            {
+                try
+                {
+                    if (JsonNode.Parse(File.ReadAllText(companionPath)) is JsonObject chromeRoot)
+                    {
+                        var (chromeShortcut, chromeOptions) = ParseChromeExtras(chromeRoot);
+                        if (shortcut.Length == 0)
+                        {
+                            shortcut = chromeShortcut;
+                        }
+
+                        if (optionsPage.Length == 0)
+                        {
+                            optionsPage = chromeOptions;
+                        }
+                    }
+                }
+                catch
+                {
+                    // 中文注释：原始清单损坏时按未声明处理。
+                }
+            }
+        }
+
+        if (optionsPage.Length > 0 && !File.Exists(Path.Combine(pluginDirectory, optionsPage)))
+        {
+            optionsPage = string.Empty;
+        }
+
+        return (shortcut, optionsPage);
+    }
+
+    // 中文注释：从 Chrome 清单解析快捷键（commands.suggested_key.default，跳过 _execute_action）与选项页。
+    private static (string RunShortcut, string OptionsPage) ParseChromeExtras(JsonObject chromeRoot)
+    {
+        var shortcut = string.Empty;
+        var optionsPage = string.Empty;
+        try
+        {
+            if (chromeRoot["commands"] is JsonObject commands)
+            {
+                foreach (var (commandName, commandNode) in commands)
+                {
+                    if (string.Equals(commandName, "_execute_action", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(commandName, "_execute_browser_action", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var suggested = commandNode?["suggested_key"]?["default"]?.GetValue<string>();
+                    if (!string.IsNullOrWhiteSpace(suggested))
+                    {
+                        shortcut = suggested.Trim();
+                        break;
+                    }
+                }
+            }
+
+            optionsPage = chromeRoot["options_ui"]?["page"]?.GetValue<string>()?.Trim()
+                          ?? chromeRoot["options_page"]?.GetValue<string>()?.Trim()
+                          ?? string.Empty;
+        }
+        catch
+        {
+            // 中文注释：清单字段类型异常时按未声明处理。
+        }
+
+        return (shortcut, optionsPage);
     }
 
     private string BuildLoadStatus(PluginManifest manifest, string[] requestedPermissions)
@@ -612,6 +1223,15 @@ public sealed class PluginManager
                 return false;
             }
 
+            // 中文注释：从内容脚本源码探测手动运行触发事件，显式写入转换清单便于查看/修改。
+            var runEvent = DetectRunEventFromFiles(sourceDirectory, contentScripts);
+            // 中文注释：同步转换快捷键（commands）与选项页（options_ui/options_page）声明。
+            var (runShortcut, optionsPage) = ParseChromeExtras(root);
+            if (optionsPage.Length > 0 && !File.Exists(Path.Combine(sourceDirectory, optionsPage)))
+            {
+                optionsPage = string.Empty;
+            }
+
             var pluginId = BuildPluginIdFromName(name);
             var targetDirectory = Path.Combine(_pluginsRoot, pluginId);
             if (!TryClearBrokenPluginDirectory(targetDirectory))
@@ -633,6 +1253,20 @@ public sealed class PluginManager
                 ["permissions"] = new JsonArray("content:dom_read", "content:dom_write", ContentInjectPermission),
                 ["contentScripts"] = contentScripts
             };
+            if (!string.IsNullOrEmpty(runEvent))
+            {
+                converted["runEvent"] = runEvent;
+            }
+
+            if (!string.IsNullOrEmpty(runShortcut))
+            {
+                converted["runShortcut"] = runShortcut;
+            }
+
+            if (!string.IsNullOrEmpty(optionsPage))
+            {
+                converted["optionsPage"] = optionsPage;
+            }
 
             try
             {
@@ -663,6 +1297,41 @@ public sealed class PluginManager
         }
     }
 
+    // 中文注释：扫描待安装扩展的内容脚本文件，探测手动运行触发事件（首个命中即用）。
+    private static string DetectRunEventFromFiles(string sourceDirectory, JsonArray contentScripts)
+    {
+        foreach (var groupNode in contentScripts)
+        {
+            if (groupNode is not JsonObject group || group["scripts"] is not JsonArray scripts)
+            {
+                continue;
+            }
+
+            foreach (var script in scripts)
+            {
+                var scriptFile = script?.GetValue<string>();
+                if (string.IsNullOrWhiteSpace(scriptFile))
+                {
+                    continue;
+                }
+
+                var path = Path.Combine(sourceDirectory, scriptFile);
+                if (!File.Exists(path))
+                {
+                    continue;
+                }
+
+                var match = RunEventListenerRegex.Match(File.ReadAllText(path));
+                if (match.Success)
+                {
+                    return match.Groups[1].Value;
+                }
+            }
+        }
+
+        return string.Empty;
+    }
+
     // 中文注释：从扩展名称派生插件目录 id：小写化，仅保留字母数字，其余折叠为连字符。
     private static string BuildPluginIdFromName(string name)
     {
@@ -683,4 +1352,3 @@ public sealed class PluginManager
         return string.IsNullOrEmpty(id) ? $"imported-{Guid.NewGuid():N}"[..17] : id;
     }
 }
-

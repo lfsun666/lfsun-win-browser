@@ -19,5 +19,6 @@ public static class ToolbarButtonIds
     public const string SearchEngine = "searchEngine";
     public const string Appearance = "appearance";
     public const string Plugins = "plugins";
+    public const string MultiWindow = "multiWindow";
     public const string DevTools = "devTools";
 }

@@ -450,19 +450,36 @@ public sealed class BrowserTab : IAsyncDisposable
         await _pluginManager.RegisterContentScriptsAsync(_webView.CoreWebView2);
         _webView.CoreWebView2.WebMessageReceived += (_, args) =>
         {
-            string? message;
+            string? message = null;
             try
             {
                 message = args.TryGetWebMessageAsString();
             }
             catch
             {
-                return;
+                // 中文注释：非字符串消息（插件桥 JSON）继续走下方分支处理。
             }
 
             if (string.Equals(message, PagePointerBridgeMessage, StringComparison.Ordinal))
             {
                 SurfaceInteracted?.Invoke(this);
+                return;
+            }
+
+            // 中文注释：插件 chrome.* 桥消息（storage 读写/打开选项页/新标签）转交插件管理器。
+            try
+            {
+                var bridgeJson = args.WebMessageAsJson;
+                if (!string.IsNullOrEmpty(bridgeJson) &&
+                    bridgeJson.Contains("lfsun-plugin-", StringComparison.Ordinal) &&
+                    _webView?.CoreWebView2 is { } coreForBridge)
+                {
+                    _ = _pluginManager.HandleBridgeMessageAsync(coreForBridge, bridgeJson, NewTabRequested);
+                }
+            }
+            catch
+            {
+                // 中文注释：桥消息解析失败忽略，不影响页面。
             }
         };
         _downloadManager.AttachTo(_webView.CoreWebView2);

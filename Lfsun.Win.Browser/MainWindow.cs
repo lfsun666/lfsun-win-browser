@@ -68,6 +68,7 @@ public sealed class MainWindow : Form
     private readonly ToolStripButton _devToolsButton = new("开发者工具");
     private readonly ToolStripDropDownButton _searchEngineButton = new("搜索:Bing");
     private readonly ToolStripDropDownButton _appearanceButton = new("外观");
+    private readonly ToolStripDropDownButton _multiWindowButton = new("多开窗口");
     private readonly ToolStripDropDownButton _recentTabsButton = new("最近关闭");
     private readonly ToolStripDropDownButton _sessionButton = new("会话");
     private readonly ToolStripDropDownButton _tabQuickButton = new("当前标签");
@@ -436,6 +437,7 @@ public sealed class MainWindow : Form
         BuildBookmarkContextMenu();
         BuildTabContextMenu();
         BuildWindowModeContextMenu();
+        BuildMultiWindowMenu();
         BuildAddressContextMenu();
         LoadPinnedAddressCommandsFromConfig();
         LoadRecentAddressCommandsFromConfig();
@@ -701,6 +703,37 @@ public sealed class MainWindow : Form
         _windowCtxOpenShared.Click += (_, _) => LaunchBrowserProcess(isPrivateWindow: false, useCurrentProfile: true);
     }
 
+    // 中文注释：工具栏“多开窗口”下拉菜单，与标题栏右键菜单同功能，但更易发现（菜单项不能共用于两个宿主，故单独创建）。
+    private void BuildMultiWindowMenu()
+    {
+        _multiWindowButton.DropDownItems.Clear();
+
+        var openIsolated = new ToolStripMenuItem("新开独立双开浏览器")
+        {
+            ShortcutKeyDisplayString = "Ctrl+Shift+M",
+            ToolTipText = "全新独立数据目录，Cookie/登录态与当前窗口互不共享，退出后数据保留"
+        };
+        openIsolated.Click += (_, _) => LaunchBrowserProcess(isPrivateWindow: false, useCurrentProfile: false);
+        _multiWindowButton.DropDownItems.Add(openIsolated);
+
+        var openShared = new ToolStripMenuItem("新开共享双开浏览器")
+        {
+            ToolTipText = "与当前窗口共用同一份数据（同一登录态）"
+        };
+        openShared.Click += (_, _) => LaunchBrowserProcess(isPrivateWindow: false, useCurrentProfile: true);
+        _multiWindowButton.DropDownItems.Add(openShared);
+
+        _multiWindowButton.DropDownItems.Add(new ToolStripSeparator());
+
+        var openPrivate = new ToolStripMenuItem("新开无痕浏览器")
+        {
+            ShortcutKeyDisplayString = "Ctrl+Shift+N",
+            ToolTipText = "临时数据目录，关窗自动清除"
+        };
+        openPrivate.Click += (_, _) => LaunchBrowserProcess(isPrivateWindow: true, useCurrentProfile: false);
+        _multiWindowButton.DropDownItems.Add(openPrivate);
+    }
+
     private void BuildAddressContextMenu()
     {
         _addressContextMenu.Items.AddRange(
@@ -781,6 +814,7 @@ public sealed class MainWindow : Form
         _toolbarItemsById[ToolbarButtonIds.SearchEngine] = _searchEngineButton;
         _toolbarItemsById[ToolbarButtonIds.Appearance] = _appearanceButton;
         _toolbarItemsById[ToolbarButtonIds.Plugins] = _pluginButton;
+        _toolbarItemsById[ToolbarButtonIds.MultiWindow] = _multiWindowButton;
         _toolbarItemsById[ToolbarButtonIds.DevTools] = _devToolsButton;
         _toolbarItemsById["commandPalette"] = _commandPaletteButton;
         _toolbarItemsById["tabSwitch"] = _tabSwitchButton;
@@ -1290,6 +1324,7 @@ public sealed class MainWindow : Form
         var insertedAddress = false;
         var insertedAddressTools = false;
         var insertedQuickCluster = false;
+        var insertedPinnedPlugins = false;
         var hasToolbarItem = false;
         var previousGroup = int.MinValue;
 
@@ -1315,6 +1350,8 @@ public sealed class MainWindow : Form
                         pinnedButton.Overflow = ToolStripItemOverflow.AsNeeded;
                         _topBar.Items.Add(pinnedButton);
                     }
+
+                    insertedPinnedPlugins = true;
                 }
 
                 hasToolbarItem = true;
@@ -1342,6 +1379,18 @@ public sealed class MainWindow : Form
                     _topBar.Items.Add(_tabQuickButton);
                     insertedQuickCluster = true;
                 }
+            }
+        }
+
+        // 中文注释：“插件”按钮被隐藏（如只用标题栏插件入口）时，固定的插件快捷按钮也必须上工具栏，
+        // 否则“固定到工具栏”后没有任何可见按钮，仍要钻插件下拉三级菜单才能运行。
+        if (!insertedPinnedPlugins && _pinnedPluginButtons.Count > 0)
+        {
+            AppendTopBarSeparatorIfNeeded();
+            foreach (var pinnedButton in _pinnedPluginButtons)
+            {
+                pinnedButton.Overflow = ToolStripItemOverflow.AsNeeded;
+                _topBar.Items.Add(pinnedButton);
             }
         }
 
@@ -1388,7 +1437,7 @@ public sealed class MainWindow : Form
         return toolbarId?.Trim() switch
         {
             "back" or "forward" or "refresh" => 0,
-            "newTab" or "closeTab" => 1,
+            "newTab" or "closeTab" or "multiWindow" => 1,
             "downloads" or "history" or "bookmark" or "bookmarkBar" => 2,
             "settings" or "searchEngine" or "appearance" or "plugins" or "devTools" => 3,
             _ => 9
@@ -1634,6 +1683,15 @@ public sealed class MainWindow : Form
         _appearanceButton.BackColor = AppTheme.AccentMuted;
         _appearanceButton.ForeColor = AppTheme.TextPrimary;
         _appearanceButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+
+        _multiWindowButton.AutoSize = false;
+        _multiWindowButton.Width = compact ? 96 : 108;
+        _multiWindowButton.Height = compact ? 28 : 32;
+        _multiWindowButton.Margin = new Padding(3, 1, 3, 1);
+        _multiWindowButton.BackColor = AppTheme.AccentMuted;
+        _multiWindowButton.ForeColor = AppTheme.TextPrimary;
+        _multiWindowButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _multiWindowButton.ToolTipText = "多开 / 双开窗口：独立、共享或无痕";
 
         _recentTabsButton.AutoSize = false;
         _recentTabsButton.ToolTipText = "最近关闭标签\n快捷键: Ctrl+Shift+T";
@@ -7411,10 +7469,25 @@ public sealed class MainWindow : Form
             var runItem = new ToolStripMenuItem("▶ 在当前页面运行")
             {
                 Enabled = package.Enabled && package.IsLoadable,
-                ToolTipText = "立即在当前标签页执行该插件脚本"
+                ToolTipText = "立即在当前标签页执行该插件脚本",
+                // 中文注释：展示插件自定义快捷键（如 Ctrl+Shift+V），按键由页面桥/窗体双路径触发。
+                ShortcutKeyDisplayString = string.IsNullOrWhiteSpace(package.RunShortcut) ? null : package.RunShortcut
             };
             runItem.Click += (_, _) => RunPluginOnCurrentPage(pluginId, pluginName);
             item.DropDownItems.Add(runItem);
+
+            // 中文注释：插件声明了选项页（options_ui/options_page 转换而来）时提供“插件选项”入口。
+            if (!string.IsNullOrWhiteSpace(package.OptionsPage))
+            {
+                var pluginDirectory = package.DirectoryPath;
+                var optionsPage = package.OptionsPage;
+                var optionsItem = new ToolStripMenuItem("⚙ 插件选项")
+                {
+                    ToolTipText = "打开该插件的设置页面（自定义规则/个人资料等）"
+                };
+                optionsItem.Click += (_, _) => OpenPluginOptionsPage(pluginDirectory, optionsPage, pluginName);
+                item.DropDownItems.Add(optionsItem);
+            }
 
             var toggleItem = new ToolStripMenuItem(package.Enabled ? "禁用" : "启用");
             toggleItem.Click += (_, _) => TogglePluginEnabled(pluginId, targetEnabled);
@@ -7485,6 +7558,30 @@ public sealed class MainWindow : Form
         {
             ShowToast($"运行失败：{ex.Message}");
             Log($"[插件:{pluginId}] 运行异常: {ex.Message}");
+        }
+    }
+
+    // 中文注释：新标签页打开插件选项页（file:// 地址，桥脚本会按目录前缀自动挂载全局 chrome.storage）。
+    private async void OpenPluginOptionsPage(string pluginDirectory, string optionsPage, string pluginName)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(Path.Combine(pluginDirectory, optionsPage));
+            if (!fullPath.StartsWith(Path.GetFullPath(pluginDirectory), StringComparison.OrdinalIgnoreCase) ||
+                !File.Exists(fullPath))
+            {
+                ShowToast($"未找到插件选项页：{optionsPage}");
+                return;
+            }
+
+            await _tabManager.CreateTabAsync(new Uri(fullPath));
+            RefreshToolbar();
+            RefreshMetrics();
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"打开选项页失败：{ex.Message}");
+            Log($"[插件:{pluginName}] 打开选项页异常: {ex.Message}");
         }
     }
 
@@ -10522,6 +10619,13 @@ public sealed class MainWindow : Form
             return true;
         }
 
+        // 中文注释：独立双开窗口固定快捷键 Ctrl+Shift+M（全新独立 profile，数据不共享），与无痕的 Ctrl+Shift+N 并列。
+        if (eventArgs.Control && eventArgs.Shift && !eventArgs.Alt && eventArgs.KeyCode == Keys.M)
+        {
+            LaunchBrowserProcess(isPrivateWindow: false, useCurrentProfile: false);
+            return true;
+        }
+
         // 中文注释：查看源码固定快捷键 Ctrl+U（开发者向），新标签打开 view-source。
         if (eventArgs.Control && !eventArgs.Shift && !eventArgs.Alt && eventArgs.KeyCode == Keys.U)
         {
@@ -10543,6 +10647,17 @@ public sealed class MainWindow : Form
                 case Keys.D0 or Keys.NumPad0:
                     _tabManager.ActiveTab?.SetZoomFactor(1.0);
                     return true;
+            }
+        }
+
+        // 中文注释：插件自定义快捷键兜底：WebView 未聚焦（工具栏/地址栏）时由窗体触发“在当前页面运行”；
+        // 页面聚焦时由插件桥脚本在页面内直接派发运行事件，两路互补。
+        foreach (var (pluginId, pluginName, shortcut) in _pluginManager.GetRunShortcutBindings())
+        {
+            if (ShortcutParser.TryParse(shortcut, out var pluginKeys) && eventArgs.KeyData == pluginKeys)
+            {
+                RunPluginOnCurrentPage(pluginId, pluginName);
+                return true;
             }
         }
 
@@ -10615,6 +10730,15 @@ public sealed class MainWindow : Form
 
     protected override void OnPaintBackground(PaintEventArgs eventArgs)
     {
+        // 中文注释：窗口最小化或布局早期，ClientRectangle 的宽或高可能为 0，
+        // 此时 LinearGradientBrush / HatchBrush 会抛 ArgumentException（Rectangle ... cannot have a width or height equal to 0），
+        // 被全局异常处理捕获后弹出“浏览器异常”对话框。这里直接回退到基类纯色填充并返回，避免误报。
+        if (ClientRectangle.Width <= 0 || ClientRectangle.Height <= 0)
+        {
+            base.OnPaintBackground(eventArgs);
+            return;
+        }
+
         var startColor = AppTheme.IsDark
             ? AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.16F)
             : AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.08F);

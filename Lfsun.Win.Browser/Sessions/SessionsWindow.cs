@@ -98,6 +98,7 @@ public sealed class SessionsWindow : Form
     private TableLayoutPanel? _headerPanel;
     private TableLayoutPanel? _filterBarPanel;
     private SplitContainer? _contentSplitContainer;
+    private bool _contentSplitInitialized;
     private TableLayoutPanel? _previewPanel;
     private FlowLayoutPanel? _footerButtonsPanel;
 
@@ -413,12 +414,12 @@ public sealed class SessionsWindow : Form
         var content = new SplitContainer
         {
             Dock = DockStyle.Fill,
-            FixedPanel = FixedPanel.Panel2,
-            SplitterDistance = 680
+            FixedPanel = FixedPanel.Panel2
         };
         _contentSplitContainer = content;
-        content.Panel1MinSize = 520;
-        content.Panel2MinSize = 260;
+        // 中文注释：SplitterDistance 与两侧最小宽度必须等控件拿到真实宽度后再设置；
+        // 高 DPI 或窗口偏小时直接写死 680/520/260 会触发“SplitterDistance 必须在…”异常。
+        content.SizeChanged += (_, _) => ApplyContentSplitConstraints();
 
         ConfigureGrid();
         content.Panel1.Controls.Add(_grid);
@@ -668,6 +669,37 @@ public sealed class SessionsWindow : Form
         _footerHintLabel.ForeColor = AppTheme.TextSecondary;
         UpdateQuickFilterButtonsVisual();
         UpdateModeTexts();
+    }
+
+    private void ApplyContentSplitConstraints()
+    {
+        var split = _contentSplitContainer;
+        if (split is null || split.Width <= 0)
+        {
+            return;
+        }
+
+        // 中文注释：按实际宽度收紧两侧最小宽度，宽度不足 520+260 时按比例回退，保证取值永远合法。
+        var available = Math.Max(0, split.Width - split.SplitterWidth);
+        var panel2Min = Math.Min(260, available / 3);
+        var panel1Min = Math.Min(520, Math.Max(0, available - panel2Min));
+        var desired = _contentSplitInitialized ? split.SplitterDistance : 680;
+        desired = Math.Clamp(desired, panel1Min, Math.Max(panel1Min, available - panel2Min));
+
+        // 中文注释：先放宽最小宽度再设置分隔位置，避免调整过程中的临时状态触发范围校验异常。
+        split.Panel1MinSize = 0;
+        split.Panel2MinSize = 0;
+        try
+        {
+            split.SplitterDistance = desired;
+        }
+        catch (InvalidOperationException)
+        {
+            // 中文注释：极端窗口尺寸下兜底忽略，等待下一次 SizeChanged 重新校准。
+        }
+        split.Panel1MinSize = panel1Min;
+        split.Panel2MinSize = panel2Min;
+        _contentSplitInitialized = true;
     }
 
     private void ApplyContentSplitSurface()
