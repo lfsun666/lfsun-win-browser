@@ -36,6 +36,7 @@ static class Program
 
         try
         {
+            Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             ApplicationConfiguration.Initialize();
             var launchOptions = AppLaunchOptions.Parse(args);
             CleanupOrphanPrivateProfiles(launchOptions);

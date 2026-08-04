@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -14,6 +15,19 @@ public sealed class PluginManager
     // 中文注释：内容脚本注入能力对应的权限名。
     public const string ContentInjectPermission = "content:inject";
 
+    // 中文注释：插件跨域抓取权限名；声明后可通过 chrome.net.fetch 让宿主用 HttpClient 发任意请求，
+    // 绕过浏览器的同源/CORS 限制（因为是宿主进程发请求，不受渲染引擎安全策略约束）。
+    public const string NetFetchPermission = "net:fetch";
+
+    // 中文注释：跨域抓取响应体积上限（默认 8MB），超出部分会被截断，避免 WebMessage 负载过大。
+    private const int MaxFetchBytes = 8 * 1024 * 1024;
+    private static readonly HttpClient SharedHttpClient = new() { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+    private static readonly HashSet<string> TextContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "text/", "application/json", "application/xml", "application/javascript",
+        "application/svg+xml", "+xml", "+json"
+    };
+
     // 中文注释：写 manifest.json 用的序列化选项；.NET 8 起 JsonNode.ToJsonString 传入新建的
     // JsonSerializerOptions 时必须显式指定 TypeInfoResolver，否则报
     // “must specify a TypeInfoResolver setting before being marked as read-only”。
@@ -27,6 +41,11 @@ public sealed class PluginManager
     private readonly Action<string> _log;
     private bool _enforcePermissions;
     private HashSet<string> _allowedPermissions = new(StringComparer.OrdinalIgnoreCase);
+    // 中文注释：跨域抓取桥的全局默认参数（来自 BrowserConfig，UpdatePolicy 时刷新）。
+    private string _fetchProxyUrl = string.Empty;
+    private List<string> _fetchUserAgents = new();
+    private int _fetchRetry = 1;
+    private int _fetchRetryDelayMs = 500;
     private readonly List<PluginRuntime> _plugins = new();
 
     // 中文注释：已注册插件桥的 WebView（弱引用），storage 变更时向其他页面广播 onChanged。
@@ -53,6 +72,10 @@ public sealed class PluginManager
         _allowedPermissions = new HashSet<string>(
             config.AllowedPluginPermissions.Where(p => !string.IsNullOrWhiteSpace(p)).Select(p => p.Trim()),
             StringComparer.OrdinalIgnoreCase);
+        _fetchProxyUrl = config.FetchProxyUrl ?? string.Empty;
+        _fetchUserAgents = config.FetchUserAgents ?? new List<string>();
+        _fetchRetry = Math.Clamp(config.FetchRetry, 1, 5);
+        _fetchRetryDelayMs = Math.Clamp(config.FetchRetryDelayMs, 0, 5000);
     }
 
     public void Reload()
@@ -488,14 +511,16 @@ public sealed class PluginManager
     }
 
     // 中文注释：已加载插件的手动运行快捷键绑定（供主窗体在工具栏/地址栏聚焦时匹配触发）。
-    public IReadOnlyList<(string Id, string Name, string Shortcut)> GetRunShortcutBindings()
+    // 返回值含 Enabled：未启用的插件其快捷键不会触发，需在快捷键一览中明确标注。
+    public IReadOnlyList<(string Id, string Name, string Shortcut, bool Enabled)> GetRunShortcutBindings()
     {
         return _plugins
             .Where(plugin => !string.IsNullOrWhiteSpace(plugin.RunShortcut))
             .Select(plugin => (
                 plugin.Manifest.Id,
                 string.IsNullOrWhiteSpace(plugin.Manifest.Name) ? plugin.Manifest.Id : plugin.Manifest.Name,
-                plugin.RunShortcut))
+                plugin.RunShortcut,
+                plugin.Manifest.Enabled))
             .ToArray();
     }
 
@@ -584,6 +609,8 @@ public sealed class PluginManager
             var host = (window.chrome && window.chrome.webview) ? window.chrome.webview : null;
             var caches = {};
             var pending = {};
+            var pendingFetch = {};
+            var pendingCapture = {};
             var listeners = {};
             var seq = 0;
             function post(msg) { if (host) { try { host.postMessage(msg); } catch (e) {} } }
@@ -601,6 +628,28 @@ public sealed class PluginManager
                         (listeners[m.pluginId] || []).forEach(function (fn) {
                             try { fn(m.changes || {}, 'sync'); } catch (e2) {}
                         });
+                    } else if (m.type === 'lfsun-plugin-network-entries-response') {
+                        var pc = pendingCapture[m.reqId];
+                        delete pendingCapture[m.reqId];
+                        if (pc) { pc.resolve(m.entries || []); }
+                    } else if (m.type === 'lfsun-plugin-fetch-response') {
+                        // 中文注释：跨域抓取响应：base64 编码的二进制转回 ArrayBuffer，成功 resolve、失败 reject。
+                        var pf = pendingFetch[m.reqId];
+                        if (!pf) { return; }
+                        delete pendingFetch[m.reqId];
+                        if (m.encoding === 'base64' && typeof m.body === 'string') {
+                            try {
+                                var bin = atob(m.body);
+                                var ab = new Uint8Array(bin.length);
+                                for (var i = 0; i < bin.length; i++) { ab[i] = bin.charCodeAt(i); }
+                                m.arrayBuffer = ab.buffer;
+                            } catch (e2) {}
+                        }
+                        if (m.ok === false) {
+                            pf.reject(new Error(m.statusText || ('HTTP ' + m.status)));
+                        } else {
+                            pf.resolve(m);
+                        }
                     }
                 });
             }
@@ -648,6 +697,55 @@ public sealed class PluginManager
                     });
                 }
                 var area = { get: getItems, set: setItems, remove: removeItems };
+                function netFetch(url, init) {
+                    init = init || {};
+                    return new Promise(function (resolve, reject) {
+                        var reqId = 'f' + (++seq);
+                        var method = (init.method || 'GET').toUpperCase();
+                        var headers = init.headers || {};
+                        var body = (typeof init.body === 'string') ? init.body : (init.body ? String(init.body) : '');
+                        var timeoutMs = init.timeoutMs || 30000;
+                        var maxBytes = init.maxBytes || (8 * 1024 * 1024);
+                        var retry = init.retry || 1;
+                        var retryDelayMs = init.retryDelayMs || 0;
+                        var proxy = init.proxy || null;
+                        var userAgent = init.userAgent || null;
+                        var rotateUA = !!init.rotateUA;
+                        pendingFetch[reqId] = { resolve: resolve, reject: reject };
+                        post({
+                            type: 'lfsun-plugin-fetch',
+                            pluginId: pluginId,
+                            reqId: reqId,
+                            url: url,
+                            method: method,
+                            headers: headers,
+                            body: body,
+                            timeoutMs: timeoutMs,
+                            maxBytes: maxBytes,
+                            retry: retry,
+                            retryDelayMs: retryDelayMs,
+                            proxy: proxy,
+                            userAgent: userAgent,
+                            rotateUA: rotateUA
+                        });
+                    });
+                }
+                function startCapture(filters) {
+                    post({ type: 'lfsun-plugin-network-start', pluginId: pluginId, filters: filters || {} });
+                    return Promise.resolve();
+                }
+                function stopCapture() {
+                    post({ type: 'lfsun-plugin-network-stop', pluginId: pluginId });
+                    return Promise.resolve();
+                }
+                function getCaptureEntries(opts) {
+                    opts = opts || {};
+                    return new Promise(function (resolve, reject) {
+                        var reqId = 'c' + (++seq);
+                        pendingCapture[reqId] = { resolve: resolve, reject: reject };
+                        post({ type: 'lfsun-plugin-network-get', pluginId: pluginId, reqId: reqId, clear: !!opts.clear });
+                    });
+                }
                 return {
                     storage: {
                         sync: area,
@@ -655,6 +753,15 @@ public sealed class PluginManager
                         onChanged: {
                             addListener: function (fn) { (listeners[pluginId] = listeners[pluginId] || []).push(fn); }
                         }
+                    },
+                    net: {
+                        // 中文注释：跨域抓取——宿主用 HttpClient 发请求，绕过同源/CORS 限制。
+                        // 返回 Promise<{ ok, status, statusText, headers, body, encoding, truncated, arrayBuffer? }>。
+                        fetch: netFetch,
+                        // 中文注释：Network 抓包：控制 WebView2 记录当前标签页的网络请求。
+                        startCapture: startCapture,
+                        getCaptureEntries: getCaptureEntries,
+                        stopCapture: stopCapture
                     },
                     runtime: {
                         onMessage: { addListener: function () {} },
@@ -685,16 +792,17 @@ public sealed class PluginManager
             }
             var href = window.location.href.toLowerCase();
             Object.keys(bases).forEach(function (id) {
-                if (bases[id] && href.indexOf(bases[id].toLowerCase()) === 0) {
-                    var shim = window.__lfsunChromeFor(id);
-                    var c = window.chrome = window.chrome || {};
-                    c.storage = shim.storage;
-                    c.tabs = shim.tabs;
-                    c.runtime = c.runtime || {};
-                    c.runtime.onMessage = shim.runtime.onMessage;
-                    c.runtime.getURL = shim.runtime.getURL;
-                    c.runtime.openOptionsPage = shim.runtime.openOptionsPage;
-                }
+                    if (bases[id] && href.indexOf(bases[id].toLowerCase()) === 0) {
+                        var shim = window.__lfsunChromeFor(id);
+                        var c = window.chrome = window.chrome || {};
+                        c.storage = shim.storage;
+                        c.tabs = shim.tabs;
+                        c.net = shim.net;
+                        c.runtime = c.runtime || {};
+                        c.runtime.onMessage = shim.runtime.onMessage;
+                        c.runtime.getURL = shim.runtime.getURL;
+                        c.runtime.openOptionsPage = shim.runtime.openOptionsPage;
+                    }
             });
         })();
         """;
@@ -862,11 +970,265 @@ public sealed class PluginManager
 
                     break;
                 }
+
+                // 中文注释：跨域抓取桥——插件脚本调用 chrome.net.fetch 时发出的请求。
+                // 宿主用 HttpClient 发请求，不受渲染引擎同源/CORS 限制；权限 net:fetch 门控。
+                case "lfsun-plugin-fetch":
+                {
+                    if (!plugin.Manifest.Permissions.Contains(NetFetchPermission, StringComparer.OrdinalIgnoreCase))
+                    {
+                        ReplyNetFetch(sender, plugin.Manifest.Id, message, ok: false, status: 403,
+                            statusText: $"权限拒绝: {NetFetchPermission}", headers: null, body: string.Empty,
+                            encoding: "utf8", truncated: false);
+                        break;
+                    }
+
+                    var url = message["url"]?.GetValue<string>() ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var fetchUri))
+                    {
+                        ReplyNetFetch(sender, plugin.Manifest.Id, message, ok: false, status: 400,
+                            statusText: "无效的 URL", headers: null, body: string.Empty,
+                            encoding: "utf8", truncated: false);
+                        break;
+                    }
+
+                    var method = (message["method"]?.GetValue<string>() ?? "GET").ToUpperInvariant();
+                    var body = message["body"]?.GetValue<string>();
+                    var timeoutMs = Math.Clamp(message["timeoutMs"]?.GetValue<int>() ?? 30000, 1000, 120000);
+                    var maxBytes = Math.Clamp(message["maxBytes"]?.GetValue<int>() ?? MaxFetchBytes, 1024, MaxFetchBytes);
+                    // 中文注释：重试/代理/UA 选项：优先取插件按请求传入的值，否则回退全局默认。
+                    var retry = Math.Clamp(message["retry"]?.GetValue<int>() ?? _fetchRetry, 1, 5);
+                    var retryDelayMs = Math.Clamp(message["retryDelayMs"]?.GetValue<int>() ?? _fetchRetryDelayMs, 0, 5000);
+                    var proxyUrl = (message["proxy"]?.GetValue<string>() ?? string.Empty).Trim();
+                    if (string.IsNullOrWhiteSpace(proxyUrl))
+                    {
+                        proxyUrl = _fetchProxyUrl;
+                    }
+
+                    var userAgent = (message["userAgent"]?.GetValue<string>() ?? string.Empty).Trim();
+                    var rotateUA = message["rotateUA"]?.GetValue<bool>() ?? false;
+                    var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    if (message["headers"] is JsonObject headerObj)
+                    {
+                        foreach (var (key, value) in headerObj)
+                        {
+                            if (!string.IsNullOrWhiteSpace(key) && value is not null)
+                            {
+                                headers[key] = value.ToString() ?? string.Empty;
+                            }
+                        }
+                    }
+
+                    _ = Task.Run(() => PerformNetFetchAsync(
+                        sender, plugin.Manifest.Id, message, fetchUri, method, headers, body,
+                        timeoutMs, maxBytes, retry, retryDelayMs, proxyUrl, userAgent, rotateUA, _fetchUserAgents));
+                    break;
+                }
             }
         }
         catch (Exception ex)
         {
             _log($"[插件桥] 处理消息失败: {ex.Message}");
+        }
+    }
+
+    // 中文注释：执行跨域抓取：宿主 HttpClient 发请求，按 maxBytes 截断；
+    // 文本原样返回(utf8)，二进制走 base64。因为请求由宿主进程发出，不受渲染引擎同源/CORS 限制。
+    // 支持：重试（仅网络层异常）、代理（HttpClientHandler.WebProxy）、UA 轮换（取自配置候选池）。
+    private static async Task PerformNetFetchAsync(
+        CoreWebView2 sender, string pluginId, JsonObject request, Uri uri, string method,
+        Dictionary<string, string> headers, string? body, int timeoutMs, int maxBytes,
+        int retry, int retryDelayMs, string? proxyUrl, string? userAgent, bool rotateUA,
+        IReadOnlyList<string> userAgents)
+    {
+        // 中文注释：代理 HttpClient 缓存，按代理地址复用，避免每次请求 new 一个 handler。
+        var client = GetFetchHttpClient(proxyUrl);
+        Exception? lastError = null;
+
+        for (var attempt = 1; attempt <= retry; attempt++)
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(timeoutMs);
+                using var req = new HttpRequestMessage(new HttpMethod(method), uri);
+
+                // 中文注释：User-Agent 优先级：显式 userAgent > 轮换 UA（取配置候选池）> 默认 UA。
+                var effectiveUA = userAgent;
+                if (string.IsNullOrWhiteSpace(effectiveUA) && rotateUA && userAgents.Count > 0)
+                {
+                    var idx = Interlocked.Increment(ref _uaRotationIndex);
+                    effectiveUA = userAgents[Math.Abs(idx) % userAgents.Count];
+                }
+
+                if (!string.IsNullOrWhiteSpace(effectiveUA))
+                {
+                    req.Headers.TryAddWithoutValidation("User-Agent", effectiveUA);
+                }
+                else if (!headers.TryGetValue("User-Agent", out _))
+                {
+                    req.Headers.TryAddWithoutValidation(
+                        "User-Agent", "LfsunBrowser-Scraper/1.0 (+https://gitee.com/pc-app/lfsun-win-browser)");
+                }
+
+                foreach (var (key, value) in headers)
+                {
+                    if (string.Equals(key, "User-Agent", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(key, "Content-Type", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    req.Headers.TryAddWithoutValidation(key, value);
+                }
+
+                if (!string.IsNullOrEmpty(body))
+                {
+                    var contentType = headers.TryGetValue("Content-Type", out var ct) ? ct : "text/plain; charset=utf-8";
+                    req.Content = new StringContent(body, System.Text.Encoding.UTF8);
+                    try
+                    {
+                        req.Content.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse(contentType);
+                    }
+                    catch
+                    {
+                        // 中文注释：Content-Type 解析失败时保留 StringContent 的默认类型。
+                    }
+                }
+
+                using var resp = await client.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+                var respHeaders = new JsonObject();
+                foreach (var header in resp.Headers)
+                {
+                    respHeaders[header.Key] = string.Join(", ", header.Value);
+                }
+
+                if (resp.Content.Headers.ContentType is not null)
+                {
+                    foreach (var header in resp.Content.Headers)
+                    {
+                        respHeaders[header.Key] = string.Join(", ", header.Value);
+                    }
+                }
+
+                var raw = await resp.Content.ReadAsByteArrayAsync(cts.Token);
+                var truncated = raw.Length > maxBytes;
+                var take = truncated ? maxBytes : raw.Length;
+                var mediaType = resp.Content.Headers.ContentType?.MediaType ?? string.Empty;
+                var isText = TextContentTypes.Any(t => mediaType.Contains(t, StringComparison.OrdinalIgnoreCase));
+                string bodyText;
+                string encoding;
+                if (isText)
+                {
+                    var charset = resp.Content.Headers.ContentType?.CharSet;
+                    var detected = TryGetEncoding(charset, out var enc) ? enc : System.Text.Encoding.UTF8;
+                    bodyText = detected.GetString(raw, 0, take);
+                    encoding = "utf8";
+                }
+                else
+                {
+                    bodyText = Convert.ToBase64String(raw, 0, take);
+                    encoding = "base64";
+                }
+
+                ReplyNetFetch(sender, pluginId, request, ok: true, status: (int)resp.StatusCode,
+                    statusText: resp.ReasonPhrase ?? string.Empty, headers: respHeaders, body: bodyText,
+                    encoding: encoding, truncated: truncated);
+                return;
+            }
+            catch (Exception ex)
+            {
+                // 中文注释：仅网络层异常（超时/连接失败/DNS）才重试；HTTP 状态码类不在此捕获。
+                lastError = ex;
+                if (attempt < retry && retryDelayMs > 0)
+                {
+                    await Task.Delay(retryDelayMs);
+                }
+            }
+        }
+
+        ReplyNetFetch(sender, pluginId, request, ok: false, status: 0,
+            statusText: $"抓取失败(重试 {retry} 次): {lastError?.Message}", headers: null, body: string.Empty,
+            encoding: "utf8", truncated: false);
+    }
+
+    // 中文注释：按代理地址取 HttpClient；无代理用共享实例，有代理按地址缓存一个带 WebProxy 的实例。
+    private static HttpClient GetFetchHttpClient(string? proxyUrl)
+    {
+        if (string.IsNullOrWhiteSpace(proxyUrl))
+        {
+            return SharedHttpClient;
+        }
+
+        return ProxyHttpClientCache.GetOrAdd(proxyUrl!, _ =>
+        {
+            var handler = new HttpClientHandler();
+            if (Uri.TryCreate(proxyUrl, UriKind.Absolute, out var proxyUri))
+            {
+                handler.Proxy = new System.Net.WebProxy(proxyUri);
+                handler.UseProxy = true;
+            }
+
+            return new HttpClient(handler) { Timeout = System.Threading.Timeout.InfiniteTimeSpan };
+        });
+    }
+
+    // 中文注释：跨域抓取桥的代理 HttpClient 缓存（按代理地址复用）。
+    private static readonly ConcurrentDictionary<string, HttpClient> ProxyHttpClientCache = new(StringComparer.OrdinalIgnoreCase);
+    // 中文注释：UA 轮换计数器（线程安全自增）。
+    private static int _uaRotationIndex;
+
+    // 中文注释：把抓取结果回传给页面桥（chrome.net.fetch 的 Promise 据此 resolve）。
+    private static void ReplyNetFetch(
+        CoreWebView2 sender, string pluginId, JsonObject request, bool ok, int status,
+        string statusText, JsonObject? headers, string body, string encoding, bool truncated)
+    {
+        try
+        {
+            var reply = new JsonObject
+            {
+                ["type"] = "lfsun-plugin-fetch-response",
+                ["pluginId"] = pluginId,
+                ["reqId"] = request["reqId"]?.GetValue<string>() ?? string.Empty,
+                ["ok"] = ok,
+                ["status"] = status,
+                ["statusText"] = statusText,
+                ["headers"] = headers ?? new JsonObject(),
+                ["body"] = body,
+                ["encoding"] = encoding,
+                ["truncated"] = truncated
+            };
+            sender.PostWebMessageAsJson(reply.ToJsonString());
+        }
+        catch
+        {
+            // 中文注释：回传失败（WebView 可能已释放）忽略。
+        }
+    }
+
+    // 中文注释：解析响应 Content-Type 的 charset 为 Encoding，失败回退 UTF-8。
+    private static bool TryGetEncoding(string? charset, out System.Text.Encoding encoding)
+    {
+        encoding = System.Text.Encoding.UTF8;
+        if (string.IsNullOrWhiteSpace(charset))
+        {
+            return false;
+        }
+
+        var name = charset!.Trim().Trim('"');
+        var semi = name.IndexOf(';');
+        if (semi >= 0)
+        {
+            name = name[..semi].Trim();
+        }
+
+        try
+        {
+            encoding = System.Text.Encoding.GetEncoding(name);
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 

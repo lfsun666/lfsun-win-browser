@@ -142,6 +142,9 @@ public sealed class MainWindow : Form
     private readonly ToolStripMenuItem _addressCtxTabSwitch = new("快速切换标签 (Ctrl+K)");
     private readonly ToolStripMenuItem _addressCtxCommandPalette = new("打开命令面板 (Ctrl+Shift+P)");
     private readonly ToolStripMenuItem _addressCtxSearch = new("用默认搜索引擎搜索");
+    private readonly ToolStripButton _appMenuButton = new("☰");
+    private readonly ContextMenuStrip _appMenu = new();
+    private ShortcutsOverviewWindow? _shortcutsOverviewWindow;
     private readonly Panel _toastPanel = new();
     private readonly FindBar _findBar = new();
     private Guid? _findTabId;
@@ -439,6 +442,7 @@ public sealed class MainWindow : Form
         BuildWindowModeContextMenu();
         BuildMultiWindowMenu();
         BuildAddressContextMenu();
+        BuildAppMenu();
         LoadPinnedAddressCommandsFromConfig();
         LoadRecentAddressCommandsFromConfig();
         ApplyTheme();
@@ -796,6 +800,104 @@ public sealed class MainWindow : Form
             await _tabManager.ActiveTab.NavigateAsync(uri);
             RefreshToolbar();
         };
+    }
+
+    // 中文注释：应用主菜单（汉堡菜单）。把常用功能按「文件 / 查看 / 书签 / 工具 / 帮助」分组，
+    // 并在「帮助」中提供「快捷键一览…」入口，集中查看浏览器/插件/地址栏命令的全部快捷键。
+    private void BuildAppMenu()
+    {
+        _appMenu.Items.Clear();
+
+        _appMenu.Items.Add(HeaderItem("文件"));
+        _appMenu.Items.Add(MenuItem("新建标签页", "Ctrl+T", async (_, _) =>
+        {
+            await _tabManager.CreateTabAsync(new Uri(_config.StartPage));
+            RefreshToolbar();
+            RefreshMetrics();
+        }));
+        _appMenu.Items.Add(MenuItem("新建无痕窗口", "Ctrl+Shift+N", (_, _) =>
+            LaunchBrowserProcess(isPrivateWindow: true, useCurrentProfile: false)));
+        _appMenu.Items.Add(MenuItem("新建独立双开窗口", "Ctrl+Shift+M", (_, _) =>
+            LaunchBrowserProcess(isPrivateWindow: false, useCurrentProfile: false)));
+        _appMenu.Items.Add(new ToolStripSeparator());
+        _appMenu.Items.Add(MenuItem("保存当前为工作区", "Ctrl+Shift+S", (_, _) => SaveWorkspaceSnapshot()));
+        _appMenu.Items.Add(MenuItem("会话 / 工作区管理", "Ctrl+Shift+O", (_, _) => ShowSessionsWindow(workspaceOnlyMode: true)));
+        _appMenu.Items.Add(new ToolStripSeparator());
+        _appMenu.Items.Add(MenuItem("退出", "Alt+F4", (_, _) => Close()));
+
+        _appMenu.Items.Add(HeaderItem("查看"));
+        _appMenu.Items.Add(MenuItem("后退", "Alt+←", (_, _) =>
+        {
+            if (_tabManager.ActiveTab?.CanGoBack == true)
+            {
+                _tabManager.ActiveTab.GoBack();
+                RefreshToolbar();
+            }
+        }));
+        _appMenu.Items.Add(MenuItem("前进", "Alt+→", (_, _) =>
+        {
+            if (_tabManager.ActiveTab?.CanGoForward == true)
+            {
+                _tabManager.ActiveTab.GoForward();
+                RefreshToolbar();
+            }
+        }));
+        _appMenu.Items.Add(MenuItem("刷新", "F5", (_, _) => _tabManager.ActiveTab?.Reload()));
+        _appMenu.Items.Add(new ToolStripSeparator());
+        _appMenu.Items.Add(MenuItem("聚焦地址栏", "Ctrl+L", (_, _) =>
+        {
+            _addressTextBox.Focus();
+            _addressTextBox.SelectAll();
+        }));
+        _appMenu.Items.Add(MenuItem("页面放大", "Ctrl++", (_, _) => AdjustActiveTabZoom(1)));
+        _appMenu.Items.Add(MenuItem("页面缩小", "Ctrl+-", (_, _) => AdjustActiveTabZoom(-1)));
+        _appMenu.Items.Add(MenuItem("页面缩放重置", "Ctrl+0", (_, _) => _tabManager.ActiveTab?.SetZoomFactor(1.0)));
+        _appMenu.Items.Add(new ToolStripSeparator());
+        _appMenu.Items.Add(MenuItem("显示 / 隐藏书签栏", "Ctrl+B", (_, _) => ToggleBookmarksBarVisibility()));
+        _appMenu.Items.Add(MenuItem("开发者工具", "F12", (_, _) => _tabManager.ActiveTab?.OpenDevTools()));
+        _appMenu.Items.Add(MenuItem("沉浸（禅）模式", "Ctrl+Shift+Z", (_, _) =>
+            ApplyZenMode(!_isZenMode, persist: true, showToast: true)));
+
+        _appMenu.Items.Add(HeaderItem("书签"));
+        _appMenu.Items.Add(MenuItem("收藏当前页", "Ctrl+D", (_, _) => AddCurrentPageBookmark()));
+        _appMenu.Items.Add(MenuItem("书签管理", string.Empty, (_, _) => ShowBookmarksSettingsWindow()));
+        _appMenu.Items.Add(MenuItem("显示 / 隐藏书签栏", "Ctrl+B", (_, _) => ToggleBookmarksBarVisibility()));
+
+        _appMenu.Items.Add(HeaderItem("工具"));
+        _appMenu.Items.Add(MenuItem("历史记录", "Ctrl+H", (_, _) => ShowHistoryWindow()));
+        _appMenu.Items.Add(MenuItem("下载管理", string.Empty, (_, _) => ShowDownloadManager()));
+        _appMenu.Items.Add(MenuItem("插件", string.Empty, (_, _) => _pluginButton.ShowDropDown()));
+        _appMenu.Items.Add(MenuItem("设置", string.Empty, (_, _) => ShowSettings()));
+
+        _appMenu.Items.Add(HeaderItem("帮助"));
+        var shortcutsItem = MenuItem("快捷键一览…", string.Empty, (_, _) => ShowShortcutsOverview());
+        shortcutsItem.Font = AppTheme.CreateFont(9F, FontStyle.Bold);
+        _appMenu.Items.Add(shortcutsItem);
+        _appMenu.Items.Add(MenuItem("关于 LfsunBrowser", string.Empty, (_, _) => ShowAbout()));
+
+        AppTheme.ApplyContextMenu(_appMenu);
+        _appMenuButton.Click += (_, _) => _appMenu.Show(Cursor.Position);
+    }
+
+    private static ToolStripMenuItem HeaderItem(string text)
+    {
+        return new ToolStripMenuItem(text)
+        {
+            Enabled = false,
+            Font = AppTheme.CreateFont(9F, FontStyle.Bold)
+        };
+    }
+
+    private static ToolStripMenuItem MenuItem(string text, string shortcut, EventHandler onClick)
+    {
+        var item = new ToolStripMenuItem(text);
+        if (!string.IsNullOrWhiteSpace(shortcut))
+        {
+            item.ShortcutKeyDisplayString = shortcut;
+        }
+
+        item.Click += onClick;
+        return item;
     }
 
     private void RegisterToolbarItems()
@@ -1321,6 +1423,9 @@ public sealed class MainWindow : Form
     {
         _topBar.SuspendLayout();
         _topBar.Items.Clear();
+        // 中文注释：应用菜单（汉堡）固定在工具栏最左侧，每次重建都重新加入，避免被清理。
+        _appMenuButton.Alignment = ToolStripItemAlignment.Left;
+        _topBar.Items.Add(_appMenuButton);
         var insertedAddress = false;
         var insertedAddressTools = false;
         var insertedQuickCluster = false;
@@ -1630,6 +1735,16 @@ public sealed class MainWindow : Form
             button.BackColor = AppTheme.AccentMuted;
             button.Font = AppTheme.CreateFont(compact ? 10.8F : 11.6F, FontStyle.Bold);
         }
+
+        _appMenuButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _appMenuButton.AutoSize = false;
+        _appMenuButton.Width = compact ? 34 : 38;
+        _appMenuButton.Height = compact ? 28 : 32;
+        _appMenuButton.Margin = new Padding(3, 1, 3, 1);
+        _appMenuButton.BackColor = AppTheme.AccentMuted;
+        _appMenuButton.ForeColor = AppTheme.TextPrimary;
+        _appMenuButton.Font = AppTheme.CreateFont(compact ? 12F : 13F, FontStyle.Bold);
+        _appMenuButton.ToolTipText = "主菜单\n点击打开 文件 / 查看 / 书签 / 工具 / 帮助";
 
         ConfigureToolbarIconButton(_backButton, AppIconNames.Back, "←", "后退", shortcutText: "Alt+←");
         ConfigureToolbarIconButton(_forwardButton, AppIconNames.Forward, "→", "前进", shortcutText: "Alt+→");
@@ -7408,10 +7523,34 @@ public sealed class MainWindow : Form
                 _bookmarkManager,
                 RebuildBookmarksBar,
                 ApplyRuntimeConfig,
-                Log);
+                Log,
+                ShowShortcutsOverview);
         }
 
         ShowOwnedWindow(_settingsWindow);
+    }
+
+    // 中文注释：统一的快捷键一览入口；单例复用，每次打开前刷新数据（配置/插件可能已变更）。
+    private void ShowShortcutsOverview()
+    {
+        if (_shortcutsOverviewWindow is null || _shortcutsOverviewWindow.IsDisposed)
+        {
+            _shortcutsOverviewWindow = new ShortcutsOverviewWindow(_config, _pluginManager.GetRunShortcutBindings());
+        }
+
+        _shortcutsOverviewWindow.RefreshData();
+        ShowOwnedWindow(_shortcutsOverviewWindow);
+    }
+
+    private void ShowAbout()
+    {
+        MessageBox.Show(
+            this,
+            "LfsunBrowser\n\n基于 .NET 8 + WinForms + WebView2 的开发者向 Windows 浏览器。\n\n" +
+            "浏览器、插件与地址栏命令的全部快捷键，请见「快捷键一览」（主菜单 → 帮助）。",
+            "关于 LfsunBrowser",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Information);
     }
 
     /// <summary>
@@ -10652,7 +10791,7 @@ public sealed class MainWindow : Form
 
         // 中文注释：插件自定义快捷键兜底：WebView 未聚焦（工具栏/地址栏）时由窗体触发“在当前页面运行”；
         // 页面聚焦时由插件桥脚本在页面内直接派发运行事件，两路互补。
-        foreach (var (pluginId, pluginName, shortcut) in _pluginManager.GetRunShortcutBindings())
+        foreach (var (pluginId, pluginName, shortcut, _) in _pluginManager.GetRunShortcutBindings())
         {
             if (ShortcutParser.TryParse(shortcut, out var pluginKeys) && eventArgs.KeyData == pluginKeys)
             {

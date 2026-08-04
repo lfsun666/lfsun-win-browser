@@ -323,11 +323,15 @@ public static class AppTheme
 
     public static void ApplyPrimaryButton(Button button, bool emphasize = false)
     {
-        button.AutoSize = false;
-        var height = _isCompact ? 32 : 36;
-        button.Height = height;
-        button.MinimumSize = new Size(_isCompact ? 96 : 112, height);
-        button.Padding = _isCompact ? new Padding(10, 5, 10, 5) : new Padding(12, 6, 12, 6);
+        // 中文注释：改为 AutoSize 并按当前字体计算最小高度，避免高 DPI / 大字体下文字被截断。
+        button.AutoSize = true;
+        button.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        button.Font = CreateFont(9F);
+        var padding = _isCompact ? new Padding(10, 5, 10, 5) : new Padding(12, 6, 12, 6);
+        button.Padding = padding;
+        var textHeight = TextRenderer.MeasureText("中Ay", button.Font, Size.Empty, TextFormatFlags.SingleLine).Height;
+        var minHeight = textHeight + padding.Vertical + (_isCompact ? 6 : 8);
+        button.MinimumSize = new Size(_isCompact ? 96 : 112, minHeight);
         button.FlatStyle = FlatStyle.Flat;
         // 中文注释：Fluent 风扁平按钮：强调按钮纯色无描边，普通按钮中性底 + 细边。
         button.FlatAppearance.BorderSize = emphasize ? 0 : 1;
@@ -341,7 +345,6 @@ public static class AppTheme
         button.BackColor = emphasize ? Accent : SurfaceAlt;
         button.ForeColor = emphasize ? Color.White : TextPrimary;
         button.Margin = new Padding(5, 4, 5, 4);
-        button.Font = CreateFont(9F);
     }
 
     public static void ApplyTextInput(TextBox textBox)

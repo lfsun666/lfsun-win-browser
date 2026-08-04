@@ -23,6 +23,7 @@ public sealed class SettingsWindow : Form
     private readonly Action _onBookmarksChanged;
     private readonly Action _onConfigChanged;
     private readonly Action<string> _log;
+    private readonly Action? _openShortcutsOverview;
 
     private readonly TextBox _startPageTextBox = new();
     private readonly Button _resetStartPageButton = new();
@@ -75,6 +76,7 @@ public sealed class SettingsWindow : Form
     private readonly CheckBox _shortcutFindInPageEnabledCheckBox = new();
     private readonly TextBox _shortcutFindInPageTextBox = new();
     private readonly Button _shortcutResetDefaultsButton = new();
+    private readonly Button _viewAllShortcutsButton = new();
     private readonly CheckBox _enforcePluginPermissionCheckBox = new();
     private readonly TextBox _allowedPermissionsTextBox = new();
     private readonly DataGridView _pluginGrid = new();
@@ -139,7 +141,8 @@ public sealed class SettingsWindow : Form
         BookmarkManager bookmarkManager,
         Action onBookmarksChanged,
         Action onConfigChanged,
-        Action<string> log)
+        Action<string> log,
+        Action? openShortcutsOverview = null)
     {
         _config = config;
         _downloadManager = downloadManager;
@@ -149,6 +152,7 @@ public sealed class SettingsWindow : Form
         _onBookmarksChanged = onBookmarksChanged;
         _onConfigChanged = onConfigChanged;
         _log = log;
+        _openShortcutsOverview = openShortcutsOverview;
         AppTheme.Configure(_config.UiTheme, _config.UiDensity, _config.UiAccent, _config.UiFont, _config.UiAccentStrength);
 
         Text = "设置";
@@ -157,6 +161,8 @@ public sealed class SettingsWindow : Form
         StartPosition = FormStartPosition.CenterParent;
         DoubleBuffered = true;
         Font = AppTheme.CreateFont(9F);
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
 
         BuildLayout();
         InitializeCategorySidebar();
@@ -377,6 +383,12 @@ public sealed class SettingsWindow : Form
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 180));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        // 中文注释：为每一行设置 AutoSize，避免高 DPI 下行高被错误压缩导致控件错位。
+        for (var i = 0; i < 16; i++)
+        {
+            panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        }
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
 
         var titleLabel = new Label
         {
@@ -842,6 +854,22 @@ public sealed class SettingsWindow : Form
         _shortcutResetDefaultsButton.Margin = new Padding(0, 10, 0, 0);
         panel.Controls.Add(_shortcutResetDefaultsButton, 2, 11);
 
+        _viewAllShortcutsButton.Text = "查看完整快捷键一览…";
+        _viewAllShortcutsButton.Anchor = AnchorStyles.Left;
+        _viewAllShortcutsButton.Margin = new Padding(0, 10, 0, 0);
+        _viewAllShortcutsButton.Click += (_, _) =>
+        {
+            if (_openShortcutsOverview is not null)
+            {
+                _openShortcutsOverview.Invoke();
+            }
+            else
+            {
+                MessageBox.Show(this, "快捷键概览当前不可用。", "快捷键", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        };
+        panel.Controls.Add(_viewAllShortcutsButton, 2, 12);
+
         page.Controls.Add(panel);
         return page;
     }
@@ -882,16 +910,20 @@ public sealed class SettingsWindow : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 3,
+            RowCount = 1,
             Padding = new Padding(12),
             AutoScroll = true
         };
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 120));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
         panel.Controls.Add(new Label { Text = "下载目录", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+        _downloadDirectoryTextBox.Anchor = AnchorStyles.Left | AnchorStyles.Right;
         panel.Controls.Add(_downloadDirectoryTextBox, 1, 0);
         _downloadBrowseButton.Text = "浏览...";
+        _downloadBrowseButton.AutoSize = true;
         panel.Controls.Add(_downloadBrowseButton, 2, 0);
 
         page.Controls.Add(panel);
