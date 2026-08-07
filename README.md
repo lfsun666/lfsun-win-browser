@@ -126,6 +126,15 @@ dotnet test .\LfsunWin.sln
   "uiTheme": "Light",
   "adBlockEnabled": false,
   "downloadDirectory": "",
+  "disableWebSecurity": false,
+  "additionalBrowserArguments": "",
+  "fetchProxyUrl": "",
+  "fetchUserAgents": [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15"
+  ],
+  "fetchRetry": 2,
+  "fetchRetryDelayMs": 500,
   "shortcutDevToolsEnabled": true,
   "shortcutDevTools": "F12"
 }
@@ -137,7 +146,13 @@ dotnet test .\LfsunWin.sln
 - `maxLiveTabs`：最多保持活跃的标签页数量（超出会休眠旧标签页）
 - `suspendAfterMinutes`：空闲多少分钟后自动休眠
 - `pluginsDirectoryName`：插件目录名称（相对程序目录）
-- `enforcePluginPermissions` / `allowedPluginPermissions`：插件权限白名单开关与列表
+- `enforcePluginPermissions` / `allowedPluginPermissions`：插件权限白名单开关与列表（默认含 `content:dom_read`/`content:dom_write`/`content:inject`/`net:fetch`；`net:fetch` 用于插件跨域抓取，见下文）
+- `disableWebSecurity`：开发调试用，启动时为 WebView2 追加 `--disable-web-security`，关闭同源策略/跨域限制（**仅自用浏览器，默认关闭，开启会降低安全性**）
+- `additionalBrowserArguments`：追加到 WebView2 启动参数的自由文本（空格分隔），例如 `"--disable-web-security --proxy-server=http://127.0.0.1:7890"`，与 `disableWebSecurity` 叠加生效
+- `fetchProxyUrl`：跨域抓取桥（`chrome.net.fetch`）的**全局默认代理**（如 `"http://127.0.0.1:7890"`），留空直连；插件也可在 `init.proxy` 按请求临时覆盖
+- `fetchUserAgents`：跨域抓取桥的 **User-Agent 候选池**；插件开启「轮换 UA」后按请求轮流使用，降低被单一 UA 限流的概率
+- `fetchRetry`：跨域抓取桥**默认重试次数**（1~5，仅网络层异常重试，HTTP 4xx/5xx 不重试）
+- `fetchRetryDelayMs`：重试之间的退避间隔（毫秒，0~5000）
 - `isGeneralAutofillEnabled` / `isPasswordAutosaveEnabled` / `isCredentialAutofillEnabled`：自动填充相关开关
 - `restoreLastSessionOnStartup`：启动时恢复上次会话
 - `defaultSearchEngineName` / `defaultSearchEngineUrlTemplate`：默认搜索引擎（模板必须包含 `{query}`）
@@ -168,6 +183,44 @@ dotnet test .\LfsunWin.sln
 - `scripts` 中的 JS 在页面导航完成后注入
 - 开启 `enforcePluginPermissions=true` 时，插件声明的每个权限都必须在 `allowedPluginPermissions` 内
 - 可在"设置 -> 插件"中安装、启用、禁用、卸载插件
+
+### 跨域抓取（net:fetch）
+
+普通插件在页面里用 `fetch` 受浏览器同源/CORS 限制，只能请求当前站点。声明 `net:fetch` 权限后，可通过宿主桥 `chrome.net.fetch(url, init)` 让**浏览器进程（C# / HttpClient）代为发请求**，从而抓取任意站点，彻底绕过 CORS。
+
+```json
+{
+  "id": "web-scraper",
+  "permissions": ["content:dom_read", "content:dom_write", "content:inject", "net:fetch"],
+  "contentScripts": [{ "matches": ["<all_urls>"], "scripts": ["inject.js"] }]
+}
+```
+
+```js
+// inject.js（内容脚本，main world 注入）
+chrome.net.fetch("https://other-site.com/page", {
+  method: "GET",
+  headers: { "Accept": "text/html" },
+  timeoutMs: 30000,
+  retry: 3,            // 网络层异常重试次数（1~5，HTTP 4xx/5xx 不重试）
+  retryDelayMs: 500,   // 重试退避间隔（ms）
+  rotateUA: true,      // 轮换 User-Agent（取自配置候选池 fetchUserAgents）
+  proxy: "http://127.0.0.1:7890", // 按请求指定代理（null/缺省则用全局 fetchProxyUrl）
+  userAgent: null      // 显式 UA（优先级高于轮换；null/缺省时按 rotateUA 决定）
+}).then(function (res) {
+  // res: { ok, status, statusText, headers, body, encoding, truncated, arrayBuffer? }
+  console.log(res.status, res.body); // body 为响应文本（文本类）或 base64（二进制）
+});
+```
+
+说明：
+
+- `chrome.net.fetch` 返回 Promise；文本类响应 `encoding:"utf8"`、`body` 为字符串，二进制 `encoding:"base64"` 并附带 `arrayBuffer`。
+- 宿主侧有安全护栏：单请求超时 1~120s、响应体积上限 8MB（超出截断并置 `truncated:true`）、权限 `net:fetch` 门控（插件须声明且白名单允许）。
+- **重试**：仅对网络层异常（连接失败/超时/DNS 解析失败）重试，HTTP 4xx/5xx 视为业务结果不重试；次数与退避由 `retry`/`retryDelayMs` 控制，缺省回退全局 `fetchRetry`/`fetchRetryDelayMs`。
+- **代理**：留空直连；可按请求 `proxy` 覆盖，否则用全局 `fetchProxyUrl`；代理 `HttpClient` 按地址缓存复用。
+- **UA 轮换**：`rotateUA:true` 时按请求轮流使用 `fetchUserAgents` 候选池；若显式给了 `userAgent` 则优先使用该值。
+- 若只是想全局关闭同源限制，也可在设置里开 `disableWebSecurity`（启动参数 `--disable-web-security`），但安全性更低，仅建议自用浏览器开启。
 
 ## 打包发布
 

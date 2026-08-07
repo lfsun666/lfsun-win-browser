@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 using Lfsun.Win.Browser.Core;
 using Lfsun.Win.Browser.Downloads;
 using Lfsun.Win.Browser.Plugins;
@@ -35,9 +38,14 @@ public sealed class BrowserTab : IAsyncDisposable
     private readonly string _profileStoragePath;
     private readonly Action<string> _log;
     private WebView2? _webView;
+    private CoreWebView2Environment? _environment;
+    private CoreWebView2? _core;
+    private readonly List<CoreWebView2DevToolsProtocolEventReceiver> _cdpReceivers = new();
     private string _lastKnownUrl;
+    private readonly NetworkCapture _networkCapture = new();
     private string _customTitle = string.Empty;
     private bool _findEventsHooked;
+    private bool _coreEventsHooked;
 
     public BrowserTab(
         TabPage tabPage,
@@ -385,10 +393,15 @@ public sealed class BrowserTab : IAsyncDisposable
             return Task.CompletedTask;
         }
 
+        // 中文注释：先取消所有 CDP 事件订阅，避免 Edge 进程释放后仍收到回调产生空引用异常。
+        UnsubscribeCdpEvents();
+        UnsubscribeCoreEvents();
+
         _lastKnownUrl = _webView.Source?.AbsoluteUri ?? _lastKnownUrl;
         TabPage.Controls.Remove(_webView);
         _webView.Dispose();
         _webView = null;
+        _core = null;
         IsSuspended = true;
         RenderSuspendedHint();
         UpdateCaption();
@@ -416,6 +429,32 @@ public sealed class BrowserTab : IAsyncDisposable
         RemoveSuspendedHint();
     }
 
+    // 中文注释：拼装 WebView2 启动参数：默认磁盘缓存上限 + 可选 CORS 绕过(--disable-web-security)
+    // + 用户自定义参数。--disable-web-security 需配合独立 userDataFolder（本浏览器每个标签独立 profile，已满足）。
+    private static string BuildBrowserArgs(BrowserConfig config)
+    {
+        var args = new List<string> { "--disk-cache-size=104857600" };
+        if (config.DisableWebSecurity)
+        {
+            args.Add("--disable-web-security");
+            args.Add("--disable-features=CrossOriginOpenerPolicy");
+        }
+
+        if (!string.IsNullOrWhiteSpace(config.AdditionalBrowserArguments))
+        {
+            foreach (var part in config.AdditionalBrowserArguments
+                         .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            {
+                if (part.Length > 0)
+                {
+                    args.Add(part);
+                }
+            }
+        }
+
+        return string.Join(" ", args);
+    }
+
     private async Task EnsureWebViewAsync()
     {
         if (_webView is not null)
@@ -432,10 +471,11 @@ public sealed class BrowserTab : IAsyncDisposable
 
         Directory.CreateDirectory(_profileStoragePath);
 
-        var environment = await CoreWebView2Environment.CreateAsync(
+        _environment = await CoreWebView2Environment.CreateAsync(
             userDataFolder: _profileStoragePath,
-            options: new CoreWebView2EnvironmentOptions("--disk-cache-size=104857600"));
-        await _webView.EnsureCoreWebView2Async(environment);
+            options: new CoreWebView2EnvironmentOptions(BuildBrowserArgs(_config)));
+        await _webView.EnsureCoreWebView2Async(_environment);
+        _core = _webView.CoreWebView2;
 
         _webView.CoreWebView2.Settings.AreDevToolsEnabled = true;
         _webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
@@ -448,7 +488,7 @@ public sealed class BrowserTab : IAsyncDisposable
         await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(PagePointerBridgeScript);
         // 中文注释：注册插件内容脚本（文档创建时按匹配域名执行）。
         await _pluginManager.RegisterContentScriptsAsync(_webView.CoreWebView2);
-        _webView.CoreWebView2.WebMessageReceived += (_, args) =>
+        _webView.CoreWebView2.WebMessageReceived += async (_, args) =>
         {
             string? message = null;
             try
@@ -466,15 +506,23 @@ public sealed class BrowserTab : IAsyncDisposable
                 return;
             }
 
-            // 中文注释：插件 chrome.* 桥消息（storage 读写/打开选项页/新标签）转交插件管理器。
+            // 中文注释：插件 chrome.* 桥消息（storage 读写/打开选项页/新标签）处理；
+            // Network 抓包消息由当前标签页自己处理（它持有 WebView2 网络事件）。
             try
             {
                 var bridgeJson = args.WebMessageAsJson;
                 if (!string.IsNullOrEmpty(bridgeJson) &&
-                    bridgeJson.Contains("lfsun-plugin-", StringComparison.Ordinal) &&
                     _webView?.CoreWebView2 is { } coreForBridge)
                 {
-                    _ = _pluginManager.HandleBridgeMessageAsync(coreForBridge, bridgeJson, NewTabRequested);
+                    if (await TryHandleNetworkBridgeMessageAsync(coreForBridge, bridgeJson))
+                    {
+                        return;
+                    }
+
+                    if (bridgeJson.Contains("lfsun-plugin-", StringComparison.Ordinal))
+                    {
+                        _ = _pluginManager.HandleBridgeMessageAsync(coreForBridge, bridgeJson, NewTabRequested);
+                    }
                 }
             }
             catch
@@ -489,23 +537,36 @@ public sealed class BrowserTab : IAsyncDisposable
         {
             try
             {
-                if (AdBlockService is not { IsEnabled: true } adBlock ||
-                    !Uri.TryCreate(args.Request.Uri, UriKind.Absolute, out var requestUri) ||
-                    !adBlock.ShouldBlock(requestUri))
+                var requestUri = args.Request.Uri;
+                var method = args.Request.Method;
+                var resourceContext = args.ResourceContext.ToString();
+                var requestHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var header in args.Request.Headers)
                 {
-                    return;
+                    requestHeaders[header.Key] = header.Value;
                 }
 
-                args.Response = environment.CreateWebResourceResponse(null, 403, "Blocked", string.Empty);
-                AdBlockedCount++;
-                AdBlockedCountChanged?.Invoke(this, AdBlockedCount);
+                if (AdBlockService is { IsEnabled: true } adBlock &&
+                    Uri.TryCreate(requestUri, UriKind.Absolute, out var uri) &&
+                    adBlock.ShouldBlock(uri))
+                {
+                    args.Response = _environment!.CreateWebResourceResponse(new MemoryStream(), 403, "Blocked", "Content-Type: text/plain");
+                    AdBlockedCount++;
+                    AdBlockedCountChanged?.Invoke(this, AdBlockedCount);
+                    return;
+                }
             }
             catch
             {
                 // 中文注释：拦截失败时放行请求，不影响页面加载。
             }
         };
-        _webView.CoreWebView2.NewWindowRequested += async (_, args) =>
+        // 中文注释：改用 CDP Network 域监控请求（含响应体），见 SetupNetworkMonitoringAsync。
+        if (_core is not null)
+        {
+            await SetupNetworkMonitoringAsync(_core);
+        }
+        _core!.NewWindowRequested += async (_, args) =>
         {
             if (!Uri.TryCreate(args.Uri, UriKind.Absolute, out var targetUri) || targetUri is null)
             {
@@ -523,38 +584,94 @@ public sealed class BrowserTab : IAsyncDisposable
             await NavigateAsync(targetUri);
         };
 
-        _webView.NavigationStarting += (_, args) =>
-        {
-            _lastKnownUrl = args.Uri;
-            // 中文注释：新导航开始时拦截计数归零，并记录耗时起点。
-            _loadStartTimestamp = Environment.TickCount64;
-            LastLoadMilliseconds = -1;
-            AdBlockedCount = 0;
-            AdBlockedCountChanged?.Invoke(this, AdBlockedCount);
-            StateChanged?.Invoke(this);
-        };
-
-        _webView.NavigationCompleted += (_, _) => _ = HandleNavigationCompletedAsync();
-        _webView.ZoomFactorChanged += (_, _) =>
-        {
-            if (_webView is not null)
-            {
-                ZoomChanged?.Invoke(this, _webView.ZoomFactor);
-            }
-        };
-        _webView.CoreWebView2.DocumentTitleChanged += (_, _) =>
-        {
-            Title = string.IsNullOrWhiteSpace(_webView.CoreWebView2.DocumentTitle)
-                ? "新标签页"
-                : _webView.CoreWebView2.DocumentTitle.Trim();
-            UpdateCaption();
-            StateChanged?.Invoke(this);
-        };
+        // 中文注释：订阅导航/标题变化事件（CoreWebView2 事件）；统一使用可取消的具名方法，
+        // Suspend 时自动取否则 Resume 多次会叠加订阅。
+        // 注意：ZoomFactorChanged 是 WebView2 控件事件，仅从 _webView 订阅无需取销（随控件 Dispose 释放）。
+        _core!.NavigationStarting += OnNavigationStarting;
+        _core.NavigationCompleted += OnNavigationCompleted;
+        _core.DocumentTitleChanged += OnDocumentTitleChanged;
+        _webView.ZoomFactorChanged += OnZoomFactorChanged;
+        _coreEventsHooked = true;
 
         if (Uri.TryCreate(_lastKnownUrl, UriKind.Absolute, out var currentUri))
         {
             _webView.Source = currentUri;
         }
+    }
+
+    private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs args)
+    {
+        _lastKnownUrl = args.Uri;
+        // 中文注释：新导航开始时拦截计数归零，并记录耗时起点。
+        _loadStartTimestamp = Environment.TickCount64;
+        LastLoadMilliseconds = -1;
+        AdBlockedCount = 0;
+        AdBlockedCountChanged?.Invoke(this, AdBlockedCount);
+        StateChanged?.Invoke(this);
+    }
+
+    private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs args)
+        => _ = HandleNavigationCompletedAsync();
+
+    private void OnZoomFactorChanged(object? sender, object args)
+    {
+        if (_webView is not null)
+        {
+            ZoomChanged?.Invoke(this, _webView.ZoomFactor);
+        }
+    }
+
+    private void OnDocumentTitleChanged(object? sender, object args)
+    {
+        if (_core is not null)
+        {
+            Title = string.IsNullOrWhiteSpace(_core.DocumentTitle)
+                ? "新标签页"
+                : _core.DocumentTitle.Trim();
+            UpdateCaption();
+            StateChanged?.Invoke(this);
+        }
+    }
+
+    private void UnsubscribeCoreEvents()
+    {
+        if (!_coreEventsHooked || _core is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _core.NavigationStarting -= OnNavigationStarting;
+            _core.NavigationCompleted -= OnNavigationCompleted;
+            _core.DocumentTitleChanged -= OnDocumentTitleChanged;
+            if (_webView is not null)
+            {
+                _webView.ZoomFactorChanged -= OnZoomFactorChanged;
+            }
+        }
+        catch
+        {
+            // 中文注释：WebView2 正在 Dispose 时忽略取销异常。
+        }
+
+        _coreEventsHooked = false;
+    }
+
+    private void UnsubscribeCdpEvents()
+    {
+        foreach (var receiver in _cdpReceivers)
+        {
+            try
+            {
+                receiver.DevToolsProtocolEventReceived -= OnNetworkCdpEvent;
+            }
+            catch
+            {
+                // 中文注释：接收器已释放时忽略取销异常。
+            }
+        }
+        _cdpReceivers.Clear();
     }
 
     private async Task HandleNavigationCompletedAsync()
@@ -636,6 +753,457 @@ public sealed class BrowserTab : IAsyncDisposable
     {
         var title = string.IsNullOrWhiteSpace(DisplayTitle) ? "新标签页" : DisplayTitle.Trim();
         TabPage.Text = IsSuspended ? $"[休眠] {title}" : title;
+    }
+
+    /// <summary>
+    /// 中文注释：启用 CDP Network 域并订阅请求/响应事件，供 Network 抓包（含响应体）。
+    /// 注意：SubscribeNetworkEvent 会保存 receiver 引用，必须通过 UnsubscribeCdpEvents() 清理，
+    /// 否则 Suspend WebView2 后 Edge 进程退出仍会触发回调导致空引用异常。
+    /// </summary>
+    private async Task SetupNetworkMonitoringAsync(CoreWebView2 core)
+    {
+        try
+        {
+            // 中文注释：启用前先清理旧接收器，避免 Resume 时叠加。
+            UnsubscribeCdpEvents();
+            await core.CallDevToolsProtocolMethodAsync("Network.enable", "{}");
+            SubscribeNetworkEvent(core, "Network.requestWillBeSent", 0);
+            SubscribeNetworkEvent(core, "Network.responseReceived", 1);
+            SubscribeNetworkEvent(core, "Network.loadingFinished", 2);
+            SubscribeNetworkEvent(core, "Network.loadingFailed", 3);
+        }
+        catch
+        {
+            // 中文注释：CDP Network 不可用时静默降级，Network 抓包将不可用。
+        }
+    }
+
+    private void SubscribeNetworkEvent(CoreWebView2 core, string eventName, int eventIndex)
+    {
+        try
+        {
+            var receiver = core.GetDevToolsProtocolEventReceiver(eventName);
+            // 中文注释：用 IndexTag 携带事件名索引，便于统一 Handler 根据序号区分事件。
+            receiver.DevToolsProtocolEventReceived += OnNetworkCdpEvent;
+            _cdpReceivers.Add(receiver);
+        }
+        catch
+        {
+            // 中文注释：事件接收器订阅失败忽略。
+        }
+    }
+
+    // 中文注释：CDP Network 事件处理器；四个事件共用，按接收者在列表中的索引区分。
+    private void OnNetworkCdpEvent(object? sender, CoreWebView2DevToolsProtocolEventReceivedEventArgs e)
+    {
+        if (sender is not CoreWebView2DevToolsProtocolEventReceiver receiver)
+        {
+            return;
+        }
+
+        var index = _cdpReceivers.IndexOf(receiver);
+        var eventName = index switch
+        {
+            0 => "Network.requestWillBeSent",
+            1 => "Network.responseReceived",
+            2 => "Network.loadingFinished",
+            3 => "Network.loadingFailed",
+            _ => string.Empty
+        };
+        if (!string.IsNullOrEmpty(eventName))
+        {
+            _networkCapture.HandleCdpEvent(eventName, e.ParameterObjectAsJson);
+        }
+    }
+
+    private async Task<bool> TryHandleNetworkBridgeMessageAsync(CoreWebView2 sender, string bridgeJson)
+    {
+        JsonObject? message;
+        try
+        {
+            message = JsonSerializer.Deserialize<JsonObject>(bridgeJson);
+        }
+        catch
+        {
+            return false;
+        }
+
+        if (message is null)
+        {
+            return false;
+        }
+
+        var type = message["type"]?.GetValue<string>();
+        switch (type)
+        {
+            case "lfsun-plugin-network-start":
+            {
+                var filters = ParseNetworkFilters(message["filters"]);
+                _networkCapture.Start(filters);
+                return true;
+            }
+            case "lfsun-plugin-network-stop":
+            {
+                _networkCapture.Stop();
+                return true;
+            }
+            case "lfsun-plugin-network-get":
+            {
+                var clear = message["clear"]?.GetValue<bool>() ?? false;
+                var entries = _networkCapture.GetEntries(clear);
+                var reqId = message["reqId"]?.GetValue<string>() ?? string.Empty;
+                var response = new JsonObject
+                {
+                    ["type"] = "lfsun-plugin-network-entries-response",
+                    ["reqId"] = reqId,
+                    // 中文注释：显式 camelCase，与插件前端（inject.js 读 e.requestId / e.method 等）保持一致，
+                    // 否则 System.Text.Json 默认 PascalCase 会导致前端字段全为 undefined，Network 列表空白。
+                    ["entries"] = JsonSerializer.SerializeToNode(entries, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+                };
+                sender.PostWebMessageAsJson(response.ToJsonString());
+                return true;
+            }
+            case "lfsun-plugin-network-body":
+            {
+                var requestId = message["requestId"]?.GetValue<string>() ?? string.Empty;
+                var reqId = message["reqId"]?.GetValue<string>() ?? string.Empty;
+                var (body, base64Encoded, error) = await _networkCapture.GetResponseBodyAsync(sender, requestId);
+                var response = new JsonObject
+                {
+                    ["type"] = "lfsun-plugin-network-body-response",
+                    ["reqId"] = reqId,
+                    ["body"] = body,
+                    ["base64Encoded"] = base64Encoded,
+                    ["error"] = error
+                };
+                sender.PostWebMessageAsJson(response.ToJsonString());
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static NetworkFilters ParseNetworkFilters(JsonNode? node)
+    {
+        var filters = new NetworkFilters();
+        if (node is not JsonObject obj)
+        {
+            return filters;
+        }
+
+        filters.Xhr = obj["xhr"]?.GetValue<bool>() ?? true;
+        filters.Js = obj["js"]?.GetValue<bool>() ?? true;
+        filters.Css = obj["css"]?.GetValue<bool>() ?? true;
+        filters.Img = obj["img"]?.GetValue<bool>() ?? true;
+        filters.Media = obj["media"]?.GetValue<bool>() ?? false;
+        filters.Doc = obj["doc"]?.GetValue<bool>() ?? true;
+        filters.Other = obj["other"]?.GetValue<bool>() ?? false;
+        filters.UrlPattern = obj["urlPattern"]?.GetValue<string>() ?? string.Empty;
+        filters.Methods = obj["methods"]?.GetValue<string>() ?? string.Empty;
+        return filters;
+    }
+
+    // 中文注释：Network 抓包数据模型与过滤器。
+    private sealed class NetworkFilters
+    {
+        public bool Xhr { get; set; }
+        public bool Js { get; set; }
+        public bool Css { get; set; }
+        public bool Img { get; set; }
+        public bool Media { get; set; }
+        public bool Doc { get; set; }
+        public bool Other { get; set; }
+        public string UrlPattern { get; set; } = string.Empty;
+        public string Methods { get; set; } = string.Empty;
+    }
+
+    private sealed class NetworkEntry
+    {
+        public string RequestId { get; set; } = string.Empty;
+        public string Method { get; set; } = string.Empty;
+        public string Url { get; set; } = string.Empty;
+        public string ResourceType { get; set; } = string.Empty;
+        public int Status { get; set; }
+        public long TimeMs { get; set; }
+        public long Size { get; set; }
+        public string MimeType { get; set; } = string.Empty;
+        public string? PostData { get; set; }
+        public string ErrorText { get; set; } = string.Empty;
+        public Dictionary<string, string> RequestHeaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+        public Dictionary<string, string> ResponseHeaders { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// 中文注释：Network 抓包器：基于 WebView2 的 DevTools Protocol（CDP）Network 域，
+    /// 监听 requestWillBeSent / responseReceived / loadingFinished / loadingFailed，
+    /// 按资源类型、URL 通配符、HTTP 方法过滤，并支持按需读取响应体（Network.getResponseBody）。
+    /// </summary>
+    private sealed class NetworkCapture
+    {
+        private readonly object _lock = new();
+        private readonly List<NetworkEntry> _entries = new();
+        private readonly Dictionary<string, NetworkEntry> _byId = new(StringComparer.Ordinal);
+        private NetworkFilters _filters = new();
+        private bool _capturing;
+        private const int MaxEntries = 5000;
+
+        public void Start(NetworkFilters filters)
+        {
+            lock (_lock)
+            {
+                _filters = filters;
+                _capturing = true;
+                _entries.Clear();
+                _byId.Clear();
+            }
+        }
+
+        public void Stop()
+        {
+            lock (_lock) { _capturing = false; }
+        }
+
+        public NetworkEntry[] GetEntries(bool clear)
+        {
+            lock (_lock)
+            {
+                var result = _entries.ToArray();
+                if (clear)
+                {
+                    _entries.Clear();
+                    _byId.Clear();
+                }
+
+                return result;
+            }
+        }
+
+        // 中文注释：处理 CDP Network 事件 JSON；仅在捕获开启时记录匹配请求。
+        public void HandleCdpEvent(string eventName, string json)
+        {
+            if (!_capturing)
+            {
+                return;
+            }
+
+            try
+            {
+                var node = JsonSerializer.Deserialize<JsonObject>(json);
+                if (node is null)
+                {
+                    return;
+                }
+
+                var rid = node["requestId"]?.GetValue<string>() ?? string.Empty;
+                if (string.IsNullOrEmpty(rid))
+                {
+                    return;
+                }
+
+                lock (_lock)
+                {
+                    switch (eventName)
+                    {
+                        case "Network.requestWillBeSent":
+                        {
+                            if (_byId.ContainsKey(rid))
+                            {
+                                return;
+                            }
+
+                            var req = node["request"] as JsonObject;
+                            var hintType = node["type"]?.GetValue<string>()
+                                ?? (req?["type"]?.GetValue<string>()) ?? "Other";
+                            var url = req?["url"]?.GetValue<string>() ?? string.Empty;
+                            var method = req?["method"]?.GetValue<string>() ?? "GET";
+                            if (!ShouldCapture(hintType, url, method))
+                            {
+                                return;
+                            }
+
+                            var entry = new NetworkEntry
+                            {
+                                RequestId = rid,
+                                Method = method.ToUpperInvariant(),
+                                Url = url,
+                                ResourceType = NormalizeResourceType(hintType),
+                                TimeMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                                RequestHeaders = HeadersToDict(req?["headers"]),
+                                PostData = req?["postData"]?.GetValue<string>()
+                            };
+                            _entries.Add(entry);
+                            _byId[rid] = entry;
+                            CapLocked();
+                            break;
+                        }
+                        case "Network.responseReceived":
+                        {
+                            if (!_byId.TryGetValue(rid, out var entry))
+                            {
+                                return;
+                            }
+
+                            var resp = node["response"] as JsonObject;
+                            entry.Status = resp?["status"]?.GetValue<int>() ?? entry.Status;
+                            entry.ResourceType = NormalizeResourceType(
+                                node["type"]?.GetValue<string>() ?? entry.ResourceType);
+                            entry.MimeType = resp?["mimeType"]?.GetValue<string>() ?? entry.MimeType;
+                            entry.ResponseHeaders = HeadersToDict(resp?["headers"]);
+                            break;
+                        }
+                        case "Network.loadingFinished":
+                        {
+                            if (_byId.TryGetValue(rid, out var entry))
+                            {
+                                entry.Size = node["encodedDataLength"]?.GetValue<long>() ?? entry.Size;
+                            }
+
+                            break;
+                        }
+                        case "Network.loadingFailed":
+                        {
+                            if (_byId.TryGetValue(rid, out var entry))
+                            {
+                                entry.ErrorText = node["errorText"]?.GetValue<string>() ?? "failed";
+                            }
+
+                            break;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // 中文注释：CDP 事件解析失败忽略，不影响页面。
+            }
+        }
+
+        // 中文注释：按需读取响应体；返回 (body, base64Encoded, error)。
+        public async Task<(string Body, bool Base64Encoded, string Error)> GetResponseBodyAsync(
+            CoreWebView2 core, string requestId)
+        {
+            if (string.IsNullOrEmpty(requestId) || core is null)
+            {
+                return (string.Empty, false, "缺少 requestId");
+            }
+
+            try
+            {
+                var param = new JsonObject { ["requestId"] = requestId }.ToJsonString();
+                var result = await core.CallDevToolsProtocolMethodAsync("Network.getResponseBody", param);
+                var node = JsonSerializer.Deserialize<JsonObject>(result);
+                var body = node?["body"]?.GetValue<string>() ?? string.Empty;
+                var base64 = node?["base64Encoded"]?.GetValue<bool>() ?? false;
+                return (body, base64, string.Empty);
+            }
+            catch (Exception exception)
+            {
+                return (string.Empty, false, exception.Message);
+            }
+        }
+
+        private void CapLocked()
+        {
+            while (_entries.Count > MaxEntries)
+            {
+                var oldest = _entries[0];
+                _entries.RemoveAt(0);
+                _byId.Remove(oldest.RequestId);
+            }
+        }
+
+        private static Dictionary<string, string> HeadersToDict(JsonNode? node)
+        {
+            var dict = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (node is JsonObject obj)
+            {
+                foreach (var kv in obj)
+                {
+                    var value = kv.Value;
+                    if (value is JsonValue jv && jv.TryGetValue<string>(out var s))
+                    {
+                        dict[kv.Key] = s;
+                    }
+                    else if (value is JsonArray arr)
+                    {
+                        dict[kv.Key] = string.Join(", ", arr.Select(x => x?.ToString() ?? string.Empty));
+                    }
+                    else if (value is not null)
+                    {
+                        dict[kv.Key] = value.ToString();
+                    }
+                }
+            }
+
+            return dict;
+        }
+
+        private bool ShouldCapture(string resourceType, string url, string method)
+        {
+            var normalizedType = NormalizeResourceType(resourceType);
+            bool typeMatch = normalizedType switch
+            {
+                "xhr" or "fetch" => _filters.Xhr,
+                "script" => _filters.Js,
+                "stylesheet" => _filters.Css,
+                "image" => _filters.Img,
+                "media" => _filters.Media,
+                "document" => _filters.Doc,
+                _ => _filters.Other
+            };
+
+            if (!typeMatch)
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_filters.UrlPattern) && !WildcardMatch(url, _filters.UrlPattern))
+            {
+                return false;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_filters.Methods))
+            {
+                var allowed = _filters.Methods
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(m => m.Trim().ToUpperInvariant())
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (!allowed.Contains(method))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static string NormalizeResourceType(string resourceType)
+        {
+            return resourceType.ToLowerInvariant() switch
+            {
+                "xmlhttprequest" => "xhr",
+                "fetch" => "xhr",
+                "script" => "script",
+                "stylesheet" => "stylesheet",
+                "image" => "image",
+                "media" => "media",
+                "document" => "document",
+                "other" => "other",
+                _ => resourceType.ToLowerInvariant()
+            };
+        }
+
+        private static bool WildcardMatch(string text, string pattern)
+        {
+            if (string.IsNullOrWhiteSpace(pattern))
+            {
+                return true;
+            }
+
+            var regex = "^" + Regex.Escape(pattern).Replace("\\*", ".*").Replace("\\?", ".") + "$";
+            return Regex.IsMatch(text, regex, RegexOptions.IgnoreCase);
+        }
     }
 }
 

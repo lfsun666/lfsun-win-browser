@@ -46,9 +46,27 @@ public sealed class BrowserConfig
     public int SuspendAfterMinutes { get; set; } = 3;
     public string PluginsDirectoryName { get; set; } = "plugins";
     public bool EnforcePluginPermissions { get; set; } = true;
-    public string[] AllowedPluginPermissions { get; set; } = ["content:dom_read", "content:dom_write", "content:inject"];
+    public string[] AllowedPluginPermissions { get; set; } = ["content:dom_read", "content:dom_write", "content:inject", "net:fetch"];
+    // 中文注释：插件跨域抓取权限（net:fetch）默认进入白名单，但插件仍须显式声明才会生效；
+    // 宿主侧真实发请求时还会再校验一次插件是否声明了该权限。
+    public const string DefaultNetFetchPermission = "net:fetch";
     // 中文注释：固定到顶部工具栏的插件 id 列表，顺序即按钮显示顺序。
     public List<string> PinnedPluginIds { get; set; } = [];
+    // 中文注释：CORS 绕过开关——启动时为 WebView2 内核追加 --disable-web-security，
+    // 彻底关闭同源策略/跨域限制（仅开发者自用浏览器场景，默认关闭，开启会降低安全性）。
+    public bool DisableWebSecurity { get; set; }
+    // 中文注释：追加到 WebView2 启动参数的自由文本（空格分隔），例如
+    // "--disable-web-security --proxy-server=..."；与 DisableWebSecurity 叠加生效。
+    public string AdditionalBrowserArguments { get; set; } = string.Empty;
+    // 中文注释：跨域抓取桥的全局默认代理地址（如 "http://127.0.0.1:7890"）；
+    // 留空表示直连。插件可在 chrome.net.fetch 的 init.proxy 中按请求临时覆盖。
+    public string FetchProxyUrl { get; set; } = string.Empty;
+    // 中文注释：跨域抓取桥的 User-Agent 候选池；开启“轮换 UA”时按请求轮流使用，避免被单一 UA 限流。
+    public List<string> FetchUserAgents { get; set; } = new();
+    // 中文注释：跨域抓取桥默认重试次数（1~5）；网络层异常（超时/连接失败）才会重试，HTTP 4xx/5xx 不重试。
+    public int FetchRetry { get; set; } = 1;
+    // 中文注释：跨域抓取桥重试之间的退避间隔（毫秒，0~5000）。
+    public int FetchRetryDelayMs { get; set; } = 500;
     public bool IsGeneralAutofillEnabled { get; set; } = true;
     public bool IsPasswordAutosaveEnabled { get; set; } = true;
     public bool IsCredentialAutofillEnabled { get; set; } = true;
@@ -159,8 +177,39 @@ public sealed class BrowserConfig
             config.AllowedPluginPermissions.Contains("content:dom_read", StringComparer.OrdinalIgnoreCase) &&
             config.AllowedPluginPermissions.Contains("content:dom_write", StringComparer.OrdinalIgnoreCase))
         {
-            config.AllowedPluginPermissions = ["content:dom_read", "content:dom_write", "content:inject"];
+            config.AllowedPluginPermissions = ["content:dom_read", "content:dom_write", "content:inject", DefaultNetFetchPermission];
         }
+        // 中文注释：已经是“dom_read/dom_write/inject”三件套默认值时，补上 net:fetch（跨域抓取权限）。
+        else if (config.AllowedPluginPermissions.Length == 3 &&
+            config.AllowedPluginPermissions.Contains("content:dom_read", StringComparer.OrdinalIgnoreCase) &&
+            config.AllowedPluginPermissions.Contains("content:dom_write", StringComparer.OrdinalIgnoreCase) &&
+            config.AllowedPluginPermissions.Contains("content:inject", StringComparer.OrdinalIgnoreCase))
+        {
+            config.AllowedPluginPermissions = ["content:dom_read", "content:dom_write", "content:inject", DefaultNetFetchPermission];
+        }
+        // 中文注释：兜底：只要白名单不是空的，就确保新增的 net:fetch 在里面；
+        // 白名单为空（Length==0）视为用户主动关闭所有权限，不强制追加。
+        if (config.AllowedPluginPermissions.Length > 0 &&
+            !config.AllowedPluginPermissions.Contains(DefaultNetFetchPermission, StringComparer.OrdinalIgnoreCase))
+        {
+            config.AllowedPluginPermissions = config.AllowedPluginPermissions
+                .Append(DefaultNetFetchPermission)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        config.AdditionalBrowserArguments = string.IsNullOrWhiteSpace(config.AdditionalBrowserArguments)
+            ? string.Empty
+            : config.AdditionalBrowserArguments.Trim();
+        config.FetchProxyUrl = string.IsNullOrWhiteSpace(config.FetchProxyUrl)
+            ? string.Empty
+            : config.FetchProxyUrl.Trim();
+        config.FetchUserAgents = (config.FetchUserAgents ?? [])
+            .Select(ua => (ua ?? string.Empty).Trim())
+            .Where(ua => ua.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        config.FetchRetry = Math.Clamp(config.FetchRetry, 1, 5);
+        config.FetchRetryDelayMs = Math.Clamp(config.FetchRetryDelayMs, 0, 5000);
         config.DownloadDirectory = string.IsNullOrWhiteSpace(config.DownloadDirectory)
             ? DefaultDownloadDirectory
             : config.DownloadDirectory.Trim();

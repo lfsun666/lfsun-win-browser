@@ -3,7 +3,7 @@ using Lfsun.Win.Browser.Browser;
 
 namespace Lfsun.Win.Browser.UI;
 
-public sealed class ModernTabControl : TabControl
+public sealed class ModernTabControl : TabControl, IDisposable
 {
     private static readonly Size CompactTabSize = new(220, 36);
     private static readonly Size DefaultTabSize = new(248, 42);
@@ -17,6 +17,12 @@ public sealed class ModernTabControl : TabControl
     private string _lastTooltipText = string.Empty;
     private bool _isCompact;
     private bool _hideTabHeader;
+    private bool _disposed;
+
+    // 中文注释：缓存 GDI 资源，避免 OnDrawItem 每帧 new Font/Brush/Pen 导致 GDI 泄漏。
+    private Font? _pinFont;
+    private Font? _tagFont;
+    private Font? _titleBoldFont;
 
     public ModernTabControl()
     {
@@ -53,7 +59,24 @@ public sealed class ModernTabControl : TabControl
     public void ApplyDensity(bool compact)
     {
         _isCompact = compact;
+        RecreateCachedFonts();
         ApplyTabHeaderLayout();
+    }
+
+    private void RecreateCachedFonts()
+    {
+        _pinFont?.Dispose();
+        _tagFont?.Dispose();
+        _titleBoldFont?.Dispose();
+        _pinFont = AppTheme.CreateFont(_isCompact ? 7.4F : 8F, FontStyle.Bold);
+        _tagFont = AppTheme.CreateFont(_isCompact ? 6.5F : 7.1F, FontStyle.Bold);
+        _titleBoldFont = null; // 按需基于 Font 创建
+    }
+
+    protected override void OnFontChanged(EventArgs e)
+    {
+        base.OnFontChanged(e);
+        RecreateCachedFonts();
     }
 
     protected override void OnDrawItem(DrawItemEventArgs eventArgs)
@@ -77,7 +100,6 @@ public sealed class ModernTabControl : TabControl
         var renamed = browserTab?.HasCustomTitle == true;
         var tabColor = ResolveTabColor(browserTab?.ColorTagKey);
 
-        // 中文注释：Fluent 风扁平标签：选中为浅色卡片，悬停仅淡底，其余融入背景。
         var fill = selected
             ? (AppTheme.IsDark
                 ? AppTheme.Mix(AppTheme.SurfaceAlt, Color.White, 0.04F)
@@ -111,7 +133,6 @@ public sealed class ModernTabControl : TabControl
 
         if (selected)
         {
-            // 选中标签：仅顶部强调条，不再叠发光描边。
             var activeBarColor = tabColor.HasValue
                 ? AppTheme.Mix(AppTheme.Accent, tabColor.Value, 0.56F)
                 : AppTheme.Accent;
@@ -121,7 +142,6 @@ public sealed class ModernTabControl : TabControl
 
         if (hoveredClose)
         {
-            // 关闭按钮悬停：极淡危险色底，与状态栏芯片风格一致。
             using var closeHoverBrush = new SolidBrush(AppTheme.IsDark
                 ? AppTheme.Mix(AppTheme.Danger, AppTheme.Surface, 0.70F)
                 : AppTheme.Mix(AppTheme.Danger, Color.White, 0.85F));
@@ -138,12 +158,11 @@ public sealed class ModernTabControl : TabControl
                     ? AppTheme.Mix(AppTheme.AccentMuted, Color.White, 0.08F)
                     : AppTheme.Mix(AppTheme.AccentMuted, Color.Black, 0.08F)));
             using var pinPath = BuildRoundedRect(pinRect, 7);
-            using var pinFont = AppTheme.CreateFont(_isCompact ? 7.4F : 8F, FontStyle.Bold);
             eventArgs.Graphics.FillPath(pinBrush, pinPath);
             TextRenderer.DrawText(
                 eventArgs.Graphics,
                 "固定",
-                pinFont,
+                _pinFont ?? Font,
                 pinRect,
                 Color.White,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
@@ -170,17 +189,15 @@ public sealed class ModernTabControl : TabControl
         if (renamed)
         {
             var tagRect = new Rectangle(contentLeft, tabRect.Top + (tabRect.Height - (_isCompact ? 15 : 17)) / 2, _isCompact ? 28 : 34, _isCompact ? 15 : 17);
-            // 重命名角标：极淡成功色底 + 语义色文字，去描边。
             using var tagBrush = new SolidBrush(AppTheme.IsDark
                 ? AppTheme.Mix(AppTheme.Success, AppTheme.Surface, 0.76F)
                 : AppTheme.Mix(AppTheme.Success, Color.White, 0.86F));
             using var tagPath = BuildRoundedRect(tagRect, 6);
-            using var tagFont = AppTheme.CreateFont(_isCompact ? 6.5F : 7.1F, FontStyle.Bold);
             eventArgs.Graphics.FillPath(tagBrush, tagPath);
             TextRenderer.DrawText(
                 eventArgs.Graphics,
                 "NAME",
-                tagFont,
+                _tagFont ?? Font,
                 tagRect,
                 AppTheme.Success,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding);
@@ -194,11 +211,11 @@ public sealed class ModernTabControl : TabControl
             tabRect.Height - (_isCompact ? 10 : 14));
         var title = TabPages[eventArgs.Index].Text ?? "新标签页";
         using var titleBrush = new SolidBrush(AppTheme.TextPrimary);
-        using var selectedFont = selected ? new Font(Font, FontStyle.Bold) : null;
+        var drawFont = selected ? (_titleBoldFont ??= new Font(Font, FontStyle.Bold)) : Font;
         TextRenderer.DrawText(
             eventArgs.Graphics,
             title,
-            selectedFont ?? Font,
+            drawFont,
             titleRect,
             titleBrush.Color,
             TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
@@ -457,5 +474,20 @@ public sealed class ModernTabControl : TabControl
         path.CloseFigure();
         return path;
     }
-}
 
+    // 中文注释：释放 GDI 缓存资源（new 显式隐藏基类 Component.Dispose，由 Controls 集合自动调用）。
+    public new void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+        _pinFont?.Dispose();
+        _tagFont?.Dispose();
+        _titleBoldFont?.Dispose();
+        _pinFont = null;
+        _tagFont = null;
+        _titleBoldFont = null;
+    }
+}

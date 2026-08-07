@@ -276,6 +276,9 @@ public sealed class PluginManager
 
             root["enabled"] = enabled;
             File.WriteAllText(info.ManifestPath, root.ToJsonString(ManifestWriteOptions));
+            // 中文注释：磁盘写入后立即重新加载插件列表，让内存状态与 manifest.json 同步。
+            // 否则启用已禁用插件后，它不会出现在 _plugins 列表，导致注册/注入都无效。
+            Reload();
             error = string.Empty;
             return true;
         }
@@ -611,6 +614,7 @@ public sealed class PluginManager
             var pending = {};
             var pendingFetch = {};
             var pendingCapture = {};
+            var pendingBody = {};
             var listeners = {};
             var seq = 0;
             function post(msg) { if (host) { try { host.postMessage(msg); } catch (e) {} } }
@@ -632,6 +636,13 @@ public sealed class PluginManager
                         var pc = pendingCapture[m.reqId];
                         delete pendingCapture[m.reqId];
                         if (pc) { pc.resolve(m.entries || []); }
+                    } else if (m.type === 'lfsun-plugin-network-body-response') {
+                        var pb = pendingBody[m.reqId];
+                        delete pendingBody[m.reqId];
+                        if (pb) {
+                            if (m.error) { pb.reject(new Error(m.error)); }
+                            else { pb.resolve({ body: m.body, base64Encoded: m.base64Encoded }); }
+                        }
                     } else if (m.type === 'lfsun-plugin-fetch-response') {
                         // 中文注释：跨域抓取响应：base64 编码的二进制转回 ArrayBuffer，成功 resolve、失败 reject。
                         var pf = pendingFetch[m.reqId];
@@ -746,6 +757,13 @@ public sealed class PluginManager
                         post({ type: 'lfsun-plugin-network-get', pluginId: pluginId, reqId: reqId, clear: !!opts.clear });
                     });
                 }
+                function getResponseBody(requestId) {
+                    return new Promise(function (resolve, reject) {
+                        var reqId = 'b' + (++seq);
+                        pendingBody[reqId] = { resolve: resolve, reject: reject };
+                        post({ type: 'lfsun-plugin-network-body', pluginId: pluginId, reqId: reqId, requestId: requestId });
+                    });
+                }
                 return {
                     storage: {
                         sync: area,
@@ -761,7 +779,9 @@ public sealed class PluginManager
                         // 中文注释：Network 抓包：控制 WebView2 记录当前标签页的网络请求。
                         startCapture: startCapture,
                         getCaptureEntries: getCaptureEntries,
-                        stopCapture: stopCapture
+                        stopCapture: stopCapture,
+                        // 中文注释：按需读取某条请求的响应体（依赖 CDP Network 域）。
+                        getResponseBody: getResponseBody
                     },
                     runtime: {
                         onMessage: { addListener: function () {} },

@@ -157,14 +157,15 @@ public sealed class DownloadManager
             (ulong)Math.Max(0, args.DownloadOperation.BytesReceived),
             args.DownloadOperation.TotalBytesToReceive ?? 0UL);
 
-        args.DownloadOperation.BytesReceivedChanged += (_, _) =>
+        // 中文注释：下载完成/中断后必须立即取消订阅，否则 BytesReceivedChanged 会持续触发导致 UI 重绘浪费。
+        void OnBytesReceivedChanged(object? s, object e)
         {
             item.UpdateProgress(
                 (ulong)Math.Max(0, args.DownloadOperation.BytesReceived),
                 args.DownloadOperation.TotalBytesToReceive ?? 0UL);
-        };
+        }
 
-        args.DownloadOperation.StateChanged += (_, _) =>
+        void OnStateChanged(object? s, object e)
         {
             switch (args.DownloadOperation.State)
             {
@@ -172,11 +173,13 @@ public sealed class DownloadManager
                     item.SetCompleted();
                     _log($"下载完成: {item.FileName}");
                     PersistHistory();
+                    Unsubscribe();
                     break;
                 case CoreWebView2DownloadState.Interrupted:
                     item.SetInterrupted();
                     _log($"下载失败: {item.FileName}");
                     PersistHistory();
+                    Unsubscribe();
                     break;
                 default:
                     if (args.DownloadOperation.InterruptReason ==
@@ -185,10 +188,20 @@ public sealed class DownloadManager
                         item.SetCanceled();
                         _log($"下载取消: {item.FileName}");
                         PersistHistory();
+                        Unsubscribe();
                     }
                     break;
             }
-        };
+        }
+
+        void Unsubscribe()
+        {
+            try { args.DownloadOperation.BytesReceivedChanged -= OnBytesReceivedChanged; } catch { }
+            try { args.DownloadOperation.StateChanged -= OnStateChanged; } catch { }
+        }
+
+        args.DownloadOperation.BytesReceivedChanged += OnBytesReceivedChanged;
+        args.DownloadOperation.StateChanged += OnStateChanged;
     }
 
     private string BuildTargetPath(string sourceUrl, string suggestedPath)
@@ -217,7 +230,9 @@ public sealed class DownloadManager
         var extension = Path.GetExtension(path);
         var stem = Path.GetFileNameWithoutExtension(path);
         var index = 1;
-        while (File.Exists(path))
+        // 中文注释：限制重试次数防止极端场景（如磁盘写保护、目录不可写）下无限循环导致界面卡死。
+        const int maxAttempts = 1000;
+        while (File.Exists(path) && index <= maxAttempts)
         {
             path = Path.Combine(_downloadDirectory, $"{stem} ({index}){extension}");
             index++;

@@ -214,8 +214,16 @@ public sealed class CredentialStore
     private static bool IsSuffixHostMatch(string siteInput, string host)
     {
         var normalized = NormalizeSiteHost(siteInput);
-        return !string.IsNullOrWhiteSpace(normalized) &&
-               host.EndsWith(normalized, StringComparison.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return false;
+        }
+
+        // 中文注释：要求完整段匹配，避免 evil-github.com 错误匹配 github.com 的安全漏洞。
+        // 合法匹配：host == suffix（如 github.com 对 github.com）
+        //           || host 是以 "." + suffix 结尾的子域名（如 api.github.com 对 github.com）
+        return string.Equals(host, normalized, StringComparison.OrdinalIgnoreCase) ||
+               host.EndsWith("." + normalized, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string NormalizeSiteHost(string siteInput)

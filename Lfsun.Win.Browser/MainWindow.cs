@@ -11107,6 +11107,17 @@ public sealed class MainWindow : Form
     {
         if (disposing)
         {
+            // 中文注释：停止所有 6 个定时器，避免窗口释放后仍触发 Tick 回调访问已释放对象。
+            try { _maintenanceTimer.Stop(); } catch { }
+            try { _refreshClickTimer.Stop(); } catch { }
+            try { _toastTimer.Stop(); } catch { }
+            try { _addressSuggestionRefreshTimer.Stop(); } catch { }
+            try { _ambientMotionTimer.Stop(); } catch { }
+            try { _windowTransitionTimer.Stop(); } catch { }
+
+            // 中文注释：取消正在进行的 ToolStripItem 背景色渐变动画，释放静态 Timer。
+            try { UI.Chrome.ToolStripItemColorAnimator.CancelAll(); } catch { }
+
             _windowIcon?.Dispose();
             _windowIcon = null;
         }
