@@ -1,0 +1,13 @@
+{
+  "id": "web-scraper",
+  "name": "可视化爬虫",
+  "description": "不懂代码也能爬虫：悬浮高亮选点 → 点击选容器 → 自动识别同类 → 添加字段 → 实时预览 → 导出 CSV/JSON。快捷键 Ctrl+Alt+G。",
+  "enabled": true,
+  "matches": ["<all_urls>"],
+  "permissions": ["content:dom_read", "content:dom_write", "content:inject"],
+  "contentScripts": [
+    { "matches": ["<all_urls>"], "scripts": ["inject.js"] }
+  ],
+  "runEvent": "lfsun-plugin:run",
+  "runShortcut": "Ctrl+Alt+G"
+}

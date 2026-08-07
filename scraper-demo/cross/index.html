@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>跨域第三方页面</title>
+  <style>body{font-family:system-ui,'Microsoft YaHei',sans-serif;max-width:760px;margin:24px auto;padding:0 16px;background:#0f172a;color:#e2e8f0}
+  .product{border:1px solid #334155;border-radius:8px;padding:10px 12px;margin:8px 0}
+  .title{font-weight:600;color:#7dd3fc}.price{color:#fbbf24}</style>
+</head>
+<body>
+  <h1>🌐 跨域第三方页面（另一个 origin）</h1>
+  <p>这是 <b>http://127.0.0.1:8091/</b>，与商品站点是不同的 origin。普通浏览器扩展因 CORS 无法抓取它，
+     但在你自己的 LfsunBrowser 里，网页爬虫插件可通过宿主桥（chrome.net.fetch）抓取。</p>
+  <div class="product"><span class="title">第三方评论：键盘手感极佳</span> · <span class="price">★ 4.8</span></div>
+  <div class="product"><span class="title">第三方评测：椅子坐感舒适</span> · <span class="price">★ 4.6</span></div>
+  <div class="product"><span class="title">第三方榜单：显示器性价比第一</span> · <span class="price">★ 4.9</span></div>
+</body>
+</html>
