@@ -87,53 +87,64 @@
     return sel;
   }
 
-  // 相对 container 生成子选择器
-  function relativeSelector(container, el) {
-    if (el === container) return '';
+  // 中文注释：生成 fieldEl 相对 listItemEl 的子路径（纯 tag.class，不含 nth-child，可在每条列表项内复用）。
+  function getFieldSelector(fieldEl, listItemEl) {
+    if (!fieldEl || fieldEl === listItemEl) return '';
     var parts = [];
-    var node = el;
-    while (node && node !== container && node.nodeType === 1) {
+    var node = fieldEl;
+    var depth = 0;
+    while (node && node !== listItemEl && node.nodeType === 1 && depth < 8) {
       var part = node.tagName.toLowerCase();
-      if (node.id && /^[a-zA-Z]/.test(node.id)) { parts.unshift('#' + cssEscape(node.id)); break; }
-      if (node.classList && node.classList.length) {
-        var cls = Array.prototype.slice.call(node.classList).slice(0, 2).map(cssEscape).join('.');
+      if (node.classList && node.classList.length && typeof node.className === 'string') {
+        var cls = node.className.trim().split(/\s+/).slice(0, 3).filter(function (c) { return c.length > 1 && c.length < 40; }).map(cssEscape).join('.');
         if (cls) part += '.' + cls;
       }
-      var parent = node.parentElement;
-      if (parent && parent !== container) {
-        var siblings = Array.prototype.filter.call(parent.children, function (c) { return c.tagName === node.tagName; });
-        if (siblings.length > 1) {
-          var idx = Array.prototype.indexOf.call(parent.children, node) + 1;
-          part += ':nth-child(' + idx + ')';
-        }
-      }
       parts.unshift(part);
-      node = parent;
+      node = node.parentElement;
+      depth++;
     }
     return parts.join(' > ');
   }
 
-  // ============ 识别同类元素 ============
-  function findSimilarElements(el) {
-    var sel = simplifySelector(buildCssSelector(el), el);
-    var all = document.querySelectorAll(sel);
-    if (all.length >= 2) return { selector: sel, elements: Array.prototype.slice.call(all) };
-    // 尝试用父容器缩小范围
-    var parent = el.parentElement;
-    if (parent && parent !== document.body && parent !== document.documentElement) {
-      var parentSel = simplifySelector(buildCssSelector(parent), parent);
-      var tagName = el.tagName.toLowerCase();
-      var children = parent.querySelectorAll(':scope > ' + tagName);
-      if (children.length >= 2) {
-        var rel = relativeSelector(parent, el);
-        var full = parentSel + ' > ' + rel;
-        var matches = document.querySelectorAll(full);
-        if (matches.length >= 2) {
-          return { selector: full, elements: Array.prototype.slice.call(matches), parentSelector: parentSel };
-        }
-      }
+  // 中文注释：生成列表容器选择器（唯一标识装着一组列表项的父元素）。
+  function buildContainerSelector(el) {
+    if (!el || el === document.body) return 'body';
+    if (el.id && /^[a-zA-Z]/.test(el.id)) return '#' + cssEscape(el.id);
+    var tag = el.tagName.toLowerCase();
+    var cls = '';
+    if (el.classList && el.classList.length && typeof el.className === 'string') {
+      var fc = el.className.trim().split(/\s+/).filter(function (c) { return c.length > 1 && c.length < 40; })[0] || '';
+      if (fc) cls = '.' + cssEscape(fc);
     }
-    return { selector: sel, elements: [el] };
+    if (document.querySelectorAll(tag + cls).length === 1) return tag + cls;
+    return simplifySelector(buildCssSelector(el), el);
+  }
+
+  // 中文注释：向上查找包含 >=2 个同类子元素的父元素，作为列表容器。
+  function findListItems(el) {
+    var tag = el.tagName.toLowerCase();
+    var firstClass = '';
+    if (el.classList && el.classList.length && typeof el.className === 'string') {
+      firstClass = el.className.trim().split(/\s+/).filter(function (c) { return c.length > 1 && c.length < 40; })[0] || '';
+    }
+    var parent = el.parentElement;
+    var best = null;
+    while (parent && parent !== document.body && parent !== document.documentElement) {
+      var matches = Array.prototype.filter.call(parent.children, function (c) {
+        if (c.tagName.toLowerCase() !== tag) return false;
+        if (firstClass && !c.classList.contains(firstClass)) return false;
+        return true;
+      });
+      if (matches.length >= 3) {
+        return { parent: parent, items: matches, containerSelector: buildContainerSelector(parent) };
+      }
+      if (matches.length >= 2 && !best) {
+        best = { parent: parent, items: matches, containerSelector: buildContainerSelector(parent) };
+      }
+      parent = parent.parentElement;
+    }
+    if (best) return best;
+    return { parent: el.parentElement || document.body, items: [el], containerSelector: buildContainerSelector(el.parentElement || document.body) };
   }
 
   // ============ 元素高亮 ============
@@ -261,12 +272,10 @@
     selectMode: null, // 'container' | 'field'
     containerEl: null,
     containerSelector: '',
-    similarSelector: '',
-    similarCount: 0,
+    listParent: null,
+    listItems: [],
     fields: [],
-    lastExtract: [],
-    extractCache: [],
-    isSelecting: false
+    extractCache: []
   };
 
   // ============ 核心选点逻辑 ============
@@ -275,6 +284,8 @@
     state.fields = [];
     state.containerEl = null;
     state.containerSelector = '';
+    state.listParent = null;
+    state.listItems = [];
     state.tab = 'select';
     ensureStyles();
     if (!state.panelOpen) togglePanel();
@@ -283,9 +294,9 @@
   }
 
   function startFieldSelect() {
-    if (!state.containerEl) return showToast('请先选取列表容器');
+    if (!state.listItems || !state.listItems.length) return showToast('请先选取列表容器');
     state.selectMode = 'field';
-    showToast('现在点击容器内的<strong>字段</strong>（绿色框），如标题、价格等');
+    showToast('现在点击第一个列表项内的<strong>字段</strong>（绿色框），如标题、价格等');
   }
 
   function cancelSelectMode() {
@@ -302,19 +313,36 @@
     if (!el || el.closest('.__ws-panel') || el.closest('.__ws-toolbar-floating')) { clearHighlight(); hideHoverPreview(); return; }
     if (state.selectMode === 'container') {
       showHighlight(el, '__ws-highlight-container');
-      var sel = simplifySelector(buildCssSelector(el), el);
-      showHoverPreview(sel + ' → ' + el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0,2).join('.') : ''), e.clientX, e.clientY);
+      var listInfo = findListItems(el);
+      var count = listInfo.items.length;
+      var tagInfo = el.tagName.toLowerCase() + (el.classList && el.classList.length ? '.' + el.className.trim().split(/\s+/)[0] : '');
+      showHoverPreview('将匹配到 ' + count + ' 个「' + tagInfo + '」\n' + buildContainerSelector(listInfo.parent), e.clientX, e.clientY);
     } else if (state.selectMode === 'field') {
-      if (state.containerEl && state.containerEl.contains(el)) {
+      if (state.listItems.length && state.listItems.indexOf(el) >= 0) {
+        // 鼠标在列表项上时追踪其子元素
         showHighlight(el, '__ws-highlight-field');
-        var rel = relativeSelector(state.containerEl, el);
+        var rel = getFieldSelector(el, state.listItems[0]);
         var tagInfo = '';
         if (el.tagName === 'A') tagInfo = ' [链接]';
         else if (el.tagName === 'IMG') tagInfo = ' [图片]';
         var text = (el.textContent || '').replace(/\s+/g, ' ').trim();
         if (text && text.length > 50) text = text.substring(0, 50) + '…';
-        showHoverPreview((rel || el.className || el.tagName.toLowerCase()) + tagInfo + (text ? '\n' + text : ''), e.clientX, e.clientY);
+        showHoverPreview((rel || el.tagName.toLowerCase()) + tagInfo + (text ? '\n' + text : ''), e.clientX, e.clientY);
       } else {
+        // 鼠标在某个元素上
+        for (var fi = 0; fi < state.listItems.length; fi++) {
+          if (state.listItems[fi].contains(el) && el !== state.listItems[fi]) {
+            showHighlight(el, '__ws-highlight-field');
+            var relEl = getFieldSelector(el, state.listItems[0]);
+            var tInfo = '';
+            if (el.tagName === 'A') tInfo = ' [链接]';
+            else if (el.tagName === 'IMG') tInfo = ' [图片]';
+            var txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
+            if (txt && txt.length > 50) txt = txt.substring(0, 50) + '…';
+            showHoverPreview((relEl || el.tagName.toLowerCase()) + tInfo + (txt ? '\n' + txt : ''), e.clientX, e.clientY);
+            return;
+          }
+        }
         clearHighlight();
         hideHoverPreview();
       }
@@ -331,39 +359,59 @@
     if (state.selectMode === 'container') {
       selectContainer(el);
     } else if (state.selectMode === 'field') {
-      if (state.containerEl && state.containerEl.contains(el)) {
-        selectField(el);
-      }
+      selectField(el);
     }
   }
 
   function selectContainer(el) {
-    var sel = simplifySelector(buildCssSelector(el), el);
-    var similar = findSimilarElements(el);
+    var listInfo = findListItems(el);
+    state.listParent = listInfo.parent;
+    state.listItems = listInfo.items;
+    state.containerSelector = listInfo.containerSelector;
     state.containerEl = el;
-    state.containerSelector = sel;
-    state.similarSelector = similar.selector;
-    state.similarCount = similar.elements.length;
     state.selectMode = null;
     clearHighlight();
     hideHoverPreview();
 
-    // 自动识别容器内可能的字段
+    // 自动识别第一个列表项内可能的字段
     var autoFields = autoDetectFields(el);
     state.fields = autoFields;
 
     updatePanelUI();
-    showToast('已选取 ' + similar.elements.length + ' 个相似项，自动识别 ' + autoFields.length + ' 个字段');
+    showToast('已选取 ' + listInfo.items.length + ' 个同类项，自动识别 ' + autoFields.length + ' 个字段');
     extractAll();
   }
 
   function selectField(el) {
-    if (el === state.containerEl) return;
-    var rel = relativeSelector(state.containerEl, el);
-    if (!rel) return;
+    if (!state.listItems || !state.listItems.length) return;
+    // 确认 el 在某个列表项内
+    var itemEl = null;
+    for (var j = 0; j < state.listItems.length; j++) {
+      if (state.listItems[j] === el || state.listItems[j].contains(el)) {
+        itemEl = state.listItems[j];
+        break;
+      }
+    }
+    if (!itemEl) return showToast('请点击列表项内的字段');
+    if (el === itemEl) return;
+
+    var representativeItem = state.listItems[0];
+    var fieldSel = getFieldSelector(el, representativeItem);
+    if (!fieldSel) return;
+
+    // 验证选择器在至少 2 个列表项里都匹配到
+    var validCount = 0;
+    for (var v = 0; v < state.listItems.length; v++) {
+      try { if (state.listItems[v].querySelector(fieldSel)) validCount++; } catch (e) {}
+    }
+    if (validCount < 2) {
+      showToast('该字段只在那一条里存在，请选一个每条都有的位置');
+      return;
+    }
+
     // 检查是否重复
     for (var i = 0; i < state.fields.length; i++) {
-      if (state.fields[i].selector === rel) {
+      if (state.fields[i].selector === fieldSel) {
         state.fields.splice(i, 1);
         updatePanelUI();
         extractAll();
@@ -372,22 +420,29 @@
     }
     var type = detectFieldType(el);
     var name = genFieldName(el, type);
-    state.fields.push({ name: name, selector: rel, type: type });
+    state.fields.push({ name: name, selector: fieldSel, type: type });
     updatePanelUI();
     extractAll();
   }
 
   function autoDetectFields(container) {
     var fields = [];
-    var candidates = container.querySelectorAll('a[href], img[src], [class*="title"], [class*="name"], [class*="price"], [class*="desc"], [class*="content"], h1, h2, h3, h4, p');
     var used = {};
-    for (var i = 0; i < candidates.length && i < 8; i++) {
+    var representativeItem = state.listItems && state.listItems.length ? state.listItems[0] : container;
+    var candidates = representativeItem.querySelectorAll('a[href], img, h1, h2, h3, h4, [class*="title"], [class*="name"], [class*="price"], [class*="desc"], span, p, time');
+    for (var i = 0; i < candidates.length && fields.length < 6; i++) {
       var el = candidates[i];
-      var rel = relativeSelector(container, el);
-      if (!rel || used[rel]) continue;
-      used[rel] = true;
+      var fieldSel = getFieldSelector(el, representativeItem);
+      if (!fieldSel || used[fieldSel]) continue;
+      used[fieldSel] = true;
+      // 验证至少 2 个列表项里有这个字段
+      var cnt = 0;
+      for (var j = 0; j < state.listItems.length; j++) {
+        try { if (state.listItems[j].querySelector(fieldSel)) cnt++; } catch (e) {}
+      }
+      if (cnt < 2) continue;
       var type = detectFieldType(el);
-      fields.push({ name: genFieldName(el, type), selector: rel, type: type });
+      fields.push({ name: genFieldName(el, type), selector: fieldSel, type: type });
     }
     return fields;
   }
