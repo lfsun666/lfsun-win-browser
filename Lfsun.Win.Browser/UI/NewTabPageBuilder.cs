@@ -9,8 +9,8 @@ namespace Lfsun.Win.Browser.UI;
 
 /// <summary>
 /// 新标签页速拨面板生成器。
-/// 输出完整本地 HTML（NavigateToString 渲染）：问候语+数字时钟、默认引擎搜索框、快捷功能芯片、
-/// 常访站点卡片（历史访问频次 Top8，不足时用书签补齐），配色无缝跟随 AppTheme。
+/// 输出完整本地 HTML（NavigateToString 渲染）：问候语+数字时钟、搜索引擎即时切换器、快捷聚合芯片、
+/// 开发者灵感寄语、常访站点卡片（历史访问频次 Top8，不足时用书签补齐），配色无缝跟随 AppTheme。
 /// </summary>
 public static class NewTabPageBuilder
 {
@@ -22,9 +22,9 @@ public static class NewTabPageBuilder
         IReadOnlyList<BookmarkNode> bookmarkItems)
     {
         var topSites = CollectTopSites(historyEntries, bookmarkItems);
-        var engineName = string.IsNullOrWhiteSpace(config.DefaultSearchEngineName)
-            ? "必应"
-            : config.DefaultSearchEngineName.Trim();
+        var defaultEngine = string.IsNullOrWhiteSpace(config.DefaultSearchEngineName)
+            ? "bing"
+            : (config.DefaultSearchEngineName.Contains("百度") ? "baidu" : "bing");
         var searchTemplateJs = JsonSerializer.Serialize(config.DefaultSearchEngineUrlTemplate);
 
         var cardsHtml = new StringBuilder();
@@ -69,23 +69,25 @@ public static class NewTabPageBuilder
               body {
                 min-height: 100vh; display: flex; flex-direction: column; align-items: center;
                 background: var(--bg); color: var(--text);
-                font-family: -apple-system, "Microsoft YaHei UI", "Segoe UI", sans-serif;
-                padding: 7vh 24px 36px;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+                padding: 6vh 24px 36px;
                 user-select: none;
                 transition: background-color .2s ease;
               }
               .clock {
-                font-size: 52px; font-weight: 700; letter-spacing: 2px;
+                font-size: 54px; font-weight: 700; letter-spacing: 2px;
                 background: linear-gradient(135deg, var(--text) 30%, var(--accent));
                 -webkit-background-clip: text; -webkit-text-fill-color: transparent;
               }
               .greeting { margin-top: 6px; font-size: 15px; color: var(--text-2); font-weight: 500; }
+              .quote { margin-top: 8px; font-size: 12.5px; color: var(--text-2); opacity: 0.85; font-style: italic; }
+              
               .search-container {
-                margin-top: 32px; width: min(660px, 92vw); display: flex; flex-direction: column; align-items: center; gap: 14px;
+                margin-top: 28px; width: min(680px, 92vw); display: flex; flex-direction: column; align-items: center; gap: 14px;
               }
               .search-box {
-                width: 100%; display: flex;
-                background: var(--input-bg); border: 1.5px solid var(--border); border-radius: 26px;
+                width: 100%; display: flex; align-items: center;
+                background: var(--input-bg); border: 1.5px solid var(--border); border-radius: 28px;
                 overflow: hidden; transition: all .2s cubic-bezier(0.16, 1, 0.3, 1);
                 box-shadow: 0 4px 16px rgba(0,0,0,.04);
               }
@@ -93,37 +95,49 @@ public static class NewTabPageBuilder
                 border-color: var(--accent);
                 box-shadow: 0 6px 26px rgba(0,0,0,.14), 0 0 0 3px rgba(33, 115, 243, .18);
               }
+              .engine-select {
+                border: 0; outline: 0; background: transparent; color: var(--text);
+                font-size: 13px; font-weight: 600; padding: 0 14px 0 18px; height: 100%;
+                cursor: pointer; appearance: none;
+                border-right: 1px solid var(--border);
+                transition: background-color 0.15s ease;
+              }
+              .engine-select:hover { background-color: var(--surface-alt); }
               .search-box input {
                 flex: 1; border: 0; outline: 0; background: transparent; color: var(--text);
-                font-size: 15px; padding: 14px 22px;
+                font-size: 15px; padding: 13px 18px;
               }
               .search-box button {
                 border: 0; cursor: pointer; background: var(--accent); color: #fff;
-                font-size: 14px; font-weight: 600; padding: 0 28px;
+                font-size: 14px; font-weight: 600; padding: 13px 26px;
                 transition: opacity .15s ease, filter .15s ease;
               }
               .search-box button:hover { opacity: .92; filter: brightness(1.05); }
+              
               .quick-nav {
-                display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+                display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 680px;
               }
               .quick-chip {
                 display: inline-flex; align-items: center; gap: 5px;
-                padding: 6px 12px; border-radius: 16px;
+                padding: 6px 13px; border-radius: 16px;
                 font-size: 12px; color: var(--text-2); text-decoration: none;
                 background: var(--surface-alt); border: 1px solid var(--border);
                 transition: all .16s ease;
               }
               .quick-chip:hover {
                 color: var(--accent); border-color: var(--accent); transform: translateY(-1.5px);
+                box-shadow: 0 2px 8px rgba(0,0,0,0.06);
               }
+              .chip-icon { font-size: 13px; }
+
               .section-title {
-                margin: 40px 0 16px; font-size: 13px; color: var(--text-2);
+                margin: 36px 0 14px; font-size: 13px; color: var(--text-2);
                 align-self: center; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
               }
               .grid {
-                display: grid; grid-template-columns: repeat(4, 136px); gap: 16px;
+                display: grid; grid-template-columns: repeat(4, 138px); gap: 16px;
               }
-              @media (max-width: 640px) { .grid { grid-template-columns: repeat(2, 136px); } }
+              @media (max-width: 640px) { .grid { grid-template-columns: repeat(2, 138px); } }
               .card {
                 display: flex; flex-direction: column; align-items: center; gap: 8px;
                 background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
@@ -151,7 +165,7 @@ public static class NewTabPageBuilder
               }
               .empty { margin-top: 12px; font-size: 13px; color: var(--text-2); }
               .footer-version {
-                margin-top: auto; padding-top: 48px; font-size: 12px; color: var(--text-2);
+                margin-top: auto; padding-top: 40px; font-size: 12px; color: var(--text-2);
                 opacity: .85; letter-spacing: .3px;
               }
             </style>
@@ -159,19 +173,30 @@ public static class NewTabPageBuilder
             <body>
               <div class="clock" id="clock">--:--</div>
               <div class="greeting" id="greeting"></div>
+              <div class="quote" id="quote">“代码是写给人看的，顺便能在机器上运行。” — Martin Fowler</div>
+              
               <div class="search-container">
                 <form class="search-box" id="searchForm">
+                  <select id="engineSelect" class="engine-select">
+                    <option value="bing">必应</option>
+                    <option value="baidu">百度</option>
+                    <option value="google">谷歌</option>
+                    <option value="github">GitHub</option>
+                    <option value="juejin">稀土掘金</option>
+                  </select>
                   <input id="searchInput" type="text" autofocus autocomplete="off"
-                         placeholder="使用 {{WebUtility.HtmlEncode(engineName)}} 搜索，或输入网址后回车">
+                         placeholder="输入搜索内容，或输入网址后回车...">
                   <button type="submit">搜索</button>
                 </form>
                 <div class="quick-nav">
-                  <a class="quick-chip" href="https://www.baidu.com">百度</a>
-                  <a class="quick-chip" href="https://cn.bing.com">必应</a>
-                  <a class="quick-chip" href="https://github.com">GitHub</a>
-                  <a class="quick-chip" href="https://gitee.com">Gitee</a>
-                  <a class="quick-chip" href="https://www.bilibili.com">哔哩哔哩</a>
-                  <a class="quick-chip" href="https://juejin.cn">稀土掘金</a>
+                  <a class="quick-chip" href="https://github.com"><span class="chip-icon">🐙</span> GitHub</a>
+                  <a class="quick-chip" href="https://gitee.com"><span class="chip-icon">🐎</span> Gitee</a>
+                  <a class="quick-chip" href="https://juejin.cn"><span class="chip-icon">💎</span> 稀土掘金</a>
+                  <a class="quick-chip" href="https://v2ex.com"><span class="chip-icon">💬</span> V2EX</a>
+                  <a class="quick-chip" href="https://developer.mozilla.org/zh-CN/"><span class="chip-icon">📚</span> MDN</a>
+                  <a class="quick-chip" href="https://stackoverflow.com"><span class="chip-icon">🥞</span> StackOverflow</a>
+                  <a class="quick-chip" href="https://www.bilibili.com"><span class="chip-icon">📺</span> 哔哩哔哩</a>
+                  <a class="quick-chip" href="https://sspai.com"><span class="chip-icon">⚡</span> 少数派</a>
                 </div>
               </div>
               <div class="section-title">常访站点</div>
@@ -179,7 +204,35 @@ public static class NewTabPageBuilder
               {{emptyHtml}}
               <div class="footer-version">{{AppVersionInfo.ProductName}} v{{AppVersionInfo.CurrentVersion}} · {{AppVersionInfo.Slogan}}</div>
             <script>
-              const searchTemplate = {{searchTemplateJs}};
+              const engineTemplates = {
+                bing: "https://cn.bing.com/search?q={query}",
+                baidu: "https://www.baidu.com/s?wd={query}",
+                google: "https://www.google.com/search?q={query}",
+                github: "https://github.com/search?q={query}",
+                juejin: "https://juejin.cn/search?query={query}"
+              };
+
+              const quotes = [
+                "“代码是写给人看的，顺便能在机器上运行。” — Martin Fowler",
+                "“简单的事情应该简单，复杂的事情应该成为可能。” — Alan Kay",
+                "“提前优化是万恶之源。” — Donald Knuth",
+                "“好工具拓展思维边界，极简设计带来专注体验。”",
+                "“每一个伟大的应用，都源自持续迭代与打磨。”",
+                "“Talk is cheap. Show me the code.” — Linus Torvalds"
+              ];
+
+              const engineSelect = document.getElementById("engineSelect");
+              const savedEngine = localStorage.getItem("lfsun_fav_engine");
+              if (savedEngine && engineTemplates[savedEngine]) {
+                engineSelect.value = savedEngine;
+              } else {
+                engineSelect.value = "{{defaultEngine}}";
+              }
+
+              engineSelect.addEventListener("change", () => {
+                localStorage.setItem("lfsun_fav_engine", engineSelect.value);
+              });
+
               function refreshClock() {
                 const now = new Date();
                 const pad = v => String(v).padStart(2, "0");
@@ -196,6 +249,11 @@ public static class NewTabPageBuilder
               }
               refreshClock();
               setInterval(refreshClock, 15000);
+
+              // 随机展示每日名言
+              const qIndex = Math.floor(Math.random() * quotes.length);
+              document.getElementById("quote").textContent = quotes[qIndex];
+
               document.getElementById("searchForm").addEventListener("submit", event => {
                 event.preventDefault();
                 const raw = document.getElementById("searchInput").value.trim();
@@ -205,7 +263,9 @@ public static class NewTabPageBuilder
                 } else if (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(raw)) {
                   location.href = "https://" + raw;
                 } else {
-                  location.href = searchTemplate.replace("{query}", encodeURIComponent(raw));
+                  const sel = engineSelect.value;
+                  const tmpl = engineTemplates[sel] || "https://cn.bing.com/search?q={query}";
+                  location.href = tmpl.replace("{query}", encodeURIComponent(raw));
                 }
               });
             </script>

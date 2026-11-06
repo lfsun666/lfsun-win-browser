@@ -1,4 +1,4 @@
-using System.Drawing.Imaging;
+﻿using System.Drawing.Imaging;
 using Lfsun.Win.Browser.Browser;
 
 namespace Lfsun.Win.Browser.UI.SidePanel;
@@ -11,6 +11,7 @@ public sealed class ToolboxView : UserControl
 {
     private readonly Func<BrowserTab?> _getActiveTab;
     private readonly Action<string> _toastCallback;
+    private readonly Action? _toggleSplitCallback;
 
     private readonly PictureBox _qrBox = new();
     private readonly Label _qrUrlLabel = new();
@@ -19,10 +20,12 @@ public sealed class ToolboxView : UserControl
 
     public ToolboxView(
         Func<BrowserTab?> getActiveTab,
-        Action<string> toastCallback)
+        Action<string> toastCallback,
+        Action? toggleSplitCallback = null)
     {
         _getActiveTab = getActiveTab;
         _toastCallback = toastCallback;
+        _toggleSplitCallback = toggleSplitCallback;
 
         Dock = DockStyle.Fill;
         AutoScroll = true;
@@ -147,6 +150,40 @@ public sealed class ToolboxView : UserControl
         qrActions.Controls.Add(saveQrImgBtn);
         qrCard.Controls.Add(qrActions);
         mainLayout.Controls.Add(qrCard);
+
+                // 2.5 沉浸阅读、视频画中画与分屏
+        mainLayout.Controls.Add(CreateSectionHeader("📖 沉浸阅读与实用扩展"));
+        var readerPipPanel = new FlowLayoutPanel { Width = 310, AutoSize = true, Margin = new Padding(0, 4, 0, 10) };
+        readerPipPanel.Controls.Add(CreateButton("📖 阅读模式", 90, async () =>
+        {
+            var tab = _getActiveTab();
+            if (tab is not null)
+            {
+                var active = await tab.ToggleReaderModeAsync();
+                _toastCallback(active ? "已开启沉浸式阅读模式 (Esc 退出)" : "已退出沉浸式阅读模式");
+            }
+        }));
+        readerPipPanel.Controls.Add(CreateButton("📺 视频画中画", 95, async () =>
+        {
+            var tab = _getActiveTab();
+            if (tab is not null)
+            {
+                var res = await tab.TogglePictureInPictureAsync();
+                _toastCallback(res.message);
+            }
+        }));
+        readerPipPanel.Controls.Add(CreateButton("◫ 双屏分屏", 95, () =>
+        {
+            if (_toggleSplitCallback != null)
+            {
+                _toggleSplitCallback();
+            }
+            else
+            {
+                _toastCallback("可通过快捷键 Alt+D 触发分屏");
+            }
+        }));
+        mainLayout.Controls.Add(readerPipPanel);
 
         // 3. 阅读护眼滤镜
         mainLayout.Controls.Add(CreateSectionHeader("🌓 页面阅读与护眼滤镜"));

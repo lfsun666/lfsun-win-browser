@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -14,6 +14,7 @@ using Lfsun.Win.Browser.Settings;
 using Lfsun.Win.Browser.UI;
 using Lfsun.Win.Browser.UI.Chrome;
 using Lfsun.Win.Browser.UI.SidePanel;
+using Lfsun.Win.Browser.UI.SplitView;
 
 namespace Lfsun.Win.Browser;
 
@@ -62,6 +63,10 @@ public sealed class MainWindow : Form
     private readonly ToolStripDropDownButton _pluginButton = new("插件");
     private readonly BrowserSidePanel _sidePanel;
     private readonly ToolStripDropDownButton _sidePanelButton = new("◧ 侧栏");
+    private readonly SplitBrowserPanel _splitPanel;
+    private readonly ToolStripButton _splitViewButton = new("◫ 分屏");
+    private readonly ToolStripButton _readerModeButton = new("📖 阅读");
+    private readonly ToolStripButton _zoomPillButton = new("100% 🔍");
 
     // 中文注释：固定到工具栏的插件快捷按钮（按配置 PinnedPluginIds 动态生成，点击即启/停插件）。
     private readonly List<ToolStripButton> _pinnedPluginButtons = new();
@@ -138,6 +143,9 @@ public sealed class MainWindow : Form
     private readonly ToolStripMenuItem _tabCtxToggleMute = new("🔇 静音标签页 (Ctrl+M)");
     private readonly ToolStripMenuItem _tabCtxCaptureScreenshot = new("📸 网页快照截图 (Ctrl+Shift+S)");
     private readonly ToolStripMenuItem _tabCtxQrCode = new("📱 生成手机浏览二维码");
+    private readonly ToolStripMenuItem _tabCtxReaderMode = new("📖 沉浸阅读模式 (Alt+R)");
+    private readonly ToolStripMenuItem _tabCtxPictureInPicture = new("📺 视频独立画中画");
+    private readonly ToolStripMenuItem _tabCtxSplitView = new("◫ 开启双屏分屏 (Alt+D)");
     private readonly ToolStripMenuItem _tabCtxReopenClosed = new("恢复最近关闭");
     private readonly ToolStripMenuItem _windowCtxOpenPrivate = new("新开无痕浏览器");
     private readonly ToolStripMenuItem _windowCtxOpenIsolated = new("新开独立双开浏览器");
@@ -464,8 +472,36 @@ public sealed class MainWindow : Form
             ShowToast,
             () => ShowBookmarksSettingsWindow(),
             () => ShowHistoryWindow(),
-            () => ShowDownloadManager());
+            () => ShowDownloadManager(),
+            () => _ = ToggleSplitViewAsync());
         _sidePanel.CloseRequested += () => _sidePanel.Visible = false;
+
+        _splitPanel = new SplitBrowserPanel();
+        _splitPanel.InitializeUserDataDir(_launchOptions.ProfileStoragePath);
+        _splitPanel.SplitViewClosed += () =>
+        {
+            _splitPanel.DeactivateSplit(_tabControl, this);
+            RefreshToolbar();
+        };
+
+        _splitViewButton.ToolTipText = "双屏分屏并行浏览 (Alt+D)";
+        _splitViewButton.Click += async (_, _) => await ToggleSplitViewAsync();
+
+        _readerModeButton.ToolTipText = "沉浸式阅读模式 (Alt+R)";
+        _readerModeButton.Click += async (_, _) => await ToggleReaderModeForActiveTabAsync();
+
+        _zoomPillButton.Visible = false;
+        _zoomPillButton.ToolTipText = "当前页面已自定义缩放，点击恢复 100% (Ctrl+0)";
+        _zoomPillButton.Click += (_, _) =>
+        {
+            if (_tabManager.ActiveTab is not null)
+            {
+                _tabManager.ActiveTab.ZoomFactor = 1.0;
+                _zoomPillButton.Visible = false;
+                ShowToast("已恢复默认 100% 缩放");
+                RefreshToolbar();
+            }
+        };
 
         _sidePanelButton.Click += (_, _) =>
         {
@@ -622,6 +658,7 @@ public sealed class MainWindow : Form
         _addressSuggestionPanel.Controls.Add(_addressSuggestionHintLabel);
 
         Controls.Add(_sidePanel);
+        Controls.Add(_splitPanel);
         Controls.Add(_tabControl);
         Controls.Add(_bookmarksBar);
         Controls.Add(_addressBar);
@@ -760,6 +797,26 @@ public sealed class MainWindow : Form
                 qr.ShowDialog(this);
             }
         };
+        _tabCtxReaderMode.Click += async (_, _) =>
+        {
+            var tab = ResolveTabByContextIndex();
+            if (tab is not null)
+            {
+                var active = await tab.ToggleReaderModeAsync();
+                ShowToast(active ? "已开启沉浸式阅读模式 (Esc 退出)" : "已退出沉浸阅读模式");
+                RefreshToolbar();
+            }
+        };
+        _tabCtxPictureInPicture.Click += async (_, _) =>
+        {
+            var tab = ResolveTabByContextIndex();
+            if (tab is not null)
+            {
+                var res = await tab.TogglePictureInPictureAsync();
+                ShowToast(res.message);
+            }
+        };
+        _tabCtxSplitView.Click += async (_, _) => await ToggleSplitViewAsync();
         _tabCtxReopenClosed.Click += async (_, _) => await ReopenClosedTabFromTabMenuAsync();
         _tabCtxCloseCurrent.Click += async (_, _) => await CloseTabMenuSelectionAsync(closeCurrent: true, closeOthers: false, closeLeft: false, closeRight: false, closeAll: false);
         _tabCtxCloseOthers.Click += async (_, _) => await CloseTabMenuSelectionAsync(closeCurrent: false, closeOthers: true, closeLeft: false, closeRight: false, closeAll: false);
@@ -1020,6 +1077,8 @@ public sealed class MainWindow : Form
         _toolbarItemsById[ToolbarButtonIds.MultiWindow] = _multiWindowButton;
         _toolbarItemsById[ToolbarButtonIds.DevTools] = _devToolsButton;
         _toolbarItemsById[ToolbarButtonIds.SidePanel] = _sidePanelButton;
+        _toolbarItemsById[ToolbarButtonIds.SplitView] = _splitViewButton;
+        _toolbarItemsById[ToolbarButtonIds.ReaderMode] = _readerModeButton;
         _toolbarItemsById["commandPalette"] = _commandPaletteButton;
         _toolbarItemsById["tabSwitch"] = _tabSwitchButton;
     }
@@ -1579,6 +1638,7 @@ public sealed class MainWindow : Form
                         _siteBadgeLabel.Alignment = ToolStripItemAlignment.Left;
                         _topBar.Items.Add(_siteBadgeLabel);
                         _topBar.Items.Add(_addressTextBox);
+                        _topBar.Items.Add(_zoomPillButton);
                         _topBar.Items.Add(_commandPaletteButton);
                         _topBar.Items.Add(_tabSwitchButton);
                         insertedAddressTools = true;
@@ -1654,7 +1714,7 @@ public sealed class MainWindow : Form
             "back" or "forward" or "refresh" => 0,
             "newTab" or "closeTab" or "multiWindow" => 1,
             "downloads" or "history" or "bookmark" or "bookmarkBar" => 2,
-            "settings" or "searchEngine" or "appearance" or "plugins" or "devTools" or "sidePanel" => 3,
+            "settings" or "searchEngine" or "appearance" or "plugins" or "devTools" or "sidePanel" or "splitView" or "readerMode" => 3,
             _ => 9
         };
     }
@@ -1790,6 +1850,7 @@ public sealed class MainWindow : Form
         _titleBar.Height = compact ? 33 : 36;
         _findBar.ApplyTheme();
         _sidePanel?.ApplyTheme();
+        _splitPanel?.ApplyTheme();
         _titleBar.Padding = compact ? new Padding(8, 2, 8, 2) : new Padding(8, 2, 8, 2);
         _topBar.Height = compact ? 38 : 42;
         _topBar.Padding = compact ? new Padding(8, 3, 8, 3) : new Padding(10, 4, 10, 4);
@@ -9179,6 +9240,17 @@ public sealed class MainWindow : Form
         _refreshButton.Enabled = active is not null;
         _closeTabButton.Enabled = active is not null;
         _addBookmarkButton.Enabled = TryGetActiveUri(out _);
+        _splitViewButton.Checked = _splitPanel.IsSplitActive;
+        _readerModeButton.Checked = active?.IsReaderModeActive ?? false;
+        if (active is not null && Math.Abs(active.ZoomFactor - 1.0) > 0.02)
+        {
+            _zoomPillButton.Visible = true;
+            _zoomPillButton.Text = $"{(int)Math.Round(active.ZoomFactor * 100)}% 🔍";
+        }
+        else
+        {
+            _zoomPillButton.Visible = false;
+        }
         UpdateSiteBadge();
         UpdateTabQuickButtonText();
         UpdateWorkspaceButtonBadge();
@@ -10612,6 +10684,18 @@ public sealed class MainWindow : Form
             return true;
         }
 
+        if ((eventArgs.Alt && eventArgs.KeyCode == Keys.D) || (eventArgs.Control && eventArgs.Alt && eventArgs.KeyCode == Keys.D))
+        {
+            await ToggleSplitViewAsync();
+            return true;
+        }
+
+        if ((eventArgs.Alt && eventArgs.KeyCode == Keys.R) || (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.R))
+        {
+            await ToggleReaderModeForActiveTabAsync();
+            return true;
+        }
+
         if (eventArgs.Control && eventArgs.Alt && eventArgs.KeyCode == Keys.S)
         {
             var activeTab = _tabManager.ActiveTab;
@@ -11442,6 +11526,40 @@ public sealed class MainWindow : Form
 
     private sealed record BookmarkBarTag(Guid NodeId, Guid? ParentFolderId);
 
+    private async Task ToggleSplitViewAsync()
+    {
+        if (_splitPanel.IsSplitActive)
+        {
+            _splitPanel.DeactivateSplit(_tabControl, this);
+            ShowToast("已退出双屏分屏浏览");
+        }
+        else
+        {
+            var activeTab = _tabManager.ActiveTab;
+            var targetUri = activeTab?.CurrentUri ?? new Uri("https://cn.bing.com");
+            await _splitPanel.ActivateSplitAsync(
+                _tabControl,
+                targetUri,
+                () => _tabManager.ActiveTab?.CurrentUri,
+                uri => _ = NavigateActiveTabAsync(uri));
+            ShowToast("已开启双屏分屏并行浏览 (可拖拽中缝，Alt+D 切换)");
+        }
+        RefreshToolbar();
+    }
+
+    private async Task ToggleReaderModeForActiveTabAsync()
+    {
+        var activeTab = _tabManager.ActiveTab;
+        if (activeTab is null)
+        {
+            ShowToast("当前无活跃标签页");
+            return;
+        }
+
+        var active = await activeTab.ToggleReaderModeAsync();
+        ShowToast(active ? "已开启沉浸式阅读模式 (Esc 退出) 📖" : "已退出沉浸阅读模式");
+        RefreshToolbar();
+    }
     private void ShowQrCodeForActiveTab()
     {
         var tab = _tabManager.ActiveTab;

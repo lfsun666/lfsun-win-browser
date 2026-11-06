@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Lfsun.Win.Browser.Core;
@@ -85,6 +85,8 @@ public sealed class BrowserTab : IAsyncDisposable
     public bool CanGoForward => _webView?.CoreWebView2?.CanGoForward ?? false;
     public bool IsLive => !IsSuspended && _webView is not null;
     public bool IsPlayingAudio => _core?.IsDocumentPlayingAudio ?? false;
+    public bool IsReaderModeActive { get; private set; }
+    public event Action<bool>? ReaderModeChanged;
     public bool IsMuted
     {
         get => _core?.IsMuted ?? false;
@@ -96,6 +98,70 @@ public sealed class BrowserTab : IAsyncDisposable
                 AudioStateChanged?.Invoke(this);
                 StateChanged?.Invoke(this);
             }
+        }
+    }
+
+        /// <summary>
+    /// 中文注释：切换当前页面的沉浸式阅读模式。
+    /// 自动提取正文内容、排版成无干扰高品质阅读视图，支持白天/羊皮纸/深色主题及字号缩放。
+    /// </summary>
+    public async Task<bool> ToggleReaderModeAsync()
+    {
+        if (_core is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (IsReaderModeActive)
+            {
+                await _core.ExecuteScriptAsync(ReaderModeHelper.ExitReaderScript);
+                IsReaderModeActive = false;
+                ReaderModeChanged?.Invoke(false);
+                return false;
+            }
+
+            var resJson = await _core.ExecuteScriptAsync(ReaderModeHelper.ToggleReaderScript);
+            IsReaderModeActive = resJson != null && resJson.Contains("\"active\":true");
+            ReaderModeChanged?.Invoke(IsReaderModeActive);
+            return IsReaderModeActive;
+        }
+        catch (Exception ex)
+        {
+            _log($"切换阅读模式失败: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 中文注释：触发页面视频画中画（Picture-in-Picture）独立浮窗模式。
+    /// </summary>
+    public async Task<(bool ok, bool active, string message)> TogglePictureInPictureAsync()
+    {
+        if (_core is null)
+        {
+            return (false, false, "内核未就绪");
+        }
+
+        try
+        {
+            var json = await _core.ExecuteScriptAsync(ReaderModeHelper.PictureInPictureScript);
+            if (!string.IsNullOrEmpty(json) && json.StartsWith("\"") && json.EndsWith("\""))
+            {
+                json = System.Text.RegularExpressions.Regex.Unescape(json[1..^1]);
+            }
+
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var ok = root.GetProperty("ok").GetBoolean();
+            var active = root.GetProperty("active").GetBoolean();
+            var msg = root.GetProperty("message").GetString() ?? string.Empty;
+            return (ok, active, msg);
+        }
+        catch (Exception ex)
+        {
+            return (false, false, $"调用失败: {ex.Message}");
         }
     }
 
@@ -671,6 +737,11 @@ public sealed class BrowserTab : IAsyncDisposable
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs args)
     {
+        if (IsReaderModeActive)
+        {
+            IsReaderModeActive = false;
+            ReaderModeChanged?.Invoke(false);
+        }
         _lastKnownUrl = args.Uri;
         // 中文注释：新导航开始时拦截计数归零，并记录耗时起点。
         _loadStartTimestamp = Environment.TickCount64;

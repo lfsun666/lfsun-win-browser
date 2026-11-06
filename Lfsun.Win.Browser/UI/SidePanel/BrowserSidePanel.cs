@@ -1,4 +1,4 @@
-using Lfsun.Win.Browser.Bookmarks;
+﻿using Lfsun.Win.Browser.Bookmarks;
 using Lfsun.Win.Browser.Browser;
 using Lfsun.Win.Browser.Core;
 using Lfsun.Win.Browser.Downloads;
@@ -30,6 +30,7 @@ public sealed class BrowserSidePanel : Panel
     private readonly Action _openBookmarkManagerCallback;
     private readonly Action _openHistoryWindowCallback;
     private readonly Action _openDownloadsWindowCallback;
+    private readonly Action? _toggleSplitCallback;
 
     private readonly Panel _headerBar = new();
     private readonly Panel _contentContainer = new();
@@ -50,7 +51,7 @@ public sealed class BrowserSidePanel : Panel
         Action<string> toastCallback,
         Action openBookmarkManagerCallback,
         Action openHistoryWindowCallback,
-        Action openDownloadsWindowCallback)
+        Action openDownloadsWindowCallback, Action? toggleSplitCallback = null)
     {
         _bookmarkManager = bookmarkManager;
         _historyManager = historyManager;
@@ -61,6 +62,7 @@ public sealed class BrowserSidePanel : Panel
         _openBookmarkManagerCallback = openBookmarkManagerCallback;
         _openHistoryWindowCallback = openHistoryWindowCallback;
         _openDownloadsWindowCallback = openDownloadsWindowCallback;
+        _toggleSplitCallback = toggleSplitCallback;
 
         Width = 340;
         Dock = DockStyle.Right;
@@ -150,7 +152,8 @@ public sealed class BrowserSidePanel : Panel
 
         var toolboxView = new ToolboxView(
             _getActiveTab,
-            _toastCallback);
+            _toastCallback,
+            _toggleSplitCallback);
 
         _views[SidePanelMode.Bookmarks] = bookmarksView;
         _views[SidePanelMode.History] = historyView;

@@ -547,7 +547,9 @@ public sealed class BrowserConfig
             CreateToolbarButton(ToolbarButtonIds.Appearance, "外观", 12),
             CreateToolbarButton(ToolbarButtonIds.Plugins, "插件", 13),
             CreateToolbarButton(ToolbarButtonIds.DevTools, "开发者工具", 14),
-            CreateToolbarButton(ToolbarButtonIds.SidePanel, "侧边栏", 15)
+            CreateToolbarButton(ToolbarButtonIds.SidePanel, "侧边栏", 15),
+            CreateToolbarButton(ToolbarButtonIds.SplitView, "双屏分屏", 16),
+            CreateToolbarButton(ToolbarButtonIds.ReaderMode, "阅读模式", 17)
         ];
     }
 

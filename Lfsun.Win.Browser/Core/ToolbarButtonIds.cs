@@ -22,4 +22,6 @@ public static class ToolbarButtonIds
     public const string MultiWindow = "multiWindow";
     public const string DevTools = "devTools";
     public const string SidePanel = "sidePanel";
+    public const string SplitView = "splitView";
+    public const string ReaderMode = "readerMode";
 }

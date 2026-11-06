@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 
 namespace Lfsun.Win.Browser.Core;
 
@@ -41,6 +41,18 @@ public static class AppVersionInfo
     /// </summary>
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
+        new VersionReleaseEntry(
+            "0.5.0",
+            "2026-11-06",
+            "网页双屏分屏并行浏览、沉浸式阅读模式、画中画与速拨主页全面升级",
+            [
+                "【双屏分屏】新增网页双屏分屏并行浏览模式 (SplitBrowserPanel)，支持左右同屏浏览、中缝自由拖拽调宽、左右页面一键对调及 Alt+D 快捷切换",
+                "【沉浸阅读】新增纯净沉浸式阅读模式 (Reader Mode)，智能提取正文与标题，支持白天/羊皮纸/深色三套主题、多级字号缩放及 Alt+R / Esc 快捷启闭",
+                "【视频画中画】新增视频独立置顶画中画浮窗支持 (Picture-in-Picture)，一键将网页内播放视频剥离至系统画中画浮窗",
+                "【主页进阶】新标签页速拨面板新增搜索引擎即时切换下拉器（必应/百度/谷歌/GitHub/掘金）与开发者每日灵感寄语轮播",
+                "【地址栏缩放】地址栏右侧新增智能缩放指示芯片，当页面缩放偏离 100% 时自动展示，点击一键平滑复原为标准 100% (Ctrl+0)"
+            ]
+        ),
         new VersionReleaseEntry(
             "0.4.0",
             "2026-11-06",
