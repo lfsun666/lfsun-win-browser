@@ -71,7 +71,7 @@ public sealed class BrowserConfig
     public bool IsPasswordAutosaveEnabled { get; set; } = true;
     public bool IsCredentialAutofillEnabled { get; set; } = true;
     public bool RestoreLastSessionOnStartup { get; set; } = true;
-    public bool AskBeforeRestoringSessionOnStartup { get; set; } = true;
+    public bool AskBeforeRestoringSessionOnStartup { get; set; } = false;
     public bool EnableAddressBarSuggestions { get; set; } = true;
     public bool ShowBookmarksBar { get; set; } = true;
     public string UiTheme { get; set; } = "Light";

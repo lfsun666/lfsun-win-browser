@@ -2622,32 +2622,7 @@ public sealed class MainWindow : Form
             return false;
         }
 
-        var hasUnexpectedExit = !session.ExitedCleanly;
-        if (!hasUnexpectedExit && !_config.RestoreLastSessionOnStartup)
-        {
-            return false;
-        }
-
-        var shouldPrompt = hasUnexpectedExit || _config.AskBeforeRestoringSessionOnStartup;
-        if (shouldPrompt)
-        {
-            var promptTitle = hasUnexpectedExit ? "检测到上次异常退出" : "恢复上次会话";
-            var promptMessage = hasUnexpectedExit
-                ? "检测到上次浏览器可能未正常退出，是否恢复上次标签页？\r\n选择“否”将打开空白启动页。"
-                : "检测到上次浏览会话，是否恢复标签页？\r\n选择“否”将打开空白启动页。";
-            var choice = MessageBox.Show(
-                this,
-                promptMessage,
-                promptTitle,
-                MessageBoxButtons.YesNo,
-                MessageBoxIcon.Question,
-                MessageBoxDefaultButton.Button1);
-            if (choice != DialogResult.Yes)
-            {
-                return false;
-            }
-        }
-        else if (!_config.RestoreLastSessionOnStartup)
+        if (!_config.RestoreLastSessionOnStartup)
         {
             return false;
         }
