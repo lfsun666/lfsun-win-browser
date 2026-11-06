@@ -117,6 +117,14 @@ public static class AppVersionInfo
     }
 
     /// <summary>
+    /// 获取最近 N 个版本的更新历史（默认展示最近 10 个版本）。
+    /// </summary>
+    public static IEnumerable<VersionReleaseEntry> GetRecentReleases(int count = 10)
+    {
+        return ReleaseHistory.Take(Math.Max(1, count));
+    }
+
+    /// <summary>
     /// 生成 Markdown 格式的更新说明文本。
     /// </summary>
     public static string BuildChangelogMarkdown()

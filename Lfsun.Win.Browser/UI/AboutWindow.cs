@@ -168,7 +168,7 @@ public sealed class AboutWindow : Form
     {
         _changelogBox.Clear();
 
-        foreach (var release in AppVersionInfo.ReleaseHistory)
+        foreach (var release in AppVersionInfo.GetRecentReleases(10))
         {
             var isCurrent = string.Equals(release.Version, AppVersionInfo.CurrentVersion, StringComparison.OrdinalIgnoreCase);
 

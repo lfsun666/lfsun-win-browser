@@ -1,9 +1,10 @@
-﻿param(
+param(
     [string]$Version = "",
     [string]$Notes = "",
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
     [string]$OutputDir = "",
+    [int]$KeepVersions = 10,
     [switch]$SkipTests,
     [switch]$SkipInstaller
 )
@@ -208,16 +209,46 @@ if (-not $SkipInstaller) {
     }
 }
 
-# 10. 生成 SHA256 校验和清单
-Write-Host "`n生成 release 目录文件 SHA256 校验清单..." -ForegroundColor Cyan
-$checksumFile = Join-Path $OutputDir "SHA256SUMS.txt"
-$checksumLines = @()
-$releaseFiles = Get-ChildItem -Path $OutputDir -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
-foreach ($file in $releaseFiles) {
-    $hash = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash.ToLower()
-    $checksumLines += "$hash  $($file.Name)"
+# 10. 历史版本保留策略：保留最近 $KeepVersions 个版本，清理超出上限的更旧构建
+Write-Host "`n[保留检查] 检查 release 目录历史版本 (保留最近 $KeepVersions 个版本)..." -ForegroundColor Cyan
+$versionPattern = '(\d+\.\d+\.\d+)'
+$existingFiles = Get-ChildItem -Path $OutputDir -File
+$versionMap = @{}
+
+foreach ($f in $existingFiles) {
+    if ($f.Name -match "latest" -or $f.Name -eq "SHA256SUMS.txt") {
+        continue
+    }
+    if ($f.Name -match $versionPattern) {
+        $vStr = $Matches[1]
+        try {
+            $parsedV = [System.Version]$vStr
+            if (-not $versionMap.ContainsKey($vStr)) {
+                $versionMap[$vStr] = @{
+                    VersionObj = $parsedV
+                    Files = @()
+                }
+            }
+            $versionMap[$vStr].Files += $f
+        } catch {}
+    }
 }
-Set-Content -Path $checksumFile -Value ($checksumLines -join "`r`n") -Encoding UTF8
+
+$sortedVersions = $versionMap.Keys | Sort-Object { $versionMap[$_].VersionObj } -Descending
+
+if ($sortedVersions.Count -gt $KeepVersions) {
+    $versionsToPrune = $sortedVersions | Select-Object -Skip $KeepVersions
+    Write-Host "检测到历史版本总数 ($($sortedVersions.Count)) 超过保留上限 ($KeepVersions)，准备清理旧版本: $($versionsToPrune -join ', ')..." -ForegroundColor Yellow
+    foreach ($oldVer in $versionsToPrune) {
+        Write-Host "正在清理历史版本 v$oldVer 产物..." -ForegroundColor Yellow
+        foreach ($fileToRemove in $versionMap[$oldVer].Files) {
+            Write-Host "  删除: $($fileToRemove.Name)" -ForegroundColor DarkGray
+            Remove-Item $fileToRemove.FullName -Force -ErrorAction SilentlyContinue
+        }
+    }
+} else {
+    Write-Host "历史版本数量 ($($sortedVersions.Count)) 在保留上限 ($KeepVersions) 之内，全部保留: $($sortedVersions -join ', ')" -ForegroundColor Green
+}
 
 # 11. 生成本次发布的独立说明文件
 $releaseNotesFile = Join-Path $OutputDir "RELEASE_NOTES_v$targetVersion.md"
@@ -229,6 +260,7 @@ $releaseNotesLines = @(
     "- **发布日期**: $today",
     "- **运行时环境**: .NET 8.0 (Self-Contained)",
     "- **目标平台**: Windows x64 (Windows 10/11)",
+    "- **版本保留**: 自动保留最近 $KeepVersions 个历史发布版本",
     "",
     "## 交付文件清单",
     $fileListLines,
@@ -238,11 +270,22 @@ $releaseNotesLines = @(
 )
 Set-Content -Path $releaseNotesFile -Value ($releaseNotesLines -join "`r`n") -Encoding UTF8
 
-# 12. 最终总结输出
+# 12. 重新计算 release 目录全量有效文件的 SHA256 校验和清单
+Write-Host "`n生成 release 目录全量文件 SHA256 校验清单..." -ForegroundColor Cyan
+$checksumFile = Join-Path $OutputDir "SHA256SUMS.txt"
+$checksumLines = @()
+$releaseFiles = Get-ChildItem -Path $OutputDir -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" }
+foreach ($file in $releaseFiles) {
+    $hash = (Get-FileHash -Path $file.FullName -Algorithm SHA256).Hash.ToLower()
+    $checksumLines += "$hash  $($file.Name)"
+}
+Set-Content -Path $checksumFile -Value ($checksumLines -join "`r`n") -Encoding UTF8
+
+# 13. 最终总结输出
 Write-Host "`n==========================================================" -ForegroundColor Green
 Write-Host "            LfsunBrowser v$targetVersion 发布成功!        " -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host "输出目录: $OutputDir" -ForegroundColor White
+Write-Host "输出目录: $OutputDir (已保留最近 $([math]::Min($sortedVersions.Count, $KeepVersions)) 个版本产物)" -ForegroundColor White
 Get-ChildItem -Path $OutputDir -File | ForEach-Object {
     $sizeMb = [math]::Round($_.Length / 1MB, 2)
     Write-Host ("  {0,-48} {1,8} MB" -f $_.Name, $sizeMb) -ForegroundColor Gray

@@ -35,4 +35,12 @@ public sealed class AppVersionInfoTests
         Assert.Contains("# 更新日志", markdown);
         Assert.Contains(AppVersionInfo.CurrentVersion, markdown);
     }
+
+    [Fact]
+    public void GetRecentReleases_ShouldRespectLimit()
+    {
+        var recent = AppVersionInfo.GetRecentReleases(10);
+        Assert.NotEmpty(recent);
+        Assert.True(recent.Count() <= 10);
+    }
 }
