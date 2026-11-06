@@ -16,7 +16,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderToolStripBackground(ToolStripRenderEventArgs eventArgs)
     {
-        if (eventArgs.ToolStrip is StatusStrip || eventArgs.ToolStrip is ToolStripDropDownMenu)
+        if (eventArgs.ToolStrip is StatusStrip)
         {
             base.OnRenderToolStripBackground(eventArgs);
             return;
@@ -28,6 +28,14 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
             return;
         }
 
+        if (eventArgs.ToolStrip is ToolStripDropDownMenu)
+        {
+            var menuBg = AppTheme.IsDark ? AppTheme.SurfaceAlt : Color.FromArgb(252, 253, 255);
+            using var menuBrush = new SolidBrush(menuBg);
+            eventArgs.Graphics.FillRectangle(menuBrush, bounds);
+            return;
+        }
+
         var surface = eventArgs.ToolStrip.BackColor.IsEmpty ? AppTheme.Surface : eventArgs.ToolStrip.BackColor;
         using var fillBrush = new SolidBrush(surface);
         using var bottomLinePen = new Pen(AppTheme.PanelBorder);
@@ -36,9 +44,21 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
         eventArgs.Graphics.DrawLine(bottomLinePen, 0, bounds.Bottom - 1, bounds.Width, bounds.Bottom - 1);
     }
 
+    protected override void OnRenderImageMargin(ToolStripRenderEventArgs e)
+    {
+        // 抹平传统 WinForms 左侧灰色装订线，与菜单背景无缝融合
+        var menuBg = AppTheme.IsDark ? AppTheme.SurfaceAlt : Color.FromArgb(252, 253, 255);
+        using var brush = new SolidBrush(menuBg);
+        e.Graphics.FillRectangle(brush, e.AffectedBounds);
+    }
+
     protected override void OnRenderToolStripBorder(ToolStripRenderEventArgs e)
     {
-        // 扁平化：边框由背景底线呈现，无需冗余外边框
+        if (e.ToolStrip is ToolStripDropDownMenu)
+        {
+            using var borderPen = new Pen(AppTheme.PanelBorder);
+            e.Graphics.DrawRectangle(borderPen, 0, 0, e.ToolStrip.Width - 1, e.ToolStrip.Height - 1);
+        }
     }
 
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
@@ -50,12 +70,39 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
         e.Graphics.DrawLine(pen, center, top, center, bottom);
     }
 
+    protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
+    {
+        if (!e.Item.Enabled)
+        {
+            return;
+        }
+
+        if (e.Item.Selected || e.Item.Pressed)
+        {
+            var bounds = new Rectangle(Point.Empty, e.Item.Size);
+            bounds.Inflate(-4, -1);
+            if (bounds.Width > 4 && bounds.Height > 4)
+            {
+                e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+                using var path = BuildRoundedRectangle(bounds, 5);
+                var hoverFill = e.Item.Pressed
+                    ? (AppTheme.IsDark ? Color.FromArgb(56, 255, 255, 255) : Color.FromArgb(32, 0, 0, 0))
+                    : (AppTheme.IsDark ? Color.FromArgb(32, 255, 255, 255) : Color.FromArgb(18, 0, 0, 0));
+                using var brush = new SolidBrush(hoverFill);
+                e.Graphics.FillPath(brush, path);
+            }
+        }
+    }
+
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
         e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
-        // 窗口关闭按钮悬停/按下时，强制使用亮白色文本/字形
-        if (e.Item.Tag is "window-close" && (e.Item.Pressed || e.Item.Selected))
+        if (e.Item is ToolStripMenuItem)
+        {
+            e.TextColor = e.Item.Enabled ? AppTheme.TextPrimary : AppTheme.TextSecondary;
+        }
+        else if (e.Item.Tag is "window-close" && (e.Item.Pressed || e.Item.Selected))
         {
             e.TextColor = Color.White;
         }

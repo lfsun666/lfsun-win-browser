@@ -9,8 +9,8 @@ namespace Lfsun.Win.Browser.UI;
 
 /// <summary>
 /// 新标签页速拨面板生成器。
-/// 输出完整本地 HTML（NavigateToString 渲染）：问候语+时钟、默认引擎搜索框、快捷功能芯片、
-/// 常访站点卡片（历史访问频次 Top8，不足时用书签补齐），配色跟随 AppTheme。
+/// 输出完整本地 HTML（NavigateToString 渲染）：问候语+数字时钟、默认引擎搜索框、快捷功能芯片、
+/// 常访站点卡片（历史访问频次 Top8，不足时用书签补齐），配色无缝跟随 AppTheme。
 /// </summary>
 public static class NewTabPageBuilder
 {
@@ -23,7 +23,7 @@ public static class NewTabPageBuilder
     {
         var topSites = CollectTopSites(historyEntries, bookmarkItems);
         var engineName = string.IsNullOrWhiteSpace(config.DefaultSearchEngineName)
-            ? "搜索"
+            ? "必应"
             : config.DefaultSearchEngineName.Trim();
         var searchTemplateJs = JsonSerializer.Serialize(config.DefaultSearchEngineUrlTemplate);
 
@@ -44,7 +44,7 @@ public static class NewTabPageBuilder
         }
 
         var emptyHtml = topSites.Count == 0
-            ? """<div class="empty">开始浏览后，这里会展示你的常访站点</div>"""
+            ? """<div class="empty">开始浏览后，这里会自动聚合你的高频访问站点</div>"""
             : string.Empty;
 
         return $$"""
@@ -52,6 +52,7 @@ public static class NewTabPageBuilder
             <html lang="zh-CN">
             <head>
             <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
             <title>新标签页</title>
             <style>
               :root {
@@ -68,71 +69,111 @@ public static class NewTabPageBuilder
               body {
                 min-height: 100vh; display: flex; flex-direction: column; align-items: center;
                 background: var(--bg); color: var(--text);
-                font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
-                padding: 8vh 24px 36px;
+                font-family: -apple-system, "Microsoft YaHei UI", "Segoe UI", sans-serif;
+                padding: 7vh 24px 36px;
+                user-select: none;
+                transition: background-color .2s ease;
               }
-              .clock { font-size: 46px; font-weight: 600; letter-spacing: 2px; }
-              .greeting { margin-top: 6px; font-size: 15px; color: var(--text-2); }
+              .clock {
+                font-size: 52px; font-weight: 700; letter-spacing: 2px;
+                background: linear-gradient(135deg, var(--text) 30%, var(--accent));
+                -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+              }
+              .greeting { margin-top: 6px; font-size: 15px; color: var(--text-2); font-weight: 500; }
+              .search-container {
+                margin-top: 32px; width: min(660px, 92vw); display: flex; flex-direction: column; align-items: center; gap: 14px;
+              }
               .search-box {
-                margin-top: 32px; width: min(640px, 92vw); display: flex;
-                background: var(--input-bg); border: 1px solid var(--border); border-radius: 24px;
-                overflow: hidden; transition: box-shadow .18s ease, border-color .18s ease;
-                box-shadow: 0 2px 10px rgba(0,0,0,.04);
+                width: 100%; display: flex;
+                background: var(--input-bg); border: 1.5px solid var(--border); border-radius: 26px;
+                overflow: hidden; transition: all .2s cubic-bezier(0.16, 1, 0.3, 1);
+                box-shadow: 0 4px 16px rgba(0,0,0,.04);
               }
-              .search-box:focus-within { border-color: var(--accent); box-shadow: 0 4px 22px rgba(0,0,0,.16); }
+              .search-box:focus-within {
+                border-color: var(--accent);
+                box-shadow: 0 6px 26px rgba(0,0,0,.14), 0 0 0 3px rgba(33, 115, 243, .18);
+              }
               .search-box input {
                 flex: 1; border: 0; outline: 0; background: transparent; color: var(--text);
-                font-size: 15px; padding: 13px 20px;
+                font-size: 15px; padding: 14px 22px;
               }
               .search-box button {
                 border: 0; cursor: pointer; background: var(--accent); color: #fff;
-                font-size: 14px; padding: 0 26px; transition: opacity .15s ease;
+                font-size: 14px; font-weight: 600; padding: 0 28px;
+                transition: opacity .15s ease, filter .15s ease;
               }
-              .search-box button:hover { opacity: .92; }
-              .section-title { margin: 38px 0 14px; font-size: 13px; color: var(--text-2); align-self: center; font-weight: 600; letter-spacing: .5px; }
+              .search-box button:hover { opacity: .92; filter: brightness(1.05); }
+              .quick-nav {
+                display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+              }
+              .quick-chip {
+                display: inline-flex; align-items: center; gap: 5px;
+                padding: 6px 12px; border-radius: 16px;
+                font-size: 12px; color: var(--text-2); text-decoration: none;
+                background: var(--surface-alt); border: 1px solid var(--border);
+                transition: all .16s ease;
+              }
+              .quick-chip:hover {
+                color: var(--accent); border-color: var(--accent); transform: translateY(-1.5px);
+              }
+              .section-title {
+                margin: 40px 0 16px; font-size: 13px; color: var(--text-2);
+                align-self: center; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
+              }
               .grid {
-                display: grid; grid-template-columns: repeat(4, 134px); gap: 14px;
+                display: grid; grid-template-columns: repeat(4, 136px); gap: 16px;
               }
-              @media (max-width: 640px) { .grid { grid-template-columns: repeat(2, 134px); } }
+              @media (max-width: 640px) { .grid { grid-template-columns: repeat(2, 136px); } }
               .card {
-                display: flex; flex-direction: column; align-items: center; gap: 7px;
-                background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-                padding: 16px 10px 12px; text-decoration: none; color: var(--text);
-                transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+                display: flex; flex-direction: column; align-items: center; gap: 8px;
+                background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+                padding: 18px 12px 14px; text-decoration: none; color: var(--text);
+                transition: transform .18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow .18s ease, border-color .18s ease;
                 box-shadow: 0 2px 8px rgba(0,0,0,.03);
               }
               .card:hover {
-                transform: translateY(-3px); border-color: var(--accent);
-                box-shadow: 0 8px 22px rgba(0,0,0,.15);
+                transform: translateY(-4px); border-color: var(--accent);
+                box-shadow: 0 10px 24px rgba(0,0,0,.12);
               }
               .badge {
-                width: 44px; height: 44px; border-radius: 12px; display: flex;
-                align-items: center; justify-content: center; font-size: 18px; font-weight: 600;
+                width: 46px; height: 46px; border-radius: 13px; display: flex;
+                align-items: center; justify-content: center; font-size: 19px; font-weight: 700;
                 color: #fff; background: var(--accent);
+                box-shadow: 0 4px 12px rgba(0,0,0,.15);
               }
               .card-title {
-                max-width: 112px; font-size: 12.5px; white-space: nowrap;
+                max-width: 116px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
                 overflow: hidden; text-overflow: ellipsis;
               }
               .card-host {
-                max-width: 112px; font-size: 11px; color: var(--text-2); white-space: nowrap;
+                max-width: 116px; font-size: 11px; color: var(--text-2); white-space: nowrap;
                 overflow: hidden; text-overflow: ellipsis;
               }
-              .empty { margin-top: 8px; font-size: 13px; color: var(--text-2); }
+              .empty { margin-top: 12px; font-size: 13px; color: var(--text-2); }
               .footer-version {
                 margin-top: auto; padding-top: 48px; font-size: 12px; color: var(--text-2);
-                opacity: .8;
+                opacity: .85; letter-spacing: .3px;
               }
             </style>
             </head>
             <body>
               <div class="clock" id="clock">--:--</div>
               <div class="greeting" id="greeting"></div>
-              <form class="search-box" id="searchForm">
-                <input id="searchInput" type="text" autofocus autocomplete="off"
-                       placeholder="使用 {{WebUtility.HtmlEncode(engineName)}} 搜索，或输入网址后回车">
-                <button type="submit">搜索</button>
-              </form>
+              <div class="search-container">
+                <form class="search-box" id="searchForm">
+                  <input id="searchInput" type="text" autofocus autocomplete="off"
+                         placeholder="使用 {{WebUtility.HtmlEncode(engineName)}} 搜索，或输入网址后回车">
+                  <button type="submit">搜索</button>
+                </form>
+                <div class="quick-nav">
+                  <a class="quick-chip" href="https://www.baidu.com">百度</a>
+                  <a class="quick-chip" href="https://cn.bing.com">必应</a>
+                  <a class="quick-chip" href="https://github.com">GitHub</a>
+                  <a class="quick-chip" href="https://gitee.com">Gitee</a>
+                  <a class="quick-chip" href="https://www.bilibili.com">哔哩哔哩</a>
+                  <a class="quick-chip" href="https://juejin.cn">稀土掘金</a>
+                </div>
+              </div>
               <div class="section-title">常访站点</div>
               <div class="grid">{{cardsHtml}}</div>
               {{emptyHtml}}
@@ -159,7 +200,6 @@ public static class NewTabPageBuilder
                 event.preventDefault();
                 const raw = document.getElementById("searchInput").value.trim();
                 if (!raw) { return; }
-                // 中文注释：形似网址直接访问，否则走默认搜索引擎模板。
                 if (/^https?:\/\//i.test(raw)) {
                   location.href = raw;
                 } else if (/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(raw)) {
@@ -180,7 +220,6 @@ public static class NewTabPageBuilder
         IReadOnlyList<HistoryEntry> historyEntries,
         IReadOnlyList<BookmarkNode> bookmarkItems)
     {
-        // 中文注释：按站点 host 聚合历史访问频次，取 Top8；标题与地址采用该站点最近一次访问的记录。
         var sites = historyEntries
             .Select(entry => new { entry, uri = ToWebUri(entry.Url) })
             .Where(item => item.uri is not null)
@@ -209,7 +248,6 @@ public static class NewTabPageBuilder
             return sites;
         }
 
-        // 中文注释：历史不足 8 个站点时，用书签栏顶层链接补齐（去重同 host）。
         var knownHosts = sites.Select(site => site.Host).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var node in bookmarkItems)
         {
@@ -252,7 +290,6 @@ public static class NewTabPageBuilder
             return "?";
         }
 
-        // 中文注释：中文取首字，英文取首字母大写。
         var first = source[0];
         return char.IsAsciiLetter(first) ? char.ToUpperInvariant(first).ToString() : first.ToString();
     }

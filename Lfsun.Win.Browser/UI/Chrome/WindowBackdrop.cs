@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Lfsun.Win.Browser.UI.Chrome;
 
 /// <summary>
-/// 中文注释：窗口系统背景效果（Win11 Mica）与沉浸式深色标题栏。
+/// 中文注释：窗口系统背景效果（Win11 Mica）与沉浸式深色标题栏及 Windows 11 圆角边框。
 /// Win10 或调用失败时静默回退，保持现有纯色背景不受影响。
 /// </summary>
 public static class WindowBackdrop
@@ -15,12 +15,15 @@ public static class WindowBackdrop
     private const int DwmwaSystemBackdropType = 38;
     // DWM_SYSTEMBACKDROP_TYPE.DWMSBT_MAINWINDOW = Mica。
     private const int SystemBackdropMica = 2;
+    // DWMWA_WINDOW_CORNER_PREFERENCE：Win11 窗口圆角支持（2 = DWMWCP_ROUND）。
+    private const int DwmwaWindowCornerPreference = 33;
+    private const int CornerPreferenceRound = 2;
 
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     /// <summary>
-    /// 中文注释：按当前主题应用 Mica 背景与深色标题栏；任何失败都被忽略。
+    /// 中文注释：按当前主题应用 Mica 背景、深色标题栏与 Win11 窗口圆角；任何失败都被忽略。
     /// </summary>
     public static void Apply(IWin32Window window, bool isDark)
     {
@@ -39,6 +42,9 @@ public static class WindowBackdrop
 
             var backdrop = SystemBackdropMica;
             DwmSetWindowAttribute(window.Handle, DwmwaSystemBackdropType, ref backdrop, sizeof(int));
+
+            var corner = CornerPreferenceRound;
+            DwmSetWindowAttribute(window.Handle, DwmwaWindowCornerPreference, ref corner, sizeof(int));
         }
         catch
         {

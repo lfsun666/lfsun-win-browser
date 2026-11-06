@@ -1710,6 +1710,19 @@ public sealed class MainWindow : Form
         _topBar.Renderer = _toolbarRenderer;
         _addressBar.Renderer = _toolbarRenderer;
         _bookmarksBar.Renderer = _toolbarRenderer;
+        _bookmarkContextMenu.Renderer = _toolbarRenderer;
+        _tabContextMenu.Renderer = _toolbarRenderer;
+        _windowModeContextMenu.Renderer = _toolbarRenderer;
+        _addressContextMenu.Renderer = _toolbarRenderer;
+        _appMenu.Renderer = _toolbarRenderer;
+        ToolStripManager.Renderer = _toolbarRenderer;
+
+        var menuFont = AppTheme.CreateFont(9F);
+        _bookmarkContextMenu.Font = menuFont;
+        _tabContextMenu.Font = menuFont;
+        _windowModeContextMenu.Font = menuFont;
+        _addressContextMenu.Font = menuFont;
+        _appMenu.Font = menuFont;
         _titleBar.Font = AppTheme.CreateFont(9.2F, FontStyle.Bold);
         _topBar.Font = AppTheme.CreateFont(10F, FontStyle.Bold);
         _addressBar.Font = AppTheme.CreateFont(9.6F);
@@ -10819,6 +10832,7 @@ public sealed class MainWindow : Form
 
     protected override void WndProc(ref Message m)
     {
+        const int wmNcHitTest = 0x0084;
         const int wmNcRButtonUp = 0x00A5;
         const int wmNcLButtonDown = 0x00A1;
         const int wmNcRButtonDown = 0x00A4;
@@ -10827,6 +10841,36 @@ public sealed class MainWindow : Form
         const int scRestore = 0xF120;
         const int scMinimize = 0xF020;
         const int htCaption = 2;
+        const int htLeft = 10;
+        const int htRight = 11;
+        const int htTop = 12;
+        const int htTopLeft = 13;
+        const int htTopRight = 14;
+        const int htBottom = 15;
+        const int htBottomLeft = 16;
+        const int htBottomRight = 17;
+
+        // 无边框模式下支持边缘与四角原生平滑拖拽调整窗口大小
+        if (m.Msg == wmNcHitTest && WindowState == FormWindowState.Normal)
+        {
+            var screenPoint = new Point(unchecked((short)(long)m.LParam), unchecked((short)((long)m.LParam >> 16)));
+            var clientPoint = PointToClient(screenPoint);
+            const int resizeBorder = 6;
+
+            var onLeft = clientPoint.X <= resizeBorder;
+            var onRight = clientPoint.X >= ClientSize.Width - resizeBorder;
+            var onTop = clientPoint.Y <= resizeBorder;
+            var onBottom = clientPoint.Y >= ClientSize.Height - resizeBorder;
+
+            if (onTop && onLeft) { m.Result = (IntPtr)htTopLeft; return; }
+            if (onTop && onRight) { m.Result = (IntPtr)htTopRight; return; }
+            if (onBottom && onLeft) { m.Result = (IntPtr)htBottomLeft; return; }
+            if (onBottom && onRight) { m.Result = (IntPtr)htBottomRight; return; }
+            if (onLeft) { m.Result = (IntPtr)htLeft; return; }
+            if (onRight) { m.Result = (IntPtr)htRight; return; }
+            if (onTop) { m.Result = (IntPtr)htTop; return; }
+            if (onBottom) { m.Result = (IntPtr)htBottom; return; }
+        }
 
         if (m.Msg == wmNcLButtonDown || m.Msg == wmNcRButtonDown || m.Msg == wmNcMButtonDown)
         {
@@ -10864,6 +10908,14 @@ public sealed class MainWindow : Form
         DrawAddressFocusChrome(eventArgs.Graphics);
         DrawFloatingPanelShadow(eventArgs.Graphics, _addressSuggestionPanel, 12);
         DrawFloatingPanelShadow(eventArgs.Graphics, _toastPanel, 16);
+        DrawFloatingPanelShadow(eventArgs.Graphics, _findBar, 12);
+
+        // 窗口处于普通大小时，在最外层勾勒 1px 精致边框，避免与浅色或深色桌面背景混淆
+        if (WindowState == FormWindowState.Normal && Width > 2 && Height > 2)
+        {
+            using var borderPen = new Pen(AppTheme.PanelBorder, 1F);
+            eventArgs.Graphics.DrawRectangle(borderPen, 0, 0, Width - 1, Height - 1);
+        }
     }
 
     protected override void OnPaintBackground(PaintEventArgs eventArgs)

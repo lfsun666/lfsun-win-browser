@@ -8,25 +8,43 @@ namespace Lfsun.Win.Browser.UI.Chrome;
 /// </summary>
 public sealed class ModernColorTable : ProfessionalColorTable
 {
-    public override Color ToolStripGradientBegin => AppTheme.IsDark
-        ? AppTheme.Mix(AppTheme.Surface, AppTheme.Accent, 0.10F)
-        : AppTheme.Mix(AppTheme.Surface, AppTheme.Accent, 0.06F);
-    public override Color ToolStripGradientMiddle => AppTheme.IsDark
-        ? AppTheme.Mix(AppTheme.Surface, AppTheme.Accent, 0.08F)
-        : AppTheme.Mix(AppTheme.Surface, AppTheme.Accent, 0.04F);
-    public override Color ToolStripGradientEnd => AppTheme.IsDark
-        ? AppTheme.Mix(AppTheme.Surface, Color.Black, 0.12F)
-        : AppTheme.Mix(AppTheme.Surface, Color.White, 0.03F);
-    public override Color MenuItemSelected => AppTheme.AccentHover;
-    public override Color MenuItemBorder => AppTheme.IsDark
-        ? AppTheme.Mix(AppTheme.Accent, Color.White, 0.16F)
-        : AppTheme.Mix(AppTheme.Accent, Color.Black, 0.16F);
-    public override Color ButtonSelectedBorder => AppTheme.IsDark
-        ? AppTheme.Mix(AppTheme.Accent, Color.White, 0.16F)
-        : AppTheme.Mix(AppTheme.Accent, Color.Black, 0.16F);
-    public override Color ButtonPressedBorder => AppTheme.IsDark
-        ? AppTheme.Mix(AppTheme.Accent, Color.White, 0.10F)
-        : AppTheme.Mix(AppTheme.Accent, Color.Black, 0.22F);
+    public override Color ToolStripGradientBegin => AppTheme.Surface;
+    public override Color ToolStripGradientMiddle => AppTheme.Surface;
+    public override Color ToolStripGradientEnd => AppTheme.Surface;
+
+    public override Color ToolStripDropDownBackground => AppTheme.IsDark
+        ? AppTheme.SurfaceAlt
+        : Color.FromArgb(252, 253, 255);
+
+    public override Color ImageMarginGradientBegin => AppTheme.IsDark
+        ? AppTheme.SurfaceAlt
+        : Color.FromArgb(252, 253, 255);
+    public override Color ImageMarginGradientMiddle => ImageMarginGradientBegin;
+    public override Color ImageMarginGradientEnd => ImageMarginGradientBegin;
+
+    public override Color MenuBorder => AppTheme.PanelBorder;
+    public override Color MenuItemBorder => Color.Transparent;
+
+    public override Color MenuItemSelected => AppTheme.IsDark
+        ? Color.FromArgb(48, 255, 255, 255)
+        : Color.FromArgb(22, 0, 0, 0);
+
+    public override Color MenuItemSelectedGradientBegin => MenuItemSelected;
+    public override Color MenuItemSelectedGradientEnd => MenuItemSelected;
+
+    public override Color MenuItemPressedGradientBegin => AppTheme.IsDark
+        ? Color.FromArgb(64, 255, 255, 255)
+        : Color.FromArgb(36, 0, 0, 0);
+    public override Color MenuItemPressedGradientMiddle => MenuItemPressedGradientBegin;
+    public override Color MenuItemPressedGradientEnd => MenuItemPressedGradientBegin;
+
+    public override Color SeparatorDark => AppTheme.PanelBorder;
+    public override Color SeparatorLight => Color.Transparent;
+
+    public override Color ButtonSelectedBorder => Color.Transparent;
+    public override Color ButtonPressedBorder => Color.Transparent;
+    public override Color ButtonSelectedHighlight => AppTheme.AccentHover;
+    public override Color ButtonPressedHighlight => AppTheme.Accent;
 }
 
 /// <summary>
