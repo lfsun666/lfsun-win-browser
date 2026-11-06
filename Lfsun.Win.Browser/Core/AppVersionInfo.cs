@@ -42,6 +42,18 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.7.0",
+            "2026-11-06",
+            "全局快捷命令面板扩展、下载实时感知提示与垂直标签悬停卡片升级",
+            [
+                "【全局命令面板】地址栏全局命令 (AddressCommandCatalog) 新增 8 组高频命令：:reader 沉浸阅读、:split 双屏分屏、:vtabs 垂直标签、:pip 画中画、:freemem 休眠后台释放内存、:sidepanel 侧边工具箱、:qrcode 跨端二维码及 :screenshot 网页截图",
+                "【实时下载感知】深度打通 WebView2 核心下载引擎，下载开始、下载完成及下载异常自动弹出原生 Fluent 气泡提示，并即时同步状态栏下载计数",
+                "【垂直标签悬停卡片】垂直标签栏鼠标悬停卡片全新升级，动态呈现网页完整标题、固定状态、实时音频徽标 (🔊/🔇)、真实 URL 及活跃/休眠状态",
+                "【截图快捷封装】统一优化网页整页快照截图链路与快捷键处理，支持 Ctrl+Alt+S 与指令统一调用",
+                "【事件安全保障】下载事件订阅安全解耦与跨线程 UI Dispatch，保障长时间大文件下载的系统平稳运行"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.6.0",
             "2026-11-06",
             "现代化左侧垂直标签栏、后台标签休眠与批量生产力工具箱",

@@ -233,7 +233,15 @@ public sealed class MainWindow : Form
         new("tabcolor", "tabcolor", "设置当前标签色标", "用法: :tabcolor blue|green|orange|rose|clear", ["tabtag", "label", "标签色标"]),
         new("zen", "zen", "切换沉浸模式", "用法: :zen on|off|toggle", ["immersive", "focus", "沉浸"]),
         new("help", "help", "查看指令帮助", "显示地址栏快捷指令说明", ["?", "usage", "帮助"]),
-        new("palette", "palette", "打开命令面板", "聚焦地址栏并打开命令建议", ["command", "palette", "面板"])
+        new("palette", "palette", "打开命令面板", "聚焦地址栏并打开命令建议", ["command", "palette", "面板"]),
+        new("reader", "reader", "切换沉浸阅读", "开启/退出当前网页沉浸阅读模式", ["read", "readermode", "阅读"]),
+        new("split", "split", "切换双屏分屏", "开启/退出网页左右双屏并行分屏", ["splitview", "dual", "分屏"]),
+        new("verticaltabs", "verticaltabs", "切换垂直标签栏", "开启/退出左侧垂直标签栏", ["vtabs", "vertical", "垂直标签"]),
+        new("pip", "pip", "切换画中画", "切换当前网页视频系统画中画浮窗", ["pictureinpicture", "floatvideo", "画中画"]),
+        new("freememory", "freememory", "休眠后台标签释放内存", "一键休眠所有后台空闲标签释放系统内存", ["cleanmem", "hibernate", "释放内存"]),
+        new("sidepanel", "sidepanel", "切换侧边工具栏", "展开/收起右侧多功能抽屉栏", ["sidebar", "panel", "侧边栏"]),
+        new("qrcode", "qrcode", "生成当前页二维码", "跨端手机扫码继续浏览", ["qr", "扫码", "二维码"]),
+        new("screenshot", "screenshot", "网页整页截图", "截取当前网页并复制到剪贴板", ["shot", "capture", "截图"])
     ];
     private static readonly Dictionary<string, AddressCommandArgumentOption[]> AddressCommandArgumentCatalog = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -425,6 +433,42 @@ public sealed class MainWindow : Form
         TryMigrateLegacyDataFile(historyFileName, historyPath, "历史记录");
 
         _downloadManager = new DownloadManager(downloadDirectory, Log);
+        _downloadManager.DownloadStarted += item =>
+        {
+            try
+            {
+                BeginInvoke(() =>
+                {
+                    ShowToast($"📥 开始下载: {item.FileName}");
+                    RefreshMetrics();
+                });
+            }
+            catch { }
+        };
+        _downloadManager.DownloadCompleted += item =>
+        {
+            try
+            {
+                BeginInvoke(() =>
+                {
+                    ShowToast($"✅ 下载完成: {item.FileName}");
+                    RefreshMetrics();
+                });
+            }
+            catch { }
+        };
+        _downloadManager.DownloadFailed += item =>
+        {
+            try
+            {
+                BeginInvoke(() =>
+                {
+                    ShowToast($"❌ 下载中断: {item.FileName}");
+                    RefreshMetrics();
+                });
+            }
+            catch { }
+        };
         _bookmarkManager = new BookmarkManager(bookmarkPath, Log);
         _pluginManager = new PluginManager(pluginRoot, _config, Log);
         _credentialStore = new CredentialStore(credentialPath, Log);
@@ -5543,6 +5587,46 @@ public sealed class MainWindow : Form
             case "palette":
                 OpenCommandPalette();
                 Log("已执行指令: palette");
+                return;
+            case "reader":
+                await ToggleReaderModeForActiveTabAsync();
+                Log("已执行指令: reader");
+                return;
+            case "split":
+                await ToggleSplitViewAsync();
+                Log("已执行指令: split");
+                return;
+            case "verticaltabs":
+            case "vtabs":
+                ToggleVerticalTabs();
+                Log("已执行指令: verticaltabs");
+                return;
+            case "pip":
+                if (_tabManager.ActiveTab is not null)
+                {
+                    var pipResult = await _tabManager.ActiveTab.TogglePictureInPictureAsync();
+                    ShowToast(pipResult.message);
+                }
+                Log("已执行指令: pip");
+                return;
+            case "freememory":
+            case "cleanmem":
+                var freedCount = await _tabManager.SuspendAllBackgroundTabsAsync();
+                RefreshMetrics();
+                ShowToast(freedCount > 0 ? $"已休眠 {freedCount} 个后台标签，内存已即时释放！" : "当前无空闲后台标签需要休眠");
+                Log("已执行指令: freememory");
+                return;
+            case "sidepanel":
+                ToggleSidePanel();
+                Log("已执行指令: sidepanel");
+                return;
+            case "qrcode":
+                ShowQrCodeForActiveTab();
+                Log("已执行指令: qrcode");
+                return;
+            case "screenshot":
+                await CaptureScreenshotForActiveTabAsync();
+                Log("已执行指令: screenshot");
                 return;
             default:
                 ShowToast($"未支持的指令: {commandId}");
@@ -10723,12 +10807,7 @@ public sealed class MainWindow : Form
 
         if ((eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.E) || (eventArgs.Alt && eventArgs.KeyCode == Keys.S))
         {
-            _sidePanel.Visible = !_sidePanel.Visible;
-            if (_sidePanel.Visible)
-            {
-                _sidePanel.BringToFront();
-                _sidePanel.RefreshActiveContent();
-            }
+            ToggleSidePanel();
             return true;
         }
 
@@ -10746,17 +10825,8 @@ public sealed class MainWindow : Form
 
         if (eventArgs.Control && eventArgs.Alt && eventArgs.KeyCode == Keys.S)
         {
-            var activeTab = _tabManager.ActiveTab;
-            if (activeTab is not null)
-            {
-                var bmp = await activeTab.CaptureScreenshotAsync();
-                if (bmp is not null)
-                {
-                    Clipboard.SetImage(bmp);
-                    ShowToast("网页截图已复制到剪贴板！📸");
-                }
-                return true;
-            }
+            await CaptureScreenshotForActiveTabAsync();
+            return true;
         }
 
         if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.V)
@@ -11579,6 +11649,34 @@ public sealed class MainWindow : Form
         string DisplayName);
 
     private sealed record BookmarkBarTag(Guid NodeId, Guid? ParentFolderId);
+
+    private void ToggleSidePanel()
+    {
+        _sidePanel.Visible = !_sidePanel.Visible;
+        if (_sidePanel.Visible)
+        {
+            _sidePanel.BringToFront();
+            _sidePanel.RefreshActiveContent();
+        }
+    }
+
+    private async Task CaptureScreenshotForActiveTabAsync()
+    {
+        var activeTab = _tabManager.ActiveTab;
+        if (activeTab is not null)
+        {
+            var bmp = await activeTab.CaptureScreenshotAsync();
+            if (bmp is not null)
+            {
+                Clipboard.SetImage(bmp);
+                ShowToast("网页截图已复制到剪贴板！📸");
+            }
+            else
+            {
+                ShowToast("截图失败，请确保页面已加载完毕");
+            }
+        }
+    }
 
     private void ToggleVerticalTabs()
     {

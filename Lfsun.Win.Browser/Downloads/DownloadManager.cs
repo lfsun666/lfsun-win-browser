@@ -22,6 +22,10 @@ public sealed class DownloadManager
     public BindingList<DownloadItem> Items { get; } = [];
     public string DownloadDirectory => _downloadDirectory;
 
+    public event Action<DownloadItem>? DownloadStarted;
+    public event Action<DownloadItem>? DownloadCompleted;
+    public event Action<DownloadItem>? DownloadFailed;
+
     public void AttachTo(CoreWebView2 webView)
     {
         webView.DownloadStarting += (_, args) => Track(args);
@@ -152,6 +156,7 @@ public sealed class DownloadManager
         var item = new DownloadItem(sourceUri, targetPath);
         Items.Insert(0, item);
         _log($"开始下载: {item.FileName}");
+        DownloadStarted?.Invoke(item);
 
         item.UpdateProgress(
             (ulong)Math.Max(0, args.DownloadOperation.BytesReceived),
@@ -174,12 +179,14 @@ public sealed class DownloadManager
                     _log($"下载完成: {item.FileName}");
                     PersistHistory();
                     Unsubscribe();
+                    DownloadCompleted?.Invoke(item);
                     break;
                 case CoreWebView2DownloadState.Interrupted:
                     item.SetInterrupted();
                     _log($"下载失败: {item.FileName}");
                     PersistHistory();
                     Unsubscribe();
+                    DownloadFailed?.Invoke(item);
                     break;
                 default:
                     if (args.DownloadOperation.InterruptReason ==
@@ -241,4 +248,3 @@ public sealed class DownloadManager
         return path;
     }
 }
-

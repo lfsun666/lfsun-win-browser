@@ -270,7 +270,10 @@ public sealed class VerticalTabStrip : Panel
             if (_hoverIndex >= 0 && _hoverIndex < tabs.Count)
             {
                 var tab = tabs[_hoverIndex];
-                _toolTip.SetToolTip(_tabsScrollContainer, $"{tab.DisplayTitle}\n{tab.CurrentUri?.AbsoluteUri}");
+                var stateDesc = tab.IsSuspended ? "💤 已休眠 (点击唤醒)" : "⚡ 活跃中";
+                var audioDesc = tab.IsPlayingAudio ? (tab.IsMuted ? " [🔇 已静音]" : " [🔊 正在播放]") : "";
+                var pinDesc = tab.IsPinned ? " [📌 已固定]" : "";
+                _toolTip.SetToolTip(_tabsScrollContainer, $"{tab.DisplayTitle}{pinDesc}{audioDesc}\n🔗 {tab.CurrentUri?.AbsoluteUri ?? "about:blank"}\n状态: {stateDesc}");
             }
             else
             {
