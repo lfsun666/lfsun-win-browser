@@ -223,8 +223,14 @@ public sealed class BookmarksSettingsWindow : Form
             // 忽略极端缩放下的临时状态，等待下一次 Resize 事件
         }
 
-        _splitContainer.Panel1MinSize = panel1Min;
-        _splitContainer.Panel2MinSize = panel2Min;
+        try
+        {
+            _splitContainer.Panel1MinSize = panel1Min;
+            _splitContainer.Panel2MinSize = panel2Min;
+        }
+        catch
+        {
+        }
     }
 
     private void ApplyTheme()

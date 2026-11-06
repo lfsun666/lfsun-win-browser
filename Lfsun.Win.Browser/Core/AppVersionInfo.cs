@@ -42,6 +42,16 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.7.1",
+            "2026-11-06",
+            "修复双屏分屏面板 SplitContainer 启动边界异常与多窗口布局加固",
+            [
+                "【启动崩溃修复】修复安装启动时由于 SplitBrowserPanel 默认宽度较小导致 SplitContainer.Panel2MinSize 抛出 'SplitterDistance 必须在 Panel1MinSize 和 Width - Panel2MinSize 之间' 的致命启动异常",
+                "【分屏动态适配】重构 SplitBrowserPanel 尺寸自适应机制，初始最小尺寸设为 0，挂载并在窗口实际展开时动态平滑计算两侧最小宽度与均分位置",
+                "【全窗体容错加固】全面排查并加固书签管理窗体、会话中心及分屏容器的 SplitContainer 边界校验与异常防线，杜绝任何 DPI 突变或窗口初次加载时的崩溃隐患"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.7.0",
             "2026-11-06",
             "全局快捷命令面板扩展、下载实时感知提示与垂直标签悬停卡片升级",
