@@ -21,6 +21,7 @@ public sealed class BookmarksSettingsWindow : Form
     private readonly Button _importButton = new();
     private readonly Button _exportButton = new();
     private readonly Button _closeButton = new();
+    private readonly SplitContainer _splitContainer = new();
     private readonly ContextMenuStrip _treeContextMenu = new();
     private readonly ToolStripMenuItem _treeCtxAddFolder = new("新增文件夹");
     private readonly ToolStripMenuItem _treeCtxAddBookmark = new("新增书签");
@@ -44,6 +45,8 @@ public sealed class BookmarksSettingsWindow : Form
         StartPosition = FormStartPosition.CenterParent;
         DoubleBuffered = true;
         Font = AppTheme.CreateFont(9F);
+        Shown += (_, _) => UpdateSplitterDistance();
+        Resize += (_, _) => UpdateSplitterDistance();
 
         BuildLayout();
         ApplyTheme();
@@ -53,14 +56,10 @@ public sealed class BookmarksSettingsWindow : Form
 
     private void BuildLayout()
     {
-        var split = new SplitContainer
-        {
-            Dock = DockStyle.Fill,
-            Orientation = Orientation.Vertical,
-            SplitterDistance = 360,
-            Panel1MinSize = 280,
-            Panel2MinSize = 420
-        };
+        _splitContainer.Dock = DockStyle.Fill;
+        _splitContainer.Orientation = Orientation.Vertical;
+        _splitContainer.Panel1MinSize = 0;
+        _splitContainer.Panel2MinSize = 0;
 
         var left = new TableLayoutPanel
         {
@@ -94,7 +93,7 @@ public sealed class BookmarksSettingsWindow : Form
         _tree.HideSelection = false;
         _tree.BorderStyle = BorderStyle.FixedSingle;
         left.Controls.Add(_tree, 0, 3);
-        split.Panel1.Controls.Add(left);
+        _splitContainer.Panel1.Controls.Add(left);
 
         var right = new TableLayoutPanel
         {
@@ -190,8 +189,42 @@ public sealed class BookmarksSettingsWindow : Form
         groupPanel.Controls.Add(importExportPanel);
         right.Controls.Add(groupPanel, 0, 7);
 
-        split.Panel2.Controls.Add(right);
-        Controls.Add(split);
+        _splitContainer.Panel2.Controls.Add(right);
+        Controls.Add(_splitContainer);
+    }
+
+    private void UpdateSplitterDistance()
+    {
+        if (_splitContainer.Width <= 0)
+        {
+            return;
+        }
+
+        var available = Math.Max(0, _splitContainer.Width - _splitContainer.SplitterWidth);
+        const int panel1Min = 260;
+        const int panel2Min = 360;
+
+        if (available < panel1Min + panel2Min)
+        {
+            _splitContainer.Panel1MinSize = 0;
+            _splitContainer.Panel2MinSize = 0;
+            return;
+        }
+
+        var desired = Math.Clamp(360, panel1Min, available - panel2Min);
+        _splitContainer.Panel1MinSize = 0;
+        _splitContainer.Panel2MinSize = 0;
+        try
+        {
+            _splitContainer.SplitterDistance = desired;
+        }
+        catch
+        {
+            // 忽略极端缩放下的临时状态，等待下一次 Resize 事件
+        }
+
+        _splitContainer.Panel1MinSize = panel1Min;
+        _splitContainer.Panel2MinSize = panel2Min;
     }
 
     private void ApplyTheme()
