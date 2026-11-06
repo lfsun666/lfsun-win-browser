@@ -1,4 +1,4 @@
-﻿using Lfsun.Win.Browser.Bookmarks;
+using Lfsun.Win.Browser.Bookmarks;
 using Lfsun.Win.Browser.Browser;
 using Lfsun.Win.Browser.Core;
 using Lfsun.Win.Browser.Downloads;
@@ -31,6 +31,9 @@ public sealed class BrowserSidePanel : Panel
     private readonly Action _openHistoryWindowCallback;
     private readonly Action _openDownloadsWindowCallback;
     private readonly Action? _toggleSplitCallback;
+    private readonly Func<IReadOnlyList<BrowserTab>>? _getAllTabs;
+    private readonly Func<Task<int>>? _suspendBackgroundTabsCallback;
+    private readonly Func<bool>? _toggleMuteAllCallback;
 
     private readonly Panel _headerBar = new();
     private readonly Panel _contentContainer = new();
@@ -51,7 +54,11 @@ public sealed class BrowserSidePanel : Panel
         Action<string> toastCallback,
         Action openBookmarkManagerCallback,
         Action openHistoryWindowCallback,
-        Action openDownloadsWindowCallback, Action? toggleSplitCallback = null)
+        Action openDownloadsWindowCallback,
+        Action? toggleSplitCallback = null,
+        Func<IReadOnlyList<BrowserTab>>? getAllTabs = null,
+        Func<Task<int>>? suspendBackgroundTabsCallback = null,
+        Func<bool>? toggleMuteAllCallback = null)
     {
         _bookmarkManager = bookmarkManager;
         _historyManager = historyManager;
@@ -63,6 +70,9 @@ public sealed class BrowserSidePanel : Panel
         _openHistoryWindowCallback = openHistoryWindowCallback;
         _openDownloadsWindowCallback = openDownloadsWindowCallback;
         _toggleSplitCallback = toggleSplitCallback;
+        _getAllTabs = getAllTabs;
+        _suspendBackgroundTabsCallback = suspendBackgroundTabsCallback;
+        _toggleMuteAllCallback = toggleMuteAllCallback;
 
         Width = 340;
         Dock = DockStyle.Right;
@@ -153,7 +163,10 @@ public sealed class BrowserSidePanel : Panel
         var toolboxView = new ToolboxView(
             _getActiveTab,
             _toastCallback,
-            _toggleSplitCallback);
+            _toggleSplitCallback,
+            _getAllTabs,
+            _suspendBackgroundTabsCallback,
+            _toggleMuteAllCallback);
 
         _views[SidePanelMode.Bookmarks] = bookmarksView;
         _views[SidePanelMode.History] = historyView;

@@ -120,6 +120,28 @@ public class AddressBarInputResolverTests
     }
 
     [Fact]
+    public void TryResolve_QuestionMarkPrefix_ForcesDefaultSearch()
+    {
+        var ok = AddressBarInputResolver.TryResolve("? example.com", CreateConfig(), out var uri, out var treatedAsSearch);
+
+        Assert.True(ok);
+        Assert.True(treatedAsSearch);
+        Assert.Equal("www.bing.com", uri.Host);
+        Assert.Contains("q=example.com", uri.AbsoluteUri);
+    }
+
+    [Fact]
+    public void TryResolve_ChineseQuestionMarkPrefix_ForcesDefaultSearch()
+    {
+        var ok = AddressBarInputResolver.TryResolve("？ 百度云盘", CreateConfig(), out var uri, out var treatedAsSearch);
+
+        Assert.True(ok);
+        Assert.True(treatedAsSearch);
+        Assert.Equal("www.bing.com", uri.Host);
+        Assert.Contains("q=%E7%99%BE%E5%BA%A6%E4%BA%91%E7%9B%98", uri.AbsoluteUri);
+    }
+
+    [Fact]
     public void TryResolve_UnknownKeywordPrefix_FallsBackToDefaultSearch()
     {
         var ok = AddressBarInputResolver.TryResolve("zz something", CreateConfig(), out var uri, out var treatedAsSearch);

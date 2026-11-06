@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 
 namespace Lfsun.Win.Browser.Core;
 
@@ -41,6 +41,20 @@ public static class AppVersionInfo
     /// </summary>
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
+        new VersionReleaseEntry(
+            "0.6.0",
+            "2026-11-06",
+            "现代化左侧垂直标签栏、后台标签休眠与批量生产力工具箱",
+            [
+                "【垂直标签栏】新增现代化左侧垂直标签栏 (VerticalTabStrip)，支持完整(220px)与收缩图标(48px)双模式自由切换，自适应暗色/浅色主题",
+                "【垂直标签交互】垂直标签栏支持固定标签置顶、音频动态状态徽标 (🔊/🔇)、悬停独立关闭、鼠标中键/双击快捷关闭及新建标签",
+                "【快捷键集成】新增标题栏「📑 垂直标签」一键切换按钮与全局 Ctrl+Shift+V 快捷键，自由在传统水平标签与现代垂直标签间切换",
+                "【后台内存释放】侧边栏工具箱新增「🧹 释放后台内存」一键休眠所有后台空闲标签，显著降低浏览器内存占用",
+                "【全局静音控制】侧边栏工具箱新增「🔇 全局静音切换」，一键全局静音/解除所有标签声音",
+                "【标签批量导出】侧边栏工具箱新增一键复制全部标签 Markdown 列表及纯网址到剪贴板，方便跨工具知识沉淀",
+                "【智能搜索前缀】地址栏输入支持 '? 关键词' 或 '？ 关键词' 显式强制使用默认搜索引擎检索，避免与网址混淆"
+            ]
+        ),
         new VersionReleaseEntry(
             "0.5.0",
             "2026-11-06",

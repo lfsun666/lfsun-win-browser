@@ -200,6 +200,19 @@ public sealed class TabManager
         return true;
     }
 
+    public int IndexOf(BrowserTab tab) => _tabs.IndexOf(tab);
+
+    public async Task SelectTabAsync(BrowserTab? tab)
+    {
+        if (tab is null || !_tabs.Contains(tab))
+        {
+            return;
+        }
+
+        _tabControl.SelectedTab = tab.TabPage;
+        await ActivateSelectedTabAsync();
+    }
+
     public async Task ActivateSelectedTabAsync()
     {
         var active = ActiveTab;
@@ -243,6 +256,41 @@ public sealed class TabManager
         }
 
         PublishTabEvents();
+    }
+
+    /// <summary>
+    /// 中文注释：一键休眠所有后台空闲标签页，立即释放内存。
+    /// </summary>
+    public async Task<int> SuspendAllBackgroundTabsAsync()
+    {
+        var count = 0;
+        foreach (var tab in _tabs
+                     .Where(tab => !ReferenceEquals(tab, ActiveTab))
+                     .Where(tab => !tab.IsSuspended)
+                     .ToList())
+        {
+            await tab.SuspendAsync();
+            count++;
+        }
+
+        PublishTabEvents();
+        return count;
+    }
+
+    /// <summary>
+    /// 中文注释：一键切换所有标签页的全局静音状态。
+    /// </summary>
+    public bool ToggleMuteAllTabs()
+    {
+        var anyUnmuted = _tabs.Any(tab => !tab.IsMuted);
+        var targetMute = anyUnmuted;
+        foreach (var tab in _tabs)
+        {
+            tab.IsMuted = targetMute;
+        }
+
+        PublishTabEvents();
+        return targetMute;
     }
 
     public int LiveTabCount => _tabs.Count(tab => tab.IsLive);

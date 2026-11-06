@@ -64,6 +64,8 @@ public sealed class MainWindow : Form
     private readonly BrowserSidePanel _sidePanel;
     private readonly ToolStripDropDownButton _sidePanelButton = new("◧ 侧栏");
     private readonly SplitBrowserPanel _splitPanel;
+    private readonly VerticalTabStrip _verticalTabStrip;
+    private readonly ToolStripButton _verticalTabsToggleButton = new("📑 垂直标签");
     private readonly ToolStripButton _splitViewButton = new("◫ 分屏");
     private readonly ToolStripButton _readerModeButton = new("📖 阅读");
     private readonly ToolStripButton _zoomPillButton = new("100% 🔍");
@@ -473,8 +475,48 @@ public sealed class MainWindow : Form
             () => ShowBookmarksSettingsWindow(),
             () => ShowHistoryWindow(),
             () => ShowDownloadManager(),
-            () => _ = ToggleSplitViewAsync());
+            () => _ = ToggleSplitViewAsync(),
+            () => _tabManager.Tabs,
+            async () =>
+            {
+                var freed = await _tabManager.SuspendAllBackgroundTabsAsync();
+                RefreshMetrics();
+                return freed;
+            },
+            () =>
+            {
+                var muted = _tabManager.ToggleMuteAllTabs();
+                RefreshToolbar();
+                return muted;
+            });
         _sidePanel.CloseRequested += () => _sidePanel.Visible = false;
+
+        _verticalTabStrip = new VerticalTabStrip(
+            () => _tabManager.Tabs,
+            () => _tabManager.ActiveTab,
+            async tab =>
+            {
+                await _tabManager.SelectTabAsync(tab);
+                RefreshToolbar();
+            },
+            async tab =>
+            {
+                await _tabManager.CloseTabAsync(tab);
+                RefreshToolbar();
+            },
+            async () =>
+            {
+                await _tabManager.CreateTabAsync(new Uri(_config.StartPage));
+                RefreshToolbar();
+            },
+            (tab, screenPoint) =>
+            {
+                _tabContextIndex = _tabManager.IndexOf(tab);
+                _tabContextMenu.Show(screenPoint);
+            });
+
+        _verticalTabsToggleButton.ToolTipText = "切换水平标签 / 垂直侧边标签栏 (Ctrl+Shift+V)";
+        _verticalTabsToggleButton.Click += (_, _) => ToggleVerticalTabs();
 
         _splitPanel = new SplitBrowserPanel();
         _splitPanel.InitializeUserDataDir(_launchOptions.ProfileStoragePath);
@@ -658,6 +700,7 @@ public sealed class MainWindow : Form
         _addressSuggestionPanel.Controls.Add(_addressSuggestionHintLabel);
 
         Controls.Add(_sidePanel);
+        Controls.Add(_verticalTabStrip);
         Controls.Add(_splitPanel);
         Controls.Add(_tabControl);
         Controls.Add(_bookmarksBar);
@@ -1091,6 +1134,8 @@ public sealed class MainWindow : Form
         _titleBar.Items.Add(new ToolStripSeparator());
         _workspaceButton.Alignment = ToolStripItemAlignment.Left;
         _titleBar.Items.Add(_workspaceButton);
+        _verticalTabsToggleButton.Alignment = ToolStripItemAlignment.Left;
+        _titleBar.Items.Add(_verticalTabsToggleButton);
         BuildTitleTabItems();
         _titleNewTabButton.Alignment = ToolStripItemAlignment.Left;
         _titleBar.Items.Add(_titleNewTabButton);
@@ -1851,6 +1896,7 @@ public sealed class MainWindow : Form
         _findBar.ApplyTheme();
         _sidePanel?.ApplyTheme();
         _splitPanel?.ApplyTheme();
+        _verticalTabStrip?.ApplyTheme();
         _titleBar.Padding = compact ? new Padding(8, 2, 8, 2) : new Padding(8, 2, 8, 2);
         _topBar.Height = compact ? 38 : 42;
         _topBar.Padding = compact ? new Padding(8, 3, 8, 3) : new Padding(10, 4, 10, 4);
@@ -9241,6 +9287,8 @@ public sealed class MainWindow : Form
         _closeTabButton.Enabled = active is not null;
         _addBookmarkButton.Enabled = TryGetActiveUri(out _);
         _splitViewButton.Checked = _splitPanel.IsSplitActive;
+        _verticalTabStrip?.RebuildTabs();
+        _verticalTabsToggleButton.Checked = _verticalTabStrip?.Visible == true;
         _readerModeButton.Checked = active?.IsReaderModeActive ?? false;
         if (active is not null && Math.Abs(active.ZoomFactor - 1.0) > 0.02)
         {
@@ -10711,6 +10759,12 @@ public sealed class MainWindow : Form
             }
         }
 
+        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.V)
+        {
+            ToggleVerticalTabs();
+            return true;
+        }
+
         if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.P)
         {
             OpenCommandPalette();
@@ -11525,6 +11579,22 @@ public sealed class MainWindow : Form
         string DisplayName);
 
     private sealed record BookmarkBarTag(Guid NodeId, Guid? ParentFolderId);
+
+    private void ToggleVerticalTabs()
+    {
+        _verticalTabStrip.Visible = !_verticalTabStrip.Visible;
+        if (_verticalTabStrip.Visible)
+        {
+            _verticalTabStrip.BringToFront();
+            _verticalTabStrip.RebuildTabs();
+            ShowToast("已开启垂直标签栏 (Ctrl+Shift+V 切换)");
+        }
+        else
+        {
+            ShowToast("已恢复常规水平标签栏");
+        }
+        RefreshToolbar();
+    }
 
     private async Task ToggleSplitViewAsync()
     {

@@ -17,6 +17,18 @@ public static class AddressBarInputResolver
             return false;
         }
 
+        // 中文注释：问号前缀强制触发默认搜索引擎检索（如 “? 关键词” 或 “？ 关键词”）。
+        if (value.StartsWith("? ") || value.StartsWith("？ "))
+        {
+            var query = value[2..].Trim();
+            if (query.Length > 0 && TryBuildSearchUri(query, config.DefaultSearchEngineUrlTemplate, out var explicitSearchUri))
+            {
+                treatedAsSearch = true;
+                targetUri = explicitSearchUri;
+                return true;
+            }
+        }
+
         // 中文注释：关键字前缀触发指定搜索引擎（如 “gh 关键词”），命中后剩余文本作为搜索词。
         var spaceIndex = value.IndexOf(' ');
         if (spaceIndex > 0 && spaceIndex < value.Length - 1)

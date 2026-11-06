@@ -1,4 +1,4 @@
-﻿using System.Drawing.Imaging;
+using System.Drawing.Imaging;
 using Lfsun.Win.Browser.Browser;
 
 namespace Lfsun.Win.Browser.UI.SidePanel;
@@ -12,6 +12,9 @@ public sealed class ToolboxView : UserControl
     private readonly Func<BrowserTab?> _getActiveTab;
     private readonly Action<string> _toastCallback;
     private readonly Action? _toggleSplitCallback;
+    private readonly Func<IReadOnlyList<BrowserTab>>? _getAllTabs;
+    private readonly Func<Task<int>>? _suspendBackgroundTabsCallback;
+    private readonly Func<bool>? _toggleMuteAllCallback;
 
     private readonly PictureBox _qrBox = new();
     private readonly Label _qrUrlLabel = new();
@@ -21,11 +24,17 @@ public sealed class ToolboxView : UserControl
     public ToolboxView(
         Func<BrowserTab?> getActiveTab,
         Action<string> toastCallback,
-        Action? toggleSplitCallback = null)
+        Action? toggleSplitCallback = null,
+        Func<IReadOnlyList<BrowserTab>>? getAllTabs = null,
+        Func<Task<int>>? suspendBackgroundTabsCallback = null,
+        Func<bool>? toggleMuteAllCallback = null)
     {
         _getActiveTab = getActiveTab;
         _toastCallback = toastCallback;
         _toggleSplitCallback = toggleSplitCallback;
+        _getAllTabs = getAllTabs;
+        _suspendBackgroundTabsCallback = suspendBackgroundTabsCallback;
+        _toggleMuteAllCallback = toggleMuteAllCallback;
 
         Dock = DockStyle.Fill;
         AutoScroll = true;
@@ -236,6 +245,72 @@ public sealed class ToolboxView : UserControl
             }
         }));
         mainLayout.Controls.Add(linkPanel);
+
+        // 6. 标签页批量生产力管理
+        mainLayout.Controls.Add(CreateSectionHeader("📑 标签页批量管理与快捷生产力"));
+        var tabManagePanel = new FlowLayoutPanel { Width = 310, AutoSize = true, Margin = new Padding(0, 4, 0, 10) };
+        tabManagePanel.Controls.Add(CreateButton("🧹 释放后台内存", 140, async () =>
+        {
+            if (_suspendBackgroundTabsCallback is not null)
+            {
+                var freedCount = await _suspendBackgroundTabsCallback();
+                _toastCallback(freedCount > 0 ? $"已休眠 {freedCount} 个后台标签，内存已即时释放！" : "当前无空闲后台标签需要休眠");
+            }
+            else
+            {
+                _toastCallback("后台休眠服务未就绪");
+            }
+        }));
+        tabManagePanel.Controls.Add(CreateButton("🔇 全局静音切换", 140, () =>
+        {
+            if (_toggleMuteAllCallback is not null)
+            {
+                var isMuted = _toggleMuteAllCallback();
+                _toastCallback(isMuted ? "已静音所有标签页音频" : "已解除所有标签页静音");
+            }
+            else
+            {
+                _toastCallback("音频管理服务未就绪");
+            }
+        }));
+        tabManagePanel.Controls.Add(CreateButton("📋 复制全部标签 Markdown", 140, () =>
+        {
+            var tabs = _getAllTabs?.Invoke();
+            if (tabs is null || tabs.Count == 0)
+            {
+                _toastCallback("当前暂无打开的标签页");
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            foreach (var tab in tabs)
+            {
+                var title = string.IsNullOrWhiteSpace(tab.Title) ? "未命名标签页" : tab.Title;
+                var url = tab.CurrentUri?.AbsoluteUri ?? "about:blank";
+                sb.AppendLine($"- [{title}]({url})");
+            }
+            Clipboard.SetText(sb.ToString().TrimEnd());
+            _toastCallback($"已复制 {tabs.Count} 个标签的 Markdown 列表！");
+        }));
+        tabManagePanel.Controls.Add(CreateButton("🔗 复制全部纯网址", 140, () =>
+        {
+            var tabs = _getAllTabs?.Invoke();
+            if (tabs is null || tabs.Count == 0)
+            {
+                _toastCallback("当前暂无打开的标签页");
+                return;
+            }
+
+            var sb = new System.Text.StringBuilder();
+            foreach (var tab in tabs)
+            {
+                var url = tab.CurrentUri?.AbsoluteUri ?? "about:blank";
+                sb.AppendLine(url);
+            }
+            Clipboard.SetText(sb.ToString().TrimEnd());
+            _toastCallback($"已复制 {tabs.Count} 个标签的纯网址！");
+        }));
+        mainLayout.Controls.Add(tabManagePanel);
 
         Controls.Add(mainLayout);
     }
