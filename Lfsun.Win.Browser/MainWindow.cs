@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -13,6 +13,7 @@ using Lfsun.Win.Browser.Sessions;
 using Lfsun.Win.Browser.Settings;
 using Lfsun.Win.Browser.UI;
 using Lfsun.Win.Browser.UI.Chrome;
+using Lfsun.Win.Browser.UI.SidePanel;
 
 namespace Lfsun.Win.Browser;
 
@@ -59,6 +60,8 @@ public sealed class MainWindow : Form
     private readonly ToolStripButton _settingsButton = new("设置");
     // 中文注释：插件固定入口：下拉列出已安装插件可直接启停，并提供重载/管理入口，任意页面可见。
     private readonly ToolStripDropDownButton _pluginButton = new("插件");
+    private readonly BrowserSidePanel _sidePanel;
+    private readonly ToolStripDropDownButton _sidePanelButton = new("◧ 侧栏");
 
     // 中文注释：固定到工具栏的插件快捷按钮（按配置 PinnedPluginIds 动态生成，点击即启/停插件）。
     private readonly List<ToolStripButton> _pinnedPluginButtons = new();
@@ -132,11 +135,16 @@ public sealed class MainWindow : Form
     private readonly ToolStripMenuItem _tabCtxOpsSuspendOthers = new("休眠其他 (保留固定)");
     private readonly ToolStripMenuItem _tabCtxOpsResumeAll = new("恢复全部休眠标签");
     private readonly ToolStripMenuItem _tabCtxDuplicate = new("复制标签");
+    private readonly ToolStripMenuItem _tabCtxToggleMute = new("🔇 静音标签页 (Ctrl+M)");
+    private readonly ToolStripMenuItem _tabCtxCaptureScreenshot = new("📸 网页快照截图 (Ctrl+Shift+S)");
+    private readonly ToolStripMenuItem _tabCtxQrCode = new("📱 生成手机浏览二维码");
     private readonly ToolStripMenuItem _tabCtxReopenClosed = new("恢复最近关闭");
     private readonly ToolStripMenuItem _windowCtxOpenPrivate = new("新开无痕浏览器");
     private readonly ToolStripMenuItem _windowCtxOpenIsolated = new("新开独立双开浏览器");
     private readonly ToolStripMenuItem _windowCtxOpenShared = new("新开共享双开浏览器");
     private readonly ToolStripMenuItem _addressCtxCopy = new("复制地址");
+    private readonly ToolStripMenuItem _addressCtxCopyMarkdown = new("以 Markdown 格式复制");
+    private readonly ToolStripMenuItem _addressCtxQrCode = new("生成网址二维码");
     private readonly ToolStripMenuItem _addressCtxPasteGo = new("粘贴并访问");
     private readonly ToolStripMenuItem _addressCtxClear = new("清空地址栏");
     private readonly ToolStripMenuItem _addressCtxTabSwitch = new("快速切换标签 (Ctrl+K)");
@@ -436,6 +444,52 @@ public sealed class MainWindow : Form
         _adBlockService = new AdBlockService(_config);
         _tabManager.AdBlockService = _adBlockService;
 
+        _sidePanel = new BrowserSidePanel(
+            _bookmarkManager,
+            _historyManager,
+            _downloadManager,
+            () => _tabManager.ActiveTab,
+            async (uri, openNewTab) =>
+            {
+                if (openNewTab)
+                {
+                    await _tabManager.CreateTabAsync(uri);
+                }
+                else
+                {
+                    await NavigateActiveTabAsync(uri);
+                }
+                RefreshToolbar();
+            },
+            ShowToast,
+            () => ShowBookmarksSettingsWindow(),
+            () => ShowHistoryWindow(),
+            () => ShowDownloadManager());
+        _sidePanel.CloseRequested += () => _sidePanel.Visible = false;
+
+        _sidePanelButton.Click += (_, _) =>
+        {
+            _sidePanel.Visible = !_sidePanel.Visible;
+            if (_sidePanel.Visible)
+            {
+                _sidePanel.BringToFront();
+                _sidePanel.RefreshActiveContent();
+            }
+        };
+        _sidePanelButton.DropDownOpening += (_, _) =>
+        {
+            _sidePanelButton.DropDownItems.Clear();
+            var itemToolbox = new ToolStripMenuItem("🛠️ 页面实用工具箱", null, (_, _) => { _sidePanel.SwitchTo(SidePanelMode.Toolbox); _sidePanel.Visible = true; _sidePanel.BringToFront(); });
+            var itemBookmarks = new ToolStripMenuItem("🔖 快速书签侧栏", null, (_, _) => { _sidePanel.SwitchTo(SidePanelMode.Bookmarks); _sidePanel.Visible = true; _sidePanel.BringToFront(); });
+            var itemHistory = new ToolStripMenuItem("🕒 快速历史侧栏", null, (_, _) => { _sidePanel.SwitchTo(SidePanelMode.History); _sidePanel.Visible = true; _sidePanel.BringToFront(); });
+            var itemDownloads = new ToolStripMenuItem("⬇️ 快速下载侧栏", null, (_, _) => { _sidePanel.SwitchTo(SidePanelMode.Downloads); _sidePanel.Visible = true; _sidePanel.BringToFront(); });
+            var itemScratchpad = new ToolStripMenuItem("📝 随手便签记事本", null, (_, _) => { _sidePanel.SwitchTo(SidePanelMode.Scratchpad); _sidePanel.Visible = true; _sidePanel.BringToFront(); });
+            var toggleItem = new ToolStripMenuItem(_sidePanel.Visible ? "✕ 折叠侧边栏 (Alt+S)" : "◧ 展开侧边栏 (Alt+S)", null, (_, _) => { _sidePanel.Visible = !_sidePanel.Visible; });
+
+            _sidePanelButton.DropDownItems.AddRange([itemToolbox, itemBookmarks, itemHistory, itemDownloads, itemScratchpad, new ToolStripSeparator(), toggleItem]);
+            _sidePanelButton.DropDown.Renderer = _toolbarRenderer;
+        };
+
         BuildLayout();
         BuildBookmarkContextMenu();
         BuildTabContextMenu();
@@ -567,6 +621,7 @@ public sealed class MainWindow : Form
         _addressSuggestionPanel.Controls.Add(_addressSuggestionListBox);
         _addressSuggestionPanel.Controls.Add(_addressSuggestionHintLabel);
 
+        Controls.Add(_sidePanel);
         Controls.Add(_tabControl);
         Controls.Add(_bookmarksBar);
         Controls.Add(_addressBar);
@@ -669,6 +724,42 @@ public sealed class MainWindow : Form
         _tabCtxOpsSuspendOthers.Click += async (_, _) => await ApplyTabOpsFromContextAsync("suspendothers");
         _tabCtxOpsResumeAll.Click += async (_, _) => await ApplyTabOpsFromContextAsync("resumeall");
         _tabCtxDuplicate.Click += async (_, _) => await DuplicateTabByContextAsync();
+        _tabCtxToggleMute.Click += (_, _) =>
+        {
+            var tab = ResolveTabByContextIndex();
+            if (tab is not null)
+            {
+                tab.ToggleMute();
+                ShowToast(tab.IsMuted ? "已静音标签 🔇" : "已恢复标签声音 🔊");
+                RefreshToolbar();
+            }
+        };
+        _tabCtxCaptureScreenshot.Click += async (_, _) =>
+        {
+            var tab = ResolveTabByContextIndex();
+            if (tab is not null)
+            {
+                var bmp = await tab.CaptureScreenshotAsync();
+                if (bmp is not null)
+                {
+                    Clipboard.SetImage(bmp);
+                    ShowToast("网页快照已复制到剪贴板！📸");
+                }
+                else
+                {
+                    ShowToast("快照截图失败");
+                }
+            }
+        };
+        _tabCtxQrCode.Click += (_, _) =>
+        {
+            var tab = ResolveTabByContextIndex();
+            if (tab?.CurrentUri is not null)
+            {
+                using var qr = new QrCodeCardDialog(tab.CurrentUri.AbsoluteUri, tab.Title);
+                qr.ShowDialog(this);
+            }
+        };
         _tabCtxReopenClosed.Click += async (_, _) => await ReopenClosedTabFromTabMenuAsync();
         _tabCtxCloseCurrent.Click += async (_, _) => await CloseTabMenuSelectionAsync(closeCurrent: true, closeOthers: false, closeLeft: false, closeRight: false, closeAll: false);
         _tabCtxCloseOthers.Click += async (_, _) => await CloseTabMenuSelectionAsync(closeCurrent: false, closeOthers: true, closeLeft: false, closeRight: false, closeAll: false);
@@ -757,6 +848,16 @@ public sealed class MainWindow : Form
             _addressCtxClear.Enabled = !string.IsNullOrWhiteSpace(_addressTextBox.Text);
             _addressCtxSearch.Enabled = !string.IsNullOrWhiteSpace(_addressTextBox.Text.Trim());
         };
+        _addressCtxCopyMarkdown.Click += (_, _) =>
+        {
+            var tab = _tabManager.ActiveTab;
+            if (tab?.CurrentUri is not null)
+            {
+                Clipboard.SetText($"[{tab.DisplayTitle}]({tab.CurrentUri.AbsoluteUri})");
+                ShowToast("已复制 Markdown 链接");
+            }
+        };
+        _addressCtxQrCode.Click += (_, _) => ShowQrCodeForActiveTab();
         _addressCtxCopy.Click += (_, _) =>
         {
             if (!string.IsNullOrWhiteSpace(_addressTextBox.Text))
@@ -918,6 +1019,7 @@ public sealed class MainWindow : Form
         _toolbarItemsById[ToolbarButtonIds.Plugins] = _pluginButton;
         _toolbarItemsById[ToolbarButtonIds.MultiWindow] = _multiWindowButton;
         _toolbarItemsById[ToolbarButtonIds.DevTools] = _devToolsButton;
+        _toolbarItemsById[ToolbarButtonIds.SidePanel] = _sidePanelButton;
         _toolbarItemsById["commandPalette"] = _commandPaletteButton;
         _toolbarItemsById["tabSwitch"] = _tabSwitchButton;
     }
@@ -1023,7 +1125,8 @@ public sealed class MainWindow : Form
                 : string.IsNullOrWhiteSpace(colorBadge)
                     ? $"{pinPrefix}{suspendedTag}{siteBadge} {shortTitle}"
                     : $"{pinPrefix}{colorBadge}{suspendedTag}{siteBadge} {shortTitle}";
-            var coreText = $"{activePrefix}{coreTitle}".Trim();
+            var audioTag = tab.IsMuted ? " 🔇" : (tab.IsPlayingAudio ? " 🔊" : string.Empty);
+            var coreText = $"{activePrefix}{coreTitle}{audioTag}".Trim();
             var displayText = compactTabVisual
                 ? (canQuickClose ? $"{coreText} ×" : coreText)
                 : (canQuickClose ? $"{stateBadge}{coreText} ×" : $"{stateBadge}{coreText}");
@@ -1111,19 +1214,26 @@ public sealed class MainWindow : Form
                     _titleTabDragMoved = true;
                 }
             };
-            tabButton.DoubleClick += (_, _) =>
+            tabButton.DoubleClick += async (_, _) =>
             {
-                var contextIndex = _tabManager.Tabs
+                var tabIndex = _tabManager.Tabs
                     .Select((candidate, index) => new { candidate, index })
                     .FirstOrDefault(item => item.candidate.Id == targetTabId)
                     ?.index ?? -1;
-                if (contextIndex < 0 || contextIndex >= _tabControl.TabCount)
+                if (tabIndex < 0)
                 {
                     return;
                 }
 
-                _tabContextIndex = contextIndex;
-                ToggleTabPinByContext();
+                if (!tab.IsPinned)
+                {
+                    await CloseTabByIndexAsync(tabIndex);
+                }
+                else
+                {
+                    _tabContextIndex = tabIndex;
+                    ToggleTabPinByContext();
+                }
                 ResetTitleTabDragState();
             };
             tabButton.MouseUp += async (_, eventArgs) =>
@@ -1544,7 +1654,7 @@ public sealed class MainWindow : Form
             "back" or "forward" or "refresh" => 0,
             "newTab" or "closeTab" or "multiWindow" => 1,
             "downloads" or "history" or "bookmark" or "bookmarkBar" => 2,
-            "settings" or "searchEngine" or "appearance" or "plugins" or "devTools" => 3,
+            "settings" or "searchEngine" or "appearance" or "plugins" or "devTools" or "sidePanel" => 3,
             _ => 9
         };
     }
@@ -1679,6 +1789,7 @@ public sealed class MainWindow : Form
 
         _titleBar.Height = compact ? 33 : 36;
         _findBar.ApplyTheme();
+        _sidePanel?.ApplyTheme();
         _titleBar.Padding = compact ? new Padding(8, 2, 8, 2) : new Padding(8, 2, 8, 2);
         _topBar.Height = compact ? 38 : 42;
         _topBar.Padding = compact ? new Padding(8, 3, 8, 3) : new Padding(10, 4, 10, 4);
@@ -2094,15 +2205,23 @@ public sealed class MainWindow : Form
         _topBar.MouseDoubleClick += (_, eventArgs) => HandleTitleStripDoubleClick(_topBar, eventArgs);
         _siteBadgeLabel.Click += (_, _) =>
         {
-            if (TryGetActiveUri(out var uri))
+            var activeTab = _tabManager.ActiveTab;
+            var uri = activeTab?.CurrentUri;
+            if (uri is null)
             {
-                Clipboard.SetText(uri.AbsoluteUri);
-                ShowToast("已复制当前页面地址");
-                Log($"已复制地址: {uri.AbsoluteUri}");
+                ShowToast("当前标签暂无站点信息");
                 return;
             }
 
-            ShowToast("当前标签暂无可复制地址");
+            using var siteCard = new SiteInfoCardDialog(
+                uri,
+                activeTab?.AdBlockedCount ?? 0,
+                activeTab?.LastLoadMilliseconds ?? -1,
+                () => _ = ClearCookiesAndDataForCurrentHostAsync(),
+                () => _ = HardRefreshActiveTabAsync(),
+                () => _ = ViewActiveTabSourceAsync(),
+                () => ShowQrCodeForActiveTab());
+            siteCard.ShowDialog(this);
         };
         _siteBadgeLabel.MouseUp += (_, eventArgs) =>
         {
@@ -2209,6 +2328,7 @@ public sealed class MainWindow : Form
 
             RefreshToolbar();
             UpdateWindowCaption();
+        _sidePanel?.RefreshActiveContent();
             PersistSessionState();
             _statusBarPanel.SetZoomFactor(tab?.ZoomFactor ?? 1.0);
             _statusBarPanel.SetAdBlockedCount(_config.AdBlockEnabled, tab?.AdBlockedCount ?? 0);
@@ -2273,6 +2393,7 @@ public sealed class MainWindow : Form
             }
 
             UpdateWindowCaption();
+        _sidePanel?.RefreshActiveContent();
             UpdateAddressSuggestions();
             PersistSessionState();
         };
@@ -9064,6 +9185,7 @@ public sealed class MainWindow : Form
         UpdateModeLabelText();
         RequestTitleBarRebuild();
         UpdateWindowCaption();
+        _sidePanel?.RefreshActiveContent();
     }
 
     private void RequestTitleBarRebuild()
@@ -9573,6 +9695,7 @@ public sealed class MainWindow : Form
             ? FormWindowState.Normal
             : FormWindowState.Maximized;
         UpdateWindowCaption();
+        _sidePanel?.RefreshActiveContent();
     }
 
     private void HandleWindowStateTransition()
@@ -10466,6 +10589,44 @@ public sealed class MainWindow : Form
 
     private async Task<bool> HandleShortcutAsync(KeyEventArgs eventArgs)
     {
+                if (eventArgs.Control && !eventArgs.Shift && !eventArgs.Alt && eventArgs.KeyCode == Keys.M)
+        {
+            var activeTab = _tabManager.ActiveTab;
+            if (activeTab is not null)
+            {
+                activeTab.ToggleMute();
+                ShowToast(activeTab.IsMuted ? "已静音当前标签 🔇" : "已恢复当前标签声音 🔊");
+                RefreshToolbar();
+                return true;
+            }
+        }
+
+        if ((eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.E) || (eventArgs.Alt && eventArgs.KeyCode == Keys.S))
+        {
+            _sidePanel.Visible = !_sidePanel.Visible;
+            if (_sidePanel.Visible)
+            {
+                _sidePanel.BringToFront();
+                _sidePanel.RefreshActiveContent();
+            }
+            return true;
+        }
+
+        if (eventArgs.Control && eventArgs.Alt && eventArgs.KeyCode == Keys.S)
+        {
+            var activeTab = _tabManager.ActiveTab;
+            if (activeTab is not null)
+            {
+                var bmp = await activeTab.CaptureScreenshotAsync();
+                if (bmp is not null)
+                {
+                    Clipboard.SetImage(bmp);
+                    ShowToast("网页截图已复制到剪贴板！📸");
+                }
+                return true;
+            }
+        }
+
         if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.P)
         {
             OpenCommandPalette();
@@ -11280,6 +11441,65 @@ public sealed class MainWindow : Form
         string DisplayName);
 
     private sealed record BookmarkBarTag(Guid NodeId, Guid? ParentFolderId);
+
+    private void ShowQrCodeForActiveTab()
+    {
+        var tab = _tabManager.ActiveTab;
+        if (tab?.CurrentUri is null)
+        {
+            ShowToast("当前页面无可用的网址");
+            return;
+        }
+
+        using var qrDialog = new QrCodeCardDialog(tab.CurrentUri.AbsoluteUri, tab.Title);
+        qrDialog.ShowDialog(this);
+    }
+
+    private async Task NavigateActiveTabAsync(Uri uri)
+    {
+        if (_tabManager.ActiveTab is not null)
+        {
+            await _tabManager.ActiveTab.NavigateAsync(uri);
+        }
+        else
+        {
+            await _tabManager.CreateTabAsync(uri);
+        }
+        RefreshToolbar();
+    }
+
+    private async Task ClearCookiesAndDataForCurrentHostAsync()
+    {
+        var tab = _tabManager.ActiveTab;
+        if (tab?.CurrentUri is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await tab.ClearCacheAndReloadAsync();
+            ShowToast("已清理当前站点缓存并强刷");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"清理失败: {ex.Message}");
+        }
+    }
+
+    private async Task ViewActiveTabSourceAsync()
+    {
+        var tab = _tabManager.ActiveTab;
+        if (tab?.CurrentUri is null)
+        {
+            return;
+        }
+
+        var sourceUrl = $"view-source:{tab.CurrentUri.AbsoluteUri}";
+        if (Uri.TryCreate(sourceUrl, UriKind.Absolute, out var sourceUri))
+        {
+            await _tabManager.CreateTabAsync(sourceUri);
+            RefreshToolbar();
+        }
+    }
 }
-
-

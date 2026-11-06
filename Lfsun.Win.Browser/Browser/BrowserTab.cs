@@ -84,8 +84,25 @@ public sealed class BrowserTab : IAsyncDisposable
     public bool CanGoBack => _webView?.CoreWebView2?.CanGoBack ?? false;
     public bool CanGoForward => _webView?.CoreWebView2?.CanGoForward ?? false;
     public bool IsLive => !IsSuspended && _webView is not null;
+    public bool IsPlayingAudio => _core?.IsDocumentPlayingAudio ?? false;
+    public bool IsMuted
+    {
+        get => _core?.IsMuted ?? false;
+        set
+        {
+            if (_core is not null)
+            {
+                _core.IsMuted = value;
+                AudioStateChanged?.Invoke(this);
+                StateChanged?.Invoke(this);
+            }
+        }
+    }
+
+    public void ToggleMute() => IsMuted = !IsMuted;
 
     public event Action<BrowserTab>? StateChanged;
+    public event Action<BrowserTab>? AudioStateChanged;
     public event Action<BrowserTab, Uri, string>? PageVisited;
     public event Func<Uri, Task>? NewTabRequested;
     public event Action<BrowserTab>? SurfaceInteracted;
@@ -134,7 +151,58 @@ public sealed class BrowserTab : IAsyncDisposable
     /// <summary>
     /// 中文注释：当前缩放倍率（WebView 未就绪时视为 100%）。
     /// </summary>
-    public double ZoomFactor => _webView?.ZoomFactor ?? 1.0;
+    public double ZoomFactor
+    {
+        get => _webView?.ZoomFactor ?? 1.0;
+        set => SetZoomFactor(value);
+    }
+
+    /// <summary>
+    /// 中文注释：整页/可视区域快照截图并返回 Bitmap。
+    /// </summary>
+    public async Task<Bitmap?> CaptureScreenshotAsync()
+    {
+        if (_core is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var stream = new MemoryStream();
+            await _core.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream);
+            stream.Position = 0;
+            return new Bitmap(stream);
+        }
+        catch (Exception ex)
+        {
+            _log($"网页快照截图失败: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 中文注释：为网页动态应用 CSS 视觉滤镜（如护眼暖色、夜间反色、高对比度等）。
+    /// </summary>
+    public async Task ApplyPageFilterAsync(string filterCss)
+    {
+        if (_core is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var script = string.IsNullOrWhiteSpace(filterCss)
+                ? "document.documentElement.style.filter = '';"
+                : $"document.documentElement.style.filter = '{filterCss}';";
+            await _core.ExecuteScriptAsync(script);
+        }
+        catch (Exception ex)
+        {
+            _log($"应用页面视觉滤镜失败: {ex.Message}");
+        }
+    }
 
     /// <summary>
     /// 中文注释：设置缩放倍率（自动限制在 0.25~5.0）。
@@ -584,12 +652,14 @@ public sealed class BrowserTab : IAsyncDisposable
             await NavigateAsync(targetUri);
         };
 
-        // 中文注释：订阅导航/标题变化事件（CoreWebView2 事件）；统一使用可取消的具名方法，
+        // 中文注释：订阅导航/标题/音频变化事件（CoreWebView2 事件）；统一使用可取消的具名方法，
         // Suspend 时自动取否则 Resume 多次会叠加订阅。
         // 注意：ZoomFactorChanged 是 WebView2 控件事件，仅从 _webView 订阅无需取销（随控件 Dispose 释放）。
         _core!.NavigationStarting += OnNavigationStarting;
         _core.NavigationCompleted += OnNavigationCompleted;
         _core.DocumentTitleChanged += OnDocumentTitleChanged;
+        _core.IsDocumentPlayingAudioChanged += OnIsDocumentPlayingAudioChanged;
+        _core.IsMutedChanged += OnIsMutedChanged;
         _webView.ZoomFactorChanged += OnZoomFactorChanged;
         _coreEventsHooked = true;
 
@@ -633,6 +703,18 @@ public sealed class BrowserTab : IAsyncDisposable
         }
     }
 
+    private void OnIsDocumentPlayingAudioChanged(object? sender, object args)
+    {
+        AudioStateChanged?.Invoke(this);
+        StateChanged?.Invoke(this);
+    }
+
+    private void OnIsMutedChanged(object? sender, object args)
+    {
+        AudioStateChanged?.Invoke(this);
+        StateChanged?.Invoke(this);
+    }
+
     private void UnsubscribeCoreEvents()
     {
         if (!_coreEventsHooked || _core is null)
@@ -645,6 +727,8 @@ public sealed class BrowserTab : IAsyncDisposable
             _core.NavigationStarting -= OnNavigationStarting;
             _core.NavigationCompleted -= OnNavigationCompleted;
             _core.DocumentTitleChanged -= OnDocumentTitleChanged;
+            _core.IsDocumentPlayingAudioChanged -= OnIsDocumentPlayingAudioChanged;
+            _core.IsMutedChanged -= OnIsMutedChanged;
             if (_webView is not null)
             {
                 _webView.ZoomFactorChanged -= OnZoomFactorChanged;

@@ -1,4 +1,4 @@
-using System.Runtime.InteropServices;
+﻿using System.Runtime.InteropServices;
 using Lfsun.Win.Browser.UI;
 
 namespace Lfsun.Win.Browser.Core;
@@ -546,7 +546,8 @@ public sealed class BrowserConfig
             CreateToolbarButton(ToolbarButtonIds.SearchEngine, "搜索引擎", 11),
             CreateToolbarButton(ToolbarButtonIds.Appearance, "外观", 12),
             CreateToolbarButton(ToolbarButtonIds.Plugins, "插件", 13),
-            CreateToolbarButton(ToolbarButtonIds.DevTools, "开发者工具", 14)
+            CreateToolbarButton(ToolbarButtonIds.DevTools, "开发者工具", 14),
+            CreateToolbarButton(ToolbarButtonIds.SidePanel, "侧边栏", 15)
         ];
     }
 

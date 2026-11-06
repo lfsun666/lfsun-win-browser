@@ -1,5 +1,5 @@
-#ifndef MyAppVersion
-  #define MyAppVersion "0.3.0"
+﻿#ifndef MyAppVersion
+  #define MyAppVersion "0.4.0"
 #endif
 
 #ifndef MySourceDir
@@ -32,7 +32,7 @@ UninstallDisplayIcon={app}\LfsunBrowser.exe
 Name: "chinesesimp"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务："; Flags: unchecked
+Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务:"; Flags: unchecked
 
 [Files]
 Source: "{#MySourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
@@ -43,4 +43,3 @@ Name: "{autodesktop}\LfsunBrowser"; Filename: "{app}\LfsunBrowser.exe"; Tasks: d
 
 [Run]
 Filename: "{app}\LfsunBrowser.exe"; Description: "启动 LfsunBrowser"; Flags: nowait postinstall skipifsilent
-

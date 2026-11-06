@@ -21,4 +21,5 @@ public static class ToolbarButtonIds
     public const string Plugins = "plugins";
     public const string MultiWindow = "multiWindow";
     public const string DevTools = "devTools";
+    public const string SidePanel = "sidePanel";
 }

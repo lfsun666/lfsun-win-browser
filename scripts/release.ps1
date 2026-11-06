@@ -47,7 +47,7 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
 }
 
 # 2. 读取并解析当前版本号
-$csprojContent = Get-Content $projectPath -Raw
+$csprojContent = Get-Content $projectPath -Raw -Encoding UTF8
 if ($csprojContent -match '<Version>(\d+\.\d+\.\d+)<\/Version>') {
     $currentVersion = $Matches[1]
 } else {
@@ -83,7 +83,7 @@ if ($targetVersion -ne $currentVersion) {
     $newCsproj = $newCsproj -replace '<FileVersion>\d+\.\d+\.\d+<\/FileVersion>', "<FileVersion>$targetVersion</FileVersion>"
     Set-Content -Path $projectPath -Value $newCsproj -NoNewline -Encoding UTF8
 
-    $issContent = Get-Content $issPath -Raw
+    $issContent = Get-Content $issPath -Raw -Encoding UTF8
     $newIss = $issContent -replace '#define MyAppVersion "\d+\.\d+\.\d+"', "#define MyAppVersion ""$targetVersion"""
     Set-Content -Path $issPath -Value $newIss -NoNewline -Encoding UTF8
 }
@@ -96,7 +96,7 @@ if (-not (Test-Path $changelogPath)) {
 
 if (-not [string]::IsNullOrWhiteSpace($Notes)) {
     Write-Host "记录更新日志到 CHANGELOG.md..." -ForegroundColor Cyan
-    $changelogContent = Get-Content $changelogPath -Raw
+    $changelogContent = Get-Content $changelogPath -Raw -Encoding UTF8
     $headerPattern = "## \[$targetVersion\]"
     if ($changelogContent -notmatch $headerPattern) {
         $entryLines = @(
