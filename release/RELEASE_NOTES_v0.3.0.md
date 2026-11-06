@@ -9,6 +9,7 @@
 - **LfsunBrowser-portable-win-x64-v0.3.0.zip** (63.48 MB)
 - **LfsunBrowser-setup-0.3.0.exe** (47.61 MB)
 - **LfsunBrowser-setup-latest.exe** (47.61 MB)
+- **RELEASE_NOTES_v0.3.0.md** (0 MB)
 - **SHA256SUMS.txt** (0 MB)
 
 ## 更新摘要
