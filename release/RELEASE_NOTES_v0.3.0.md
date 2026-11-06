@@ -1,0 +1,15 @@
+﻿# LfsunBrowser v0.3.0 发布说明
+
+- **发布日期**: 2026-11-06
+- **运行时环境**: .NET 8.0 (Self-Contained)
+- **目标平台**: Windows x64 (Windows 10/11)
+
+## 交付文件清单
+- **LfsunBrowser-portable-latest.zip** (63.48 MB)
+- **LfsunBrowser-portable-win-x64-v0.3.0.zip** (63.48 MB)
+- **LfsunBrowser-setup-0.3.0.exe** (47.61 MB)
+- **LfsunBrowser-setup-latest.exe** (47.61 MB)
+- **SHA256SUMS.txt** (0 MB)
+
+## 更新摘要
+详见项目 CHANGELOG.md

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using Lfsun.Win.Browser.Bookmarks;
 using Lfsun.Win.Browser.Core;
@@ -203,6 +204,7 @@ public sealed class SettingsWindow : Form
         _tabs.TabPages.Add(BuildPrivacyPage());
         _tabs.TabPages.Add(BuildPluginsPage());
         _tabs.TabPages.Add(BuildBookmarksPage());
+        _tabs.TabPages.Add(BuildAboutPage());
 
         var sidebar = BuildSidebarPanel();
         _sidebarCardPanel.Dock = DockStyle.Fill;
@@ -1099,6 +1101,146 @@ public sealed class SettingsWindow : Form
         return page;
     }
 
+    private TabPage BuildAboutPage()
+    {
+        var page = new TabPage("关于");
+        var panel = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 5,
+            Padding = new Padding(14),
+            AutoScroll = true
+        };
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var titleRow = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0, 0, 0, 4)
+        };
+        var appTitle = new Label
+        {
+            Text = AppVersionInfo.ProductName,
+            Font = AppTheme.CreateFont(14F, FontStyle.Bold),
+            ForeColor = AppTheme.TextPrimary,
+            AutoSize = true,
+            Margin = new Padding(0, 0, 8, 0)
+        };
+        var versionBadge = new Label
+        {
+            Text = $"v{AppVersionInfo.CurrentVersion}",
+            Font = AppTheme.CreateMonoFont(9F, FontStyle.Bold),
+            BackColor = AppTheme.AccentMuted,
+            ForeColor = AppTheme.Accent,
+            AutoSize = true,
+            Padding = new Padding(6, 2, 6, 2),
+            Margin = new Padding(0, 2, 0, 0)
+        };
+        titleRow.Controls.Add(appTitle);
+        titleRow.Controls.Add(versionBadge);
+
+        var sloganLabel = new Label
+        {
+            Text = $"{AppVersionInfo.Slogan} · .NET {Environment.Version.Major}.{Environment.Version.Minor} · Windows {(Environment.Is64BitProcess ? "x64" : "x86")}",
+            Font = AppTheme.CreateFont(9F),
+            ForeColor = AppTheme.TextSecondary,
+            AutoSize = true,
+            Margin = new Padding(0, 0, 0, 10)
+        };
+
+        var historyHeader = new Label
+        {
+            Text = "版本更新记录与特性演进：",
+            Font = AppTheme.CreateFont(9.8F, FontStyle.Bold),
+            ForeColor = AppTheme.TextPrimary,
+            AutoSize = true,
+            Margin = new Padding(0, 4, 0, 4)
+        };
+
+        var changelogBox = new RichTextBox
+        {
+            Dock = DockStyle.Fill,
+            ReadOnly = true,
+            BorderStyle = BorderStyle.None,
+            BackColor = AppTheme.SurfaceAlt,
+            ForeColor = AppTheme.TextPrimary,
+            Font = AppTheme.CreateFont(9F),
+            Margin = new Padding(0, 4, 0, 8)
+        };
+
+        foreach (var release in AppVersionInfo.ReleaseHistory)
+        {
+            var isCurrent = string.Equals(release.Version, AppVersionInfo.CurrentVersion, StringComparison.OrdinalIgnoreCase);
+            changelogBox.SelectionFont = AppTheme.CreateFont(9.8F, FontStyle.Bold);
+            changelogBox.SelectionColor = isCurrent ? AppTheme.Accent : AppTheme.TextPrimary;
+            changelogBox.AppendText($"v{release.Version} ({release.ReleaseDate}) - {release.Title}");
+            if (isCurrent)
+            {
+                changelogBox.SelectionFont = AppTheme.CreateFont(8.5F, FontStyle.Bold);
+                changelogBox.SelectionColor = AppTheme.Success;
+                changelogBox.AppendText("  [当前版本]");
+            }
+            changelogBox.AppendText(Environment.NewLine);
+
+            changelogBox.SelectionFont = AppTheme.CreateFont(9F);
+            changelogBox.SelectionColor = AppTheme.TextPrimary;
+            foreach (var highlight in release.Highlights)
+            {
+                changelogBox.AppendText($"  • {highlight}{Environment.NewLine}");
+            }
+            changelogBox.AppendText(Environment.NewLine);
+        }
+        changelogBox.Select(0, 0);
+
+        var actionRow = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            Margin = new Padding(0, 4, 0, 0)
+        };
+
+        var openReleaseButton = new Button { Text = "打开发布目录 (release/)", AutoSize = true };
+        openReleaseButton.Click += (_, _) =>
+        {
+            try
+            {
+                var target = Path.Combine(Environment.CurrentDirectory, "release");
+                Directory.CreateDirectory(target);
+                Process.Start(new ProcessStartInfo { FileName = target, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, $"无法打开发布目录: {ex.Message}", "提示", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        };
+        AppTheme.ApplyPrimaryButton(openReleaseButton);
+
+        var openRepoButton = new Button { Text = "访问项目仓库", AutoSize = true };
+        openRepoButton.Click += (_, _) =>
+        {
+            try { Process.Start(new ProcessStartInfo { FileName = AppVersionInfo.RepositoryUrl, UseShellExecute = true }); } catch { }
+        };
+        AppTheme.ApplyPrimaryButton(openRepoButton);
+
+        actionRow.Controls.Add(openReleaseButton);
+        actionRow.Controls.Add(openRepoButton);
+
+        panel.Controls.Add(titleRow, 0, 0);
+        panel.Controls.Add(sloganLabel, 0, 1);
+        panel.Controls.Add(historyHeader, 0, 2);
+        panel.Controls.Add(changelogBox, 0, 3);
+        panel.Controls.Add(actionRow, 0, 4);
+
+        page.Controls.Add(panel);
+        return page;
+    }
+
     private void ApplyVisualStyle()
     {
         BackColor = AppTheme.WindowBackground;
@@ -1292,7 +1434,8 @@ public sealed class SettingsWindow : Form
             new SettingSearchItem("自动填充 自动保存 密码", "隐私与登录 / 自动填充与密码保存", 5, () => _autofillCheckBox),
             new SettingSearchItem("广告过滤 拦截 屏蔽域名 adblock", "隐私与登录 / 广告过滤", 5, () => _adBlockEnabledCheckBox),
             new SettingSearchItem("插件 安装 启用 禁用 卸载 权限 白名单", "插件 / 插件权限与管理", 6, () => _pluginGrid),
-            new SettingSearchItem("书签 导入 导出 管理", "书签 / 书签管理", 7, () => _bookmarkManageButton)
+            new SettingSearchItem("书签 导入 导出 管理", "书签 / 书签管理", 7, () => _bookmarkManageButton),
+            new SettingSearchItem("关于 版本 更新说明 日志 version changelog release", "关于 / 版本更新说明", 8, null)
         ]);
         UpdateSidebarSummary();
     }
@@ -1645,7 +1788,7 @@ public sealed class SettingsWindow : Form
         }
 
         var title = _tabs.TabPages[tabIndex].Text;
-        _contentHeaderTitleLabel.Text = $"{title}设置";
+        _contentHeaderTitleLabel.Text = title == "关于" ? "关于 LfsunBrowser" : $"{title}设置";
         _contentHeaderSubtitleLabel.Text = ResolveCategorySubtitle(tabIndex);
     }
 
@@ -1661,6 +1804,7 @@ public sealed class SettingsWindow : Form
             5 => "自动填充与密码保存策略",
             6 => "插件权限白名单与插件生命周期管理",
             7 => "书签导入导出与集中管理",
+            8 => "关于 LfsunBrowser、版本信息与更新历史记录",
             _ => "浏览器配置"
         };
     }

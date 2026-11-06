@@ -63,7 +63,7 @@ public sealed class SessionNameDialog : Form
         {
             Text = "示例：工作标签 / 购物对比 / 多账号登录",
             AutoSize = true,
-            ForeColor = Color.FromArgb(67, 92, 136),
+            ForeColor = AppTheme.TextSecondary,
             Margin = new Padding(0, 10, 0, 0)
         }, 1, 1);
 

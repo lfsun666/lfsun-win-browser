@@ -1,3 +1,6 @@
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+
 namespace Lfsun.Win.Browser.UI.Chrome;
 
 /// <summary>
@@ -27,7 +30,7 @@ public sealed class ModernColorTable : ProfessionalColorTable
 }
 
 /// <summary>
-/// 状态栏渐变背景渲染器。
+/// 状态栏现代扁平化胶囊芯片渲染器。
 /// </summary>
 public sealed class ModernStatusStripRenderer : ToolStripProfessionalRenderer
 {
@@ -50,7 +53,6 @@ public sealed class ModernStatusStripRenderer : ToolStripProfessionalRenderer
             return;
         }
 
-        // 中文注释：状态栏改纯色表面，与顶部工具条风格统一。
         using var brush = new SolidBrush(AppTheme.Surface);
         eventArgs.Graphics.FillRectangle(brush, bounds);
     }
@@ -71,6 +73,55 @@ public sealed class ModernStatusStripRenderer : ToolStripProfessionalRenderer
 
         using var topPen = new Pen(AppTheme.PanelBorder);
         eventArgs.Graphics.DrawLine(topPen, 0, 0, width, 0);
+    }
+
+    protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
+    {
+        e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        base.OnRenderItemText(e);
+    }
+
+    protected override void OnRenderLabelBackground(ToolStripItemRenderEventArgs e)
+    {
+        if (e.Item is not ToolStripStatusLabel statusLabel ||
+            statusLabel.BackColor.IsEmpty ||
+            statusLabel.BackColor == Color.Transparent ||
+            statusLabel.BackColor == AppTheme.Surface)
+        {
+            base.OnRenderLabelBackground(e);
+            return;
+        }
+
+        var bounds = new Rectangle(Point.Empty, statusLabel.Size);
+        bounds.Inflate(-1, -1);
+        if (bounds.Width <= 6 || bounds.Height <= 6)
+        {
+            return;
+        }
+
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var path = BuildRoundedRectangle(bounds, 5);
+        using var brush = new SolidBrush(statusLabel.BackColor);
+        using var pen = new Pen(AppTheme.PanelBorder, 1F);
+        e.Graphics.FillPath(brush, path);
+        e.Graphics.DrawPath(pen, path);
+    }
+
+    private static GraphicsPath BuildRoundedRectangle(Rectangle bounds, int radius)
+    {
+        var path = new GraphicsPath();
+        var diameter = radius * 2;
+        var arc = new Rectangle(bounds.Location, new Size(diameter, diameter));
+
+        path.AddArc(arc, 180, 90);
+        arc.X = bounds.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = bounds.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = bounds.Left;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 }
 

@@ -80,7 +80,7 @@ public sealed class DownloadsWindow : Form
         {
             AutoSize = true,
             Text = "支持按文件名、来源链接搜索，并按下载状态快速筛选。",
-            ForeColor = Color.FromArgb(70, 94, 138)
+            ForeColor = AppTheme.TextSecondary
         }, 0, 1);
 
         var filterBar = new TableLayoutPanel

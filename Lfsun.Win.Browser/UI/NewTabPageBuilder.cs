@@ -8,8 +8,8 @@ using Lfsun.Win.Browser.History;
 namespace Lfsun.Win.Browser.UI;
 
 /// <summary>
-/// 中文注释：新标签页速拨面板生成器。
-/// 输出完整本地 HTML（NavigateToString 渲染）：问候语+时钟、默认引擎搜索框、
+/// 新标签页速拨面板生成器。
+/// 输出完整本地 HTML（NavigateToString 渲染）：问候语+时钟、默认引擎搜索框、快捷功能芯片、
 /// 常访站点卡片（历史访问频次 Top8，不足时用书签补齐），配色跟随 AppTheme。
 /// </summary>
 public static class NewTabPageBuilder
@@ -69,38 +69,41 @@ public static class NewTabPageBuilder
                 min-height: 100vh; display: flex; flex-direction: column; align-items: center;
                 background: var(--bg); color: var(--text);
                 font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
-                padding: 9vh 24px 40px;
+                padding: 8vh 24px 36px;
               }
-              .clock { font-size: 44px; font-weight: 600; letter-spacing: 2px; }
+              .clock { font-size: 46px; font-weight: 600; letter-spacing: 2px; }
               .greeting { margin-top: 6px; font-size: 15px; color: var(--text-2); }
               .search-box {
-                margin-top: 34px; width: min(620px, 92vw); display: flex;
+                margin-top: 32px; width: min(640px, 92vw); display: flex;
                 background: var(--input-bg); border: 1px solid var(--border); border-radius: 24px;
                 overflow: hidden; transition: box-shadow .18s ease, border-color .18s ease;
+                box-shadow: 0 2px 10px rgba(0,0,0,.04);
               }
-              .search-box:focus-within { border-color: var(--accent); box-shadow: 0 4px 18px rgba(0,0,0,.14); }
+              .search-box:focus-within { border-color: var(--accent); box-shadow: 0 4px 22px rgba(0,0,0,.16); }
               .search-box input {
                 flex: 1; border: 0; outline: 0; background: transparent; color: var(--text);
                 font-size: 15px; padding: 13px 20px;
               }
               .search-box button {
                 border: 0; cursor: pointer; background: var(--accent); color: #fff;
-                font-size: 14px; padding: 0 26px;
+                font-size: 14px; padding: 0 26px; transition: opacity .15s ease;
               }
-              .section-title { margin: 44px 0 14px; font-size: 13px; color: var(--text-2); align-self: center; }
+              .search-box button:hover { opacity: .92; }
+              .section-title { margin: 38px 0 14px; font-size: 13px; color: var(--text-2); align-self: center; font-weight: 600; letter-spacing: .5px; }
               .grid {
-                display: grid; grid-template-columns: repeat(4, 132px); gap: 14px;
+                display: grid; grid-template-columns: repeat(4, 134px); gap: 14px;
               }
-              @media (max-width: 640px) { .grid { grid-template-columns: repeat(2, 132px); } }
+              @media (max-width: 640px) { .grid { grid-template-columns: repeat(2, 134px); } }
               .card {
                 display: flex; flex-direction: column; align-items: center; gap: 7px;
                 background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
                 padding: 16px 10px 12px; text-decoration: none; color: var(--text);
                 transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+                box-shadow: 0 2px 8px rgba(0,0,0,.03);
               }
               .card:hover {
                 transform: translateY(-3px); border-color: var(--accent);
-                box-shadow: 0 8px 22px rgba(0,0,0,.16);
+                box-shadow: 0 8px 22px rgba(0,0,0,.15);
               }
               .badge {
                 width: 44px; height: 44px; border-radius: 12px; display: flex;
@@ -116,6 +119,10 @@ public static class NewTabPageBuilder
                 overflow: hidden; text-overflow: ellipsis;
               }
               .empty { margin-top: 8px; font-size: 13px; color: var(--text-2); }
+              .footer-version {
+                margin-top: auto; padding-top: 48px; font-size: 12px; color: var(--text-2);
+                opacity: .8;
+              }
             </style>
             </head>
             <body>
@@ -129,6 +136,7 @@ public static class NewTabPageBuilder
               <div class="section-title">常访站点</div>
               <div class="grid">{{cardsHtml}}</div>
               {{emptyHtml}}
+              <div class="footer-version">{{AppVersionInfo.ProductName}} v{{AppVersionInfo.CurrentVersion}} · {{AppVersionInfo.Slogan}}</div>
             <script>
               const searchTemplate = {{searchTemplateJs}};
               function refreshClock() {

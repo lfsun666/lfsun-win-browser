@@ -222,7 +222,35 @@ chrome.net.fetch("https://other-site.com/page", {
 - **UA 轮换**：`rotateUA:true` 时按请求轮流使用 `fetchUserAgents` 候选池；若显式给了 `userAgent` 则优先使用该值。
 - 若只是想全局关闭同源限制，也可在设置里开 `disableWebSecurity`（启动参数 `--disable-web-security`），但安全性更低，仅建议自用浏览器开启。
 
-## 打包发布
+## 打包发布与版本交付
+
+### 1) 一键自动化发布（推荐）
+
+集成了**版本号自增、代码质量门禁 (单元测试)、绿色便携包与 Inno Setup 安装包打包、SHA256 校验和生成、更新日志自动归档**于一体，直接产出到 `release/` 目录：
+
+```powershell
+# 自动递增补丁版本并发布（如 0.3.0 -> 0.3.1）
+powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -Version patch -Notes "优化了若干体验并修复已知问题"
+
+# 或指定具体版本号发布当前版本到 release/
+powershell -ExecutionPolicy Bypass -File .\scripts\release.ps1 -Version current
+```
+
+或直接执行批处理：
+
+```cmd
+scripts\release.cmd -Version patch
+```
+
+**产出目录 `release/` 包含：**
+- `LfsunBrowser-setup-{Version}.exe`：Windows 一键安装程序
+- `LfsunBrowser-setup-latest.exe`：最新版安装程序副本
+- `LfsunBrowser-portable-win-x64-v{Version}.zip`：绿色免安装便携版
+- `LfsunBrowser-portable-latest.zip`：最新版便携包副本
+- `SHA256SUMS.txt`：发布文件的 SHA-256 完整性校验和
+- `RELEASE_NOTES_v{Version}.md`：本次发布说明
+
+每次版本迭代说明同时自动归档记录于根目录 `CHANGELOG.md` 及应用内「关于与更新日志」窗口。
 
 ### 1) 绿色免安装版（推荐先用）
 

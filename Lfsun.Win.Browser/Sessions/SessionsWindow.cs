@@ -253,7 +253,7 @@ public sealed class SessionsWindow : Form
         header.Controls.Add(_titleLabel, 0, 0);
 
         _subtitleLabel.AutoSize = true;
-        _subtitleLabel.ForeColor = Color.FromArgb(70, 94, 138);
+        _subtitleLabel.ForeColor = AppTheme.TextSecondary;
         header.Controls.Add(_subtitleLabel, 0, 1);
         _kpiPanel.AutoSize = true;
         _kpiPanel.FlowDirection = FlowDirection.LeftToRight;

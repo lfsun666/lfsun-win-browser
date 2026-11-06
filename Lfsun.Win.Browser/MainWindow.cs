@@ -470,8 +470,8 @@ public sealed class MainWindow : Form
     {
         _titleBar.GripStyle = ToolStripGripStyle.Hidden;
         _titleBar.AutoSize = false;
-        _titleBar.Height = 34;
-        _titleBar.Padding = new Padding(8, 3, 8, 3);
+        _titleBar.Height = AppTheme.IsCompact ? 32 : 36;
+        _titleBar.Padding = new Padding(8, 2, 8, 2);
         _titleBar.Dock = DockStyle.Top;
         _titleBar.ImageScalingSize = new Size(16, 16);
         _titleBar.LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow;
@@ -479,8 +479,8 @@ public sealed class MainWindow : Form
 
         _topBar.GripStyle = ToolStripGripStyle.Hidden;
         _topBar.AutoSize = false;
-        _topBar.Height = 50;
-        _topBar.Padding = new Padding(10, 5, 10, 5);
+        _topBar.Height = AppTheme.IsCompact ? 38 : 44;
+        _topBar.Padding = new Padding(8, 3, 8, 3);
         _topBar.Dock = DockStyle.Top;
         _topBar.ImageScalingSize = new Size(20, 20);
         _topBar.LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow;
@@ -520,8 +520,8 @@ public sealed class MainWindow : Form
 
         _bookmarksBar.GripStyle = ToolStripGripStyle.Hidden;
         _bookmarksBar.AutoSize = false;
-        _bookmarksBar.Height = 42;
-        _bookmarksBar.Padding = new Padding(10, 4, 10, 4);
+        _bookmarksBar.Height = AppTheme.IsCompact ? 28 : 34;
+        _bookmarksBar.Padding = new Padding(8, 2, 8, 2);
         _bookmarksBar.Dock = DockStyle.Top;
         _bookmarksBar.ImageScalingSize = new Size(16, 16);
         _bookmarksBar.LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow;
@@ -1732,7 +1732,7 @@ public sealed class MainWindow : Form
             button.Height = compact ? 28 : 32;
             button.Margin = new Padding(3, 1, 3, 1);
             button.ForeColor = AppTheme.TextPrimary;
-            button.BackColor = AppTheme.AccentMuted;
+            button.BackColor = Color.Transparent;
             button.Font = AppTheme.CreateFont(compact ? 10.8F : 11.6F, FontStyle.Bold);
         }
 
@@ -1741,7 +1741,7 @@ public sealed class MainWindow : Form
         _appMenuButton.Width = compact ? 34 : 38;
         _appMenuButton.Height = compact ? 28 : 32;
         _appMenuButton.Margin = new Padding(3, 1, 3, 1);
-        _appMenuButton.BackColor = AppTheme.AccentMuted;
+        _appMenuButton.BackColor = Color.Transparent;
         _appMenuButton.ForeColor = AppTheme.TextPrimary;
         _appMenuButton.Font = AppTheme.CreateFont(compact ? 12F : 13F, FontStyle.Bold);
         _appMenuButton.ToolTipText = "主菜单\n点击打开 文件 / 查看 / 书签 / 工具 / 帮助";
@@ -1761,7 +1761,7 @@ public sealed class MainWindow : Form
         _pluginButton.Width = compact ? 70 : 82;
         _pluginButton.Height = compact ? 28 : 32;
         _pluginButton.Margin = new Padding(3, 1, 3, 1);
-        _pluginButton.BackColor = AppTheme.AccentMuted;
+        _pluginButton.BackColor = Color.Transparent;
         _pluginButton.ForeColor = AppTheme.TextPrimary;
         _pluginButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _pluginButton.Font = AppTheme.CreateFont(compact ? 9F : 9.4F, FontStyle.Bold);
@@ -1775,7 +1775,7 @@ public sealed class MainWindow : Form
         _commandPaletteButton.Margin = compact ? new Padding(3, 1, 2, 1) : new Padding(3, 1, 2, 1);
         _tabSwitchButton.Margin = compact ? new Padding(2, 1, 4, 1) : new Padding(2, 1, 4, 1);
         _toggleBookmarksBarButton.Width = compact ? 34 : 38;
-        _toggleBookmarksBarButton.BackColor = AppTheme.AccentMuted;
+        _toggleBookmarksBarButton.BackColor = Color.Transparent;
         UpdateBookmarkBarToggleButtonText();
 
         _addressTextBox.BackColor = AppTheme.InputBackground;
@@ -1787,7 +1787,7 @@ public sealed class MainWindow : Form
         _searchEngineButton.Width = 138;
         _searchEngineButton.Height = compact ? 28 : 32;
         _searchEngineButton.Margin = new Padding(3, 1, 3, 1);
-        _searchEngineButton.BackColor = AppTheme.AccentMuted;
+        _searchEngineButton.BackColor = Color.Transparent;
         _searchEngineButton.ForeColor = AppTheme.TextPrimary;
         _searchEngineButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
 
@@ -1795,7 +1795,7 @@ public sealed class MainWindow : Form
         _appearanceButton.Width = 122;
         _appearanceButton.Height = compact ? 28 : 32;
         _appearanceButton.Margin = new Padding(3, 1, 3, 1);
-        _appearanceButton.BackColor = AppTheme.AccentMuted;
+        _appearanceButton.BackColor = Color.Transparent;
         _appearanceButton.ForeColor = AppTheme.TextPrimary;
         _appearanceButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
 
@@ -1803,7 +1803,7 @@ public sealed class MainWindow : Form
         _multiWindowButton.Width = compact ? 96 : 108;
         _multiWindowButton.Height = compact ? 28 : 32;
         _multiWindowButton.Margin = new Padding(3, 1, 3, 1);
-        _multiWindowButton.BackColor = AppTheme.AccentMuted;
+        _multiWindowButton.BackColor = Color.Transparent;
         _multiWindowButton.ForeColor = AppTheme.TextPrimary;
         _multiWindowButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _multiWindowButton.ToolTipText = "多开 / 双开窗口：独立、共享或无痕";
@@ -1814,7 +1814,7 @@ public sealed class MainWindow : Form
         _recentTabsButton.Width = compact ? 70 : 82;
         _recentTabsButton.Height = compact ? 28 : 32;
         _recentTabsButton.Margin = new Padding(3, 1, 3, 1);
-        _recentTabsButton.BackColor = AppTheme.AccentMuted;
+        _recentTabsButton.BackColor = Color.Transparent;
         _recentTabsButton.ForeColor = AppTheme.TextPrimary;
         _recentTabsButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _recentTabsButton.Font = AppTheme.CreateFont(compact ? 9F : 9.4F, FontStyle.Bold);
@@ -1827,7 +1827,7 @@ public sealed class MainWindow : Form
         _sessionButton.Width = compact ? 70 : 82;
         _sessionButton.Height = compact ? 28 : 32;
         _sessionButton.Margin = new Padding(3, 1, 3, 1);
-        _sessionButton.BackColor = AppTheme.AccentMuted;
+        _sessionButton.BackColor = Color.Transparent;
         _sessionButton.ForeColor = AppTheme.TextPrimary;
         _sessionButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _sessionButton.Font = AppTheme.CreateFont(compact ? 9F : 9.4F, FontStyle.Bold);
@@ -1838,7 +1838,7 @@ public sealed class MainWindow : Form
         _tabQuickButton.ShowDropDownArrow = false;
         _tabQuickButton.Height = compact ? 28 : 32;
         _tabQuickButton.Margin = compact ? new Padding(4, 1, 4, 1) : new Padding(5, 1, 5, 1);
-        _tabQuickButton.BackColor = AppTheme.AccentMuted;
+        _tabQuickButton.BackColor = Color.Transparent;
         _tabQuickButton.ForeColor = AppTheme.TextPrimary;
         _tabQuickButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _tabQuickButton.Font = AppTheme.CreateFont(compact ? 9F : 9.4F, FontStyle.Bold);
@@ -1847,7 +1847,7 @@ public sealed class MainWindow : Form
         _workspaceButton.Width = compact ? 102 : 120;
         _workspaceButton.Height = compact ? 24 : 28;
         _workspaceButton.Margin = compact ? new Padding(5, 1, 6, 1) : new Padding(6, 1, 7, 1);
-        _workspaceButton.BackColor = AppTheme.AccentHover;
+        _workspaceButton.BackColor = Color.Transparent;
         _workspaceButton.ForeColor = AppTheme.TextPrimary;
         _workspaceButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _workspaceButton.ShowDropDownArrow = false;
@@ -1860,7 +1860,7 @@ public sealed class MainWindow : Form
         _titleNewTabButton.Width = compact ? 30 : 34;
         _titleNewTabButton.Height = compact ? 24 : 26;
         _titleNewTabButton.Margin = compact ? new Padding(4, 1, 4, 1) : new Padding(5, 1, 5, 1);
-        _titleNewTabButton.BackColor = AppTheme.AccentHover;
+        _titleNewTabButton.BackColor = Color.Transparent;
         _titleNewTabButton.ForeColor = AppTheme.TextPrimary;
         _titleNewTabButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _titleNewTabButton.Font = AppTheme.CreateFont(compact ? 11F : 12F, FontStyle.Bold);
@@ -1873,7 +1873,7 @@ public sealed class MainWindow : Form
         _titlePluginButton.Width = compact ? 46 : 52;
         _titlePluginButton.Height = compact ? 24 : 26;
         _titlePluginButton.Margin = compact ? new Padding(4, 1, 4, 1) : new Padding(5, 1, 5, 1);
-        _titlePluginButton.BackColor = AppTheme.AccentMuted;
+        _titlePluginButton.BackColor = Color.Transparent;
         _titlePluginButton.ForeColor = AppTheme.TextPrimary;
         _titlePluginButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _titlePluginButton.ShowDropDownArrow = false;
@@ -1888,22 +1888,24 @@ public sealed class MainWindow : Form
         _titleDragSpacer.ForeColor = AppTheme.TextSecondary;
         _titleDragSpacer.ToolTipText = "双击此空白区可最大化/还原";
 
+        _titleWindowMinButton.Tag = "window-min";
         _titleWindowMinButton.AutoSize = false;
         _titleWindowMinButton.Width = compact ? 34 : 40;
         _titleWindowMinButton.Height = compact ? 24 : 26;
         _titleWindowMinButton.Margin = compact ? new Padding(1, 1, 1, 1) : new Padding(2, 1, 2, 1);
-        _titleWindowMinButton.BackColor = AppTheme.AccentMuted;
+        _titleWindowMinButton.BackColor = Color.Transparent;
         _titleWindowMinButton.ForeColor = AppTheme.TextPrimary;
         _titleWindowMinButton.Font = AppTheme.CreateFont(compact ? 10F : 10.6F, FontStyle.Bold);
         _titleWindowMinButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         ApplyFluentIcon(_titleWindowMinButton, AppIconNames.WindowMinimize, 12, AppTheme.TextPrimary);
         _titleWindowMinButton.Text = ComposeIconButtonText(_titleWindowMinButton, "—");
 
+        _titleWindowMaxButton.Tag = "window-max";
         _titleWindowMaxButton.AutoSize = false;
         _titleWindowMaxButton.Width = compact ? 34 : 40;
         _titleWindowMaxButton.Height = compact ? 24 : 26;
         _titleWindowMaxButton.Margin = compact ? new Padding(1, 1, 1, 1) : new Padding(2, 1, 2, 1);
-        _titleWindowMaxButton.BackColor = AppTheme.AccentMuted;
+        _titleWindowMaxButton.BackColor = Color.Transparent;
         _titleWindowMaxButton.ForeColor = AppTheme.TextPrimary;
         _titleWindowMaxButton.Font = AppTheme.CreateFont(compact ? 9.4F : 9.8F, FontStyle.Bold);
         _titleWindowMaxButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
@@ -1914,11 +1916,12 @@ public sealed class MainWindow : Form
             AppTheme.TextPrimary);
         _titleWindowMaxButton.Text = ComposeIconButtonText(_titleWindowMaxButton, WindowState == FormWindowState.Maximized ? "❐" : "□");
 
+        _titleWindowCloseButton.Tag = "window-close";
         _titleWindowCloseButton.AutoSize = false;
         _titleWindowCloseButton.Width = compact ? 34 : 40;
         _titleWindowCloseButton.Height = compact ? 24 : 26;
         _titleWindowCloseButton.Margin = compact ? new Padding(1, 1, 1, 1) : new Padding(2, 1, 2, 1);
-        _titleWindowCloseButton.BackColor = AppTheme.AccentMuted;
+        _titleWindowCloseButton.BackColor = Color.Transparent;
         _titleWindowCloseButton.ForeColor = AppTheme.TextPrimary;
         _titleWindowCloseButton.Font = AppTheme.CreateFont(compact ? 10F : 10.6F, FontStyle.Bold);
         _titleWindowCloseButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
@@ -7544,13 +7547,8 @@ public sealed class MainWindow : Form
 
     private void ShowAbout()
     {
-        MessageBox.Show(
-            this,
-            "LfsunBrowser\n\n基于 .NET 8 + WinForms + WebView2 的开发者向 Windows 浏览器。\n\n" +
-            "浏览器、插件与地址栏命令的全部快捷键，请见「快捷键一览」（主菜单 → 帮助）。",
-            "关于 LfsunBrowser",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information);
+        using var aboutDialog = new AboutWindow();
+        aboutDialog.ShowDialog(this);
     }
 
     /// <summary>
@@ -10326,7 +10324,8 @@ public sealed class MainWindow : Form
         ApplyFluentIcon(button, iconName, AppTheme.IsCompact ? 16 : 18, AppTheme.TextPrimary);
         button.Text = ComposeIconButtonText(button, iconText);
         button.ToolTipText = BuildToolbarToolTip(toolTip, shortcutText, extraText);
-        button.BackColor = emphasized ? AppTheme.AccentHover : AppTheme.AccentMuted;
+        button.Tag = emphasized ? "primary" : null;
+        button.BackColor = emphasized ? AppTheme.AccentMuted : Color.Transparent;
     }
 
     private static void ApplyFluentIcon(ToolStripItem item, string iconName, int size, Color color)

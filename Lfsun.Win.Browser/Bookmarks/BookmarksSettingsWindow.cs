@@ -123,7 +123,7 @@ public sealed class BookmarksSettingsWindow : Form
         {
             AutoSize = true,
             Text = "选中左侧节点后，可直接修改名称、地址，或执行新增、删除、导入、导出。",
-            ForeColor = Color.FromArgb(70, 94, 138),
+            ForeColor = AppTheme.TextSecondary,
             Margin = new Padding(0, 0, 0, 10)
         }, 0, 1);
 

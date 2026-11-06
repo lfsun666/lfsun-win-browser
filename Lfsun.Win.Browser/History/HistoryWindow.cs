@@ -133,7 +133,7 @@ public sealed class HistoryWindow : Form
         {
             AutoSize = true,
             Text = "支持按标题、网址、站点筛选，并快速恢复最近关闭的标签页。",
-            ForeColor = Color.FromArgb(70, 94, 138)
+            ForeColor = AppTheme.TextSecondary
         }, 0, 1);
 
         var filterBar = new TableLayoutPanel
