@@ -34,9 +34,21 @@ public static class NewTabPageBuilder
             var encodedTitle = WebUtility.HtmlEncode(site.Title);
             var encodedHost = WebUtility.HtmlEncode(site.Host);
             var badge = WebUtility.HtmlEncode(ResolveBadgeText(site.Title, site.Host));
+            var badgeColor = FaviconService.ResolveTileCssColor(site.Host);
+
+            string badgeHtml;
+            if (!string.IsNullOrWhiteSpace(site.FaviconDataUrl))
+            {
+                badgeHtml = $"""<span class="badge icon-badge"><img src="{site.FaviconDataUrl}" class="card-icon" alt="" /></span>""";
+            }
+            else
+            {
+                badgeHtml = $"""<span class="badge" style="background: {badgeColor};">{badge}</span>""";
+            }
+
             cardsHtml.Append($"""
                 <a class="card" href="{encodedUrl}" title="{encodedTitle}&#10;{encodedUrl}">
-                  <span class="badge">{badge}</span>
+                  {badgeHtml}
                   <span class="card-title">{encodedTitle}</span>
                   <span class="card-host">{encodedHost}</span>
                 </a>
@@ -155,6 +167,14 @@ public static class NewTabPageBuilder
                 color: #fff; background: var(--accent);
                 box-shadow: 0 4px 12px rgba(0,0,0,.15);
               }
+              .icon-badge {
+                background: var(--surface-alt) !important;
+                border: 1px solid var(--border);
+                box-shadow: 0 2px 8px rgba(0,0,0,.04) !important;
+              }
+              .card-icon {
+                width: 28px; height: 28px; object-fit: contain; border-radius: 6px;
+              }
               .card-title {
                 max-width: 116px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
                 overflow: hidden; text-overflow: ellipsis;
@@ -221,16 +241,34 @@ public static class NewTabPageBuilder
                 "“Talk is cheap. Show me the code.” — Linus Torvalds"
               ];
 
+              const enginePlaceholders = {
+                bing: "使用必应搜索，或输入网址后回车...",
+                baidu: "使用百度搜索，或输入网址后回车...",
+                google: "使用谷歌搜索，或输入网址后回车...",
+                github: "在 GitHub 搜索仓库或代码...",
+                juejin: "在稀土掘金搜索技术文章..."
+              };
+
               const engineSelect = document.getElementById("engineSelect");
+              const searchInput = document.getElementById("searchInput");
+              function updateSearchPlaceholder() {
+                const sel = engineSelect.value;
+                if (searchInput) {
+                  searchInput.placeholder = enginePlaceholders[sel] || "输入搜索内容，或输入网址后回车...";
+                }
+              }
+
               const savedEngine = localStorage.getItem("lfsun_fav_engine");
               if (savedEngine && engineTemplates[savedEngine]) {
                 engineSelect.value = savedEngine;
               } else {
                 engineSelect.value = "{{defaultEngine}}";
               }
+              updateSearchPlaceholder();
 
               engineSelect.addEventListener("change", () => {
                 localStorage.setItem("lfsun_fav_engine", engineSelect.value);
+                updateSearchPlaceholder();
               });
 
               function refreshClock() {
@@ -274,7 +312,7 @@ public static class NewTabPageBuilder
             """;
     }
 
-    private sealed record TopSite(string Title, string Url, string Host);
+    private sealed record TopSite(string Title, string Url, string Host, string? FaviconDataUrl = null);
 
     private static List<TopSite> CollectTopSites(
         IReadOnlyList<HistoryEntry> historyEntries,
@@ -287,6 +325,7 @@ public static class NewTabPageBuilder
             .Select(group =>
             {
                 var latest = group.OrderByDescending(item => item.entry.VisitedAtUtc).First();
+                var favicon = FaviconService.TryGetFaviconDataUrl(latest.entry.Url);
                 return new
                 {
                     Count = group.Count(),
@@ -294,7 +333,8 @@ public static class NewTabPageBuilder
                     Site = new TopSite(
                         string.IsNullOrWhiteSpace(latest.entry.Title) ? latest.uri!.Host : latest.entry.Title.Trim(),
                         latest.entry.Url,
-                        latest.uri!.Host)
+                        latest.uri!.Host,
+                        favicon)
                 };
             })
             .OrderByDescending(item => item.Count)
@@ -321,10 +361,12 @@ public static class NewTabPageBuilder
                 continue;
             }
 
+            var favicon = FaviconService.TryGetFaviconDataUrl(node.Url, node.Favicon);
             sites.Add(new TopSite(
                 string.IsNullOrWhiteSpace(node.Name) ? uri.Host : node.Name.Trim(),
                 node.Url,
-                uri.Host));
+                uri.Host,
+                favicon));
         }
 
         return sites;

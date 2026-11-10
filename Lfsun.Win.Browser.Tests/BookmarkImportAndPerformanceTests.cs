@@ -342,4 +342,39 @@ public sealed class BookmarkImportAndPerformanceTests
         Assert.Equal(16, icon.Width);
         Assert.Equal(16, icon.Height);
     }
+
+    [Fact]
+    public void FaviconService_TryGetFaviconDataUrl_And_TileColor_ShouldBehaveCorrectly()
+    {
+        var rawData = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        var dataUrl = FaviconService.TryGetFaviconDataUrl("https://example.com", rawData);
+        Assert.NotNull(dataUrl);
+        Assert.StartsWith("data:image/png;base64,", dataUrl);
+
+        var tileColor = FaviconService.ResolveTileCssColor("github.com");
+        Assert.NotNull(tileColor);
+        Assert.StartsWith("#", tileColor);
+        Assert.Equal(7, tileColor.Length);
+    }
+
+    [Fact]
+    public void NewTabPageBuilder_Build_ShouldIncludeCardsAndBadges()
+    {
+        var config = new BrowserConfig();
+        var history = new List<Lfsun.Win.Browser.History.HistoryEntry>
+        {
+            new(Guid.NewGuid(), "必应搜索", "https://bing.com", DateTime.UtcNow)
+        };
+        var bookmarks = new List<BookmarkNode>
+        {
+            new() { Type = BookmarkNodeType.Link, Name = "GitHub", Url = "https://github.com" }
+        };
+
+        var html = UI.NewTabPageBuilder.Build(config, history, bookmarks);
+        Assert.NotNull(html);
+        Assert.Contains("必应搜索", html);
+        Assert.Contains("GitHub", html);
+        Assert.Contains("card", html);
+        Assert.Contains("badge", html);
+    }
 }

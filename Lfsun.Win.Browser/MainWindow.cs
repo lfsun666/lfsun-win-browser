@@ -120,6 +120,9 @@ public sealed class MainWindow : Form
     private readonly ContextMenuStrip _addressContextMenu = new();
     private readonly ToolStripMenuItem _bookmarkCtxOpen = new("打开");
     private readonly ToolStripMenuItem _bookmarkCtxOpenNewTab = new("在新标签页打开");
+    private readonly ToolStripMenuItem _bookmarkCtxOpenNewTabBackground = new("在后台新标签页打开");
+    private readonly ToolStripMenuItem _bookmarkCtxCopyUrl = new("复制链接地址");
+    private readonly ToolStripMenuItem _bookmarkCtxOpenAllInFolder = new("在此文件夹中打开全部书签");
     private readonly ToolStripMenuItem _bookmarkCtxAdd = new("新增书签");
     private readonly ToolStripMenuItem _bookmarkCtxAddFolder = new("新增文件夹");
     private readonly ToolStripMenuItem _bookmarkCtxEdit = new("编辑");
@@ -142,6 +145,9 @@ public sealed class MainWindow : Form
     private readonly ToolStripMenuItem _tabCtxOpsSuspendOthers = new("休眠其他 (保留固定)");
     private readonly ToolStripMenuItem _tabCtxOpsResumeAll = new("恢复全部休眠标签");
     private readonly ToolStripMenuItem _tabCtxDuplicate = new("复制标签");
+    private readonly ToolStripMenuItem _tabCtxReload = new("重新加载 (Ctrl+R)");
+    private readonly ToolStripMenuItem _tabCtxHardRefresh = new("强制刷新 (Ctrl+F5)");
+    private readonly ToolStripMenuItem _tabCtxCopyUrl = new("复制页面链接 (URL)");
     private readonly ToolStripMenuItem _tabCtxToggleMute = new("🔇 静音标签页 (Ctrl+M)");
     private readonly ToolStripMenuItem _tabCtxCaptureScreenshot = new("📸 网页快照截图 (Ctrl+Shift+S)");
     private readonly ToolStripMenuItem _tabCtxQrCode = new("📱 生成手机浏览二维码");
@@ -766,6 +772,9 @@ public sealed class MainWindow : Form
         [
             _bookmarkCtxOpen,
             _bookmarkCtxOpenNewTab,
+            _bookmarkCtxOpenNewTabBackground,
+            _bookmarkCtxCopyUrl,
+            _bookmarkCtxOpenAllInFolder,
             new ToolStripSeparator(),
             _bookmarkCtxAdd,
             _bookmarkCtxAddFolder,
@@ -778,6 +787,27 @@ public sealed class MainWindow : Form
 
         _bookmarkCtxOpen.Click += async (_, _) => await OpenContextBookmarkAsync(false);
         _bookmarkCtxOpenNewTab.Click += async (_, _) => await OpenContextBookmarkAsync(true);
+        _bookmarkCtxOpenNewTabBackground.Click += async (_, _) => await OpenContextBookmarkAsync(true);
+        _bookmarkCtxCopyUrl.Click += (_, _) =>
+        {
+            if (_contextNodeId is { } id && _bookmarkManager.FindNode(id) is { IsLink: true } node && !string.IsNullOrWhiteSpace(node.Url))
+            {
+                Clipboard.SetText(node.Url);
+                ShowToast("书签链接已复制到剪贴板！📋");
+            }
+        };
+        _bookmarkCtxOpenAllInFolder.Click += async (_, _) =>
+        {
+            if (_contextNodeId is { } id && _bookmarkManager.FindNode(id) is { IsFolder: true } folder)
+            {
+                var links = folder.Children.Where(c => c.IsLink && !string.IsNullOrWhiteSpace(c.Url)).ToList();
+                foreach (var link in links)
+                {
+                    await NavigateToBookmarkAsync(link.Url, inNewTab: true);
+                }
+                ShowToast($"已在新标签页中打开文件夹内 {links.Count} 个书签");
+            }
+        };
         _bookmarkCtxAdd.Click += (_, _) => AddBookmarkByContext();
         _bookmarkCtxAddFolder.Click += (_, _) => AddFolderByContext();
         _bookmarkCtxEdit.Click += (_, _) => EditContextBookmarkNode();
@@ -794,11 +824,22 @@ public sealed class MainWindow : Form
         _tabContextMenu.Items.AddRange(
         [
             _tabCtxTogglePin,
+            _tabCtxToggleMute,
             _tabCtxColor,
             _tabCtxRename,
-            _tabCtxOps,
             _tabCtxDuplicate,
+            _tabCtxReload,
+            _tabCtxHardRefresh,
+            _tabCtxCopyUrl,
             _tabCtxReopenClosed,
+            new ToolStripSeparator(),
+            _tabCtxReaderMode,
+            _tabCtxSplitView,
+            _tabCtxPictureInPicture,
+            _tabCtxCaptureScreenshot,
+            _tabCtxQrCode,
+            new ToolStripSeparator(),
+            _tabCtxOps,
             new ToolStripSeparator(),
             _tabCtxCloseCurrent,
             _tabCtxCloseOthers,
@@ -813,6 +854,16 @@ public sealed class MainWindow : Form
             var contextTab = hasTab ? ResolveTabByContextIndex() : null;
             _tabCtxTogglePin.Enabled = hasTab;
             _tabCtxTogglePin.Text = contextTab?.IsPinned == true ? "取消固定标签" : "固定标签";
+            _tabCtxToggleMute.Enabled = hasTab;
+            _tabCtxToggleMute.Text = contextTab?.IsMuted == true ? "🔊 取消静音标签页 (Ctrl+M)" : "🔇 静音标签页 (Ctrl+M)";
+            _tabCtxReload.Enabled = hasTab;
+            _tabCtxHardRefresh.Enabled = hasTab;
+            _tabCtxCopyUrl.Enabled = contextTab?.CurrentUri is not null;
+            _tabCtxReaderMode.Enabled = hasTab;
+            _tabCtxSplitView.Enabled = hasTab;
+            _tabCtxPictureInPicture.Enabled = hasTab;
+            _tabCtxCaptureScreenshot.Enabled = hasTab;
+            _tabCtxQrCode.Enabled = contextTab?.CurrentUri is not null;
             _tabCtxColor.Enabled = hasTab;
             var colorText = ResolveTabColorText(contextTab?.ColorTagKey);
             _tabCtxColor.Text = string.IsNullOrWhiteSpace(colorText) ? "标签色标" : $"标签色标({colorText})";
@@ -838,6 +889,24 @@ public sealed class MainWindow : Form
 
         _tabCtxTogglePin.Click += (_, _) => ToggleTabPinByContext();
         _tabCtxRename.Click += (_, _) => RenameTabByContext();
+        _tabCtxReload.Click += (_, _) =>
+        {
+            var tab = ResolveTabByContextIndex();
+            tab?.Reload();
+        };
+        _tabCtxHardRefresh.Click += async (_, _) =>
+        {
+            await ExecuteAddressCommandAsync("hardrefresh");
+        };
+        _tabCtxCopyUrl.Click += (_, _) =>
+        {
+            var tab = ResolveTabByContextIndex();
+            if (tab?.CurrentUri is not null)
+            {
+                Clipboard.SetText(tab.CurrentUri.AbsoluteUri);
+                ShowToast("页面链接已复制到剪贴板！📋");
+            }
+        };
         _tabCtxOpsCloseOthers.Click += async (_, _) => await ApplyTabOpsFromContextAsync("closeothers");
         _tabCtxOpsCloseLeft.Click += async (_, _) => await ApplyTabOpsFromContextAsync("closeleft");
         _tabCtxOpsCloseRight.Click += async (_, _) => await ApplyTabOpsFromContextAsync("closeright");
@@ -7112,7 +7181,22 @@ public sealed class MainWindow : Form
         AttachBookmarkBarHoverEffect(searchBookmarksButton);
         _bookmarksBar.Items.Add(searchBookmarksButton);
 
+        _bookmarksBar.MouseUp -= BookmarkBarMouseUp;
+        _bookmarksBar.MouseUp += BookmarkBarMouseUp;
+
         UpdateAddressSuggestions();
+    }
+
+    private void BookmarkBarMouseUp(object? sender, MouseEventArgs eventArgs)
+    {
+        if (eventArgs.Button == MouseButtons.Right)
+        {
+            var hit = _bookmarksBar.GetItemAt(eventArgs.Location);
+            if (hit is null)
+            {
+                ShowBookmarkContextMenu(null, null, Cursor.Position);
+            }
+        }
     }
 
     private static string BuildBookmarkDisplayText(string rawName, int maxLength)
@@ -7268,6 +7352,9 @@ public sealed class MainWindow : Form
 
         _bookmarkCtxOpen.Enabled = isLink;
         _bookmarkCtxOpenNewTab.Enabled = isLink;
+        _bookmarkCtxOpenNewTabBackground.Enabled = isLink;
+        _bookmarkCtxCopyUrl.Enabled = isLink;
+        _bookmarkCtxOpenAllInFolder.Enabled = node?.IsFolder == true && node.Children.Any(c => c.IsLink);
         _bookmarkCtxEdit.Enabled = hasNode;
         _bookmarkCtxDelete.Enabled = hasNode;
         _bookmarkCtxViewInSettings.Enabled = hasNode;

@@ -299,6 +299,64 @@ public static class FaviconService
     }
 
     /// <summary>
+    /// 获取指定 URL 或已存 Favicon 的 Data URL 字符串（如 "data:image/png;base64,..."）。
+    /// 若无真实图标则返回 null，供前端使用 Fluent 彩色徽章优雅降级。
+    /// </summary>
+    public static string? TryGetFaviconDataUrl(string? url, string? existingFavicon = null)
+    {
+        if (!string.IsNullOrWhiteSpace(existingFavicon))
+        {
+            var trimmed = existingFavicon.Trim();
+            if (trimmed.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed;
+            }
+            return $"data:image/png;base64,{trimmed}";
+        }
+
+        if (string.IsNullOrWhiteSpace(url) || !Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return null;
+        }
+
+        var host = uri.Host.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return null;
+        }
+
+        var diskPath = GetDiskCachePath(host);
+        if (File.Exists(diskPath))
+        {
+            try
+            {
+                var bytes = File.ReadAllBytes(diskPath);
+                if (bytes.Length > 0)
+                {
+                    return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 获取指定域名或标题对应的统一 Fluent 强调色（16 进制 CSS 颜色字符串）。
+    /// </summary>
+    public static string ResolveTileCssColor(string? seed)
+    {
+        var str = string.IsNullOrWhiteSpace(seed) ? "lfsun" : seed.Trim();
+        var idx = Math.Abs(str.GetHashCode()) % TileColors.Length;
+        var color = TileColors[idx];
+        return $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+    }
+
+    /// <summary>
     /// 缩放并高质量抗锯齿绘制为 16x16 32bpp 像素位图。
     /// </summary>
     public static Bitmap ResizeToIconSize(Image original, int width = 16, int height = 16)
