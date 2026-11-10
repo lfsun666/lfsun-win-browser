@@ -697,14 +697,7 @@ public sealed class SessionsWindow : Form
         {
             // 中文注释：极端窗口尺寸下兜底忽略，等待下一次 SizeChanged 重新校准。
         }
-        try
-        {
-            split.Panel1MinSize = panel1Min;
-            split.Panel2MinSize = panel2Min;
-        }
-        catch (InvalidOperationException)
-        {
-        }
+
         _contentSplitInitialized = true;
     }
 

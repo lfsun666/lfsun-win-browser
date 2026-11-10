@@ -18,6 +18,7 @@ public sealed class StatusBarPanel
     public ToolStripStatusLabel MemoryLabel { get; } = new();
 
     /// <summary>点击内存统计标签（宿主弹出标签统计详情）。</summary>
+    public event EventHandler? LoadTimeClicked;
     public event EventHandler? MemoryClicked;
     /// <summary>点击公网 IP 标签（宿主执行复制）。</summary>
     public event EventHandler? IpClicked;
@@ -68,6 +69,10 @@ public sealed class StatusBarPanel
         AdBlockLabel.IsLink = true;
         AdBlockLabel.ToolTipText = "本页已拦截的广告/统计请求数，点击打开过滤设置";
         AdBlockLabel.Click += (_, _) => AdBlockClicked?.Invoke(this, EventArgs.Empty);
+
+        LoadTimeLabel.IsLink = true;
+        LoadTimeLabel.ToolTipText = "本页导航耗时，点击查看性能与资源诊断卡片 (:perf)";
+        LoadTimeLabel.Click += (_, _) => LoadTimeClicked?.Invoke(this, EventArgs.Empty);
 
         Strip.MouseUp += (_, eventArgs) =>
         {

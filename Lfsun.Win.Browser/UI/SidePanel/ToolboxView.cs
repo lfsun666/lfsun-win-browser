@@ -15,6 +15,7 @@ public sealed class ToolboxView : UserControl
     private readonly Func<IReadOnlyList<BrowserTab>>? _getAllTabs;
     private readonly Func<Task<int>>? _suspendBackgroundTabsCallback;
     private readonly Func<bool>? _toggleMuteAllCallback;
+    private readonly Action? _openPerformanceCallback;
 
     private readonly PictureBox _qrBox = new();
     private readonly Label _qrUrlLabel = new();
@@ -27,7 +28,8 @@ public sealed class ToolboxView : UserControl
         Action? toggleSplitCallback = null,
         Func<IReadOnlyList<BrowserTab>>? getAllTabs = null,
         Func<Task<int>>? suspendBackgroundTabsCallback = null,
-        Func<bool>? toggleMuteAllCallback = null)
+        Func<bool>? toggleMuteAllCallback = null,
+        Action? openPerformanceCallback = null)
     {
         _getActiveTab = getActiveTab;
         _toastCallback = toastCallback;
@@ -35,6 +37,7 @@ public sealed class ToolboxView : UserControl
         _getAllTabs = getAllTabs;
         _suspendBackgroundTabsCallback = suspendBackgroundTabsCallback;
         _toggleMuteAllCallback = toggleMuteAllCallback;
+        _openPerformanceCallback = openPerformanceCallback;
 
         Dock = DockStyle.Fill;
         AutoScroll = true;
@@ -190,6 +193,17 @@ public sealed class ToolboxView : UserControl
             else
             {
                 _toastCallback("可通过快捷键 Alt+D 触发分屏");
+            }
+        }));
+        readerPipPanel.Controls.Add(CreateButton("⚡ 性能诊断", 95, () =>
+        {
+            if (_openPerformanceCallback != null)
+            {
+                _openPerformanceCallback();
+            }
+            else
+            {
+                _toastCallback("可通过状态栏耗时药丸或输入 :perf 查看性能卡片");
             }
         }));
         mainLayout.Controls.Add(readerPipPanel);

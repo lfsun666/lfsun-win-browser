@@ -195,41 +195,28 @@ public sealed class BookmarksSettingsWindow : Form
 
     private void UpdateSplitterDistance()
     {
-        if (_splitContainer.Width <= 0)
-        {
-            return;
-        }
-
-        var available = Math.Max(0, _splitContainer.Width - _splitContainer.SplitterWidth);
-        const int panel1Min = 260;
-        const int panel2Min = 360;
-
-        if (available < panel1Min + panel2Min)
-        {
-            _splitContainer.Panel1MinSize = 0;
-            _splitContainer.Panel2MinSize = 0;
-            return;
-        }
-
-        var desired = Math.Clamp(360, panel1Min, available - panel2Min);
-        _splitContainer.Panel1MinSize = 0;
-        _splitContainer.Panel2MinSize = 0;
         try
         {
+            if (_splitContainer.Width <= 0)
+            {
+                return;
+            }
+
+            var available = Math.Max(0, _splitContainer.Width - _splitContainer.SplitterWidth);
+            const int panel1Min = 240;
+            const int panel2Min = 340;
+
+            if (available < panel1Min + panel2Min)
+            {
+                return;
+            }
+
+            var desired = Math.Clamp(360, panel1Min, available - panel2Min);
             _splitContainer.SplitterDistance = desired;
         }
         catch
         {
-            // 忽略极端缩放下的临时状态，等待下一次 Resize 事件
-        }
-
-        try
-        {
-            _splitContainer.Panel1MinSize = panel1Min;
-            _splitContainer.Panel2MinSize = panel2Min;
-        }
-        catch
-        {
+            // 防御性忽略异常，等待下一次布局或 Resize 事件重新对齐
         }
     }
 
@@ -289,6 +276,15 @@ public sealed class BookmarksSettingsWindow : Form
 
     private void WireEvents()
     {
+        _splitContainer.SplitterMoving += (_, e) =>
+        {
+            var available = _splitContainer.Width - _splitContainer.SplitterWidth;
+            if (available > 580)
+            {
+                e.SplitX = Math.Clamp(e.SplitX, 240, available - 340);
+            }
+        };
+
         _searchTextBox.TextChanged += (_, _) => ReloadTree();
         _tree.AfterSelect += (_, _) => RefreshEditor();
         _tree.NodeMouseClick += (_, eventArgs) =>
@@ -398,7 +394,18 @@ public sealed class BookmarksSettingsWindow : Form
             }
         }
 
-        _tree.ExpandAll();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            // 中文注释：大数据量书签默认仅展开顶层目录，避免遍历渲染几千个节点导致界面卡死冻结
+            foreach (TreeNode n in _tree.Nodes)
+            {
+                n.Expand();
+            }
+        }
+        else
+        {
+            _tree.ExpandAll();
+        }
         if (selectNodeId is not null)
         {
             var treeNode = FindTreeNodeById(_tree.Nodes, selectNodeId.Value);

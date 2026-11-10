@@ -34,6 +34,7 @@ public sealed class BrowserSidePanel : Panel
     private readonly Func<IReadOnlyList<BrowserTab>>? _getAllTabs;
     private readonly Func<Task<int>>? _suspendBackgroundTabsCallback;
     private readonly Func<bool>? _toggleMuteAllCallback;
+    private readonly Action? _openPerformanceCallback;
 
     private readonly Panel _headerBar = new();
     private readonly Panel _contentContainer = new();
@@ -58,7 +59,8 @@ public sealed class BrowserSidePanel : Panel
         Action? toggleSplitCallback = null,
         Func<IReadOnlyList<BrowserTab>>? getAllTabs = null,
         Func<Task<int>>? suspendBackgroundTabsCallback = null,
-        Func<bool>? toggleMuteAllCallback = null)
+        Func<bool>? toggleMuteAllCallback = null,
+        Action? openPerformanceCallback = null)
     {
         _bookmarkManager = bookmarkManager;
         _historyManager = historyManager;
@@ -73,6 +75,7 @@ public sealed class BrowserSidePanel : Panel
         _getAllTabs = getAllTabs;
         _suspendBackgroundTabsCallback = suspendBackgroundTabsCallback;
         _toggleMuteAllCallback = toggleMuteAllCallback;
+        _openPerformanceCallback = openPerformanceCallback;
 
         Width = 340;
         Dock = DockStyle.Right;
@@ -166,7 +169,8 @@ public sealed class BrowserSidePanel : Panel
             _toggleSplitCallback,
             _getAllTabs,
             _suspendBackgroundTabsCallback,
-            _toggleMuteAllCallback);
+            _toggleMuteAllCallback,
+            _openPerformanceCallback);
 
         _views[SidePanelMode.Bookmarks] = bookmarksView;
         _views[SidePanelMode.History] = historyView;

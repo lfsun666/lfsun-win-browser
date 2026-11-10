@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Lfsun.Win.Browser.Core;
@@ -209,6 +209,16 @@ public sealed class BrowserTab : IAsyncDisposable
     public int AdBlockedCount { get; private set; }
 
     /// <summary>
+    /// 中文注释：访问专有浏览器内部协议事件（如 edge://、chrome:// 等）。
+    /// </summary>
+    public event Action<BrowserTab, string>? InternalUrlNavigated;
+
+    /// <summary>
+    /// 中文注释：内部路由页面交互事件（如点击了外观、书签、历史按钮）。
+    /// </summary>
+    public event Action<BrowserTab, string>? InternalUrlActionRequested;
+
+    /// <summary>
     /// 中文注释：最近一次导航的耗时（毫秒），尚无完成的导航时为 -1；供状态栏展示开发者信息。
     /// </summary>
     public int LastLoadMilliseconds { get; private set; } = -1;
@@ -391,8 +401,127 @@ public sealed class BrowserTab : IAsyncDisposable
             return;
         }
 
+        if (InternalUrlRouter.IsInternalBrowserUrl(uri.AbsoluteUri))
+        {
+            if (InternalUrlNavigated is not null)
+            {
+                InternalUrlNavigated.Invoke(this, uri.AbsoluteUri);
+                StateChanged?.Invoke(this);
+                return;
+            }
+        }
+
         _webView!.Source = uri;
         StateChanged?.Invoke(this);
+    }
+
+    public async Task NavigateToStringAsync(string htmlContent)
+    {
+        await ResumeIfNeededAsync();
+        if (_webView?.CoreWebView2 is { } core)
+        {
+            core.NavigateToString(htmlContent);
+            StateChanged?.Invoke(this);
+        }
+    }
+
+    /// <summary>
+    /// 中文注释：从当前页面采集 W3C Navigation Timing 与 Resource Timing 性能诊断数据。
+    /// </summary>
+    public async Task<PagePerformanceReport?> GetPagePerformanceReportAsync()
+    {
+        if (_core is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            const string script = """
+                (() => {
+                    try {
+                        const nav = performance.getEntriesByType('navigation')[0] || {};
+                        const resources = performance.getEntriesByType('resource') || [];
+                        let scripts = 0, styles = 0, images = 0, totalTransfer = 0, totalDecoded = 0;
+                        resources.forEach(r => {
+                            totalTransfer += (r.transferSize || 0);
+                            totalDecoded += (r.decodedBodySize || 0);
+                            const type = r.initiatorType || '';
+                            if (type === 'script') scripts++;
+                            else if (type === 'css' || type === 'link') styles++;
+                            else if (type === 'img' || type === 'image') images++;
+                        });
+                        return JSON.stringify({
+                            url: location.href,
+                            title: document.title,
+                            protocol: nav.nextHopProtocol || (location.protocol ? location.protocol.replace(':', '') : 'http'),
+                            totalDuration: Math.round(nav.duration || 0),
+                            dns: Math.round((nav.domainLookupEnd - nav.domainLookupStart) || 0),
+                            tcp: Math.round((nav.connectEnd - nav.connectStart) || 0),
+                            ttfb: Math.round((nav.responseStart - nav.requestStart) || 0),
+                            domReady: Math.round((nav.domContentLoadedEventEnd - nav.startTime) || 0),
+                            loadComplete: Math.round((nav.loadEventEnd - nav.startTime) || 0),
+                            transferSize: (nav.transferSize || 0) + totalTransfer,
+                            decodedSize: (nav.decodedBodySize || 0) + totalDecoded,
+                            resourceCount: resources.length + 1,
+                            scriptCount: scripts,
+                            styleCount: styles,
+                            imageCount: images,
+                            domElements: document.getElementsByTagName('*').length
+                        });
+                    } catch (e) {
+                        return JSON.stringify({ error: e.message });
+                    }
+                })()
+                """;
+
+            var rawJson = await _core.ExecuteScriptAsync(script);
+            if (string.IsNullOrWhiteSpace(rawJson) || rawJson == "null")
+            {
+                return null;
+            }
+
+            string json;
+            if (rawJson.StartsWith("\"") && rawJson.EndsWith("\""))
+            {
+                json = JsonSerializer.Deserialize<string>(rawJson) ?? string.Empty;
+            }
+            else
+            {
+                json = rawJson;
+            }
+
+            var node = JsonNode.Parse(json);
+            if (node is null || node["error"] is not null)
+            {
+                return null;
+            }
+
+            return new PagePerformanceReport
+            {
+                Url = node["url"]?.ToString() ?? CurrentUri?.AbsoluteUri ?? string.Empty,
+                Title = node["title"]?.ToString() ?? Title,
+                Protocol = node["protocol"]?.ToString() ?? "HTTP/2",
+                TotalDurationMs = node["totalDuration"]?.GetValue<double>() ?? (LastLoadMilliseconds > 0 ? LastLoadMilliseconds : 0),
+                DnsDurationMs = Math.Max(0, node["dns"]?.GetValue<double>() ?? 0),
+                TcpDurationMs = Math.Max(0, node["tcp"]?.GetValue<double>() ?? 0),
+                TtfbMs = Math.Max(0, node["ttfb"]?.GetValue<double>() ?? 0),
+                DomReadyMs = Math.Max(0, node["domReady"]?.GetValue<double>() ?? 0),
+                LoadCompleteMs = Math.Max(0, node["loadComplete"]?.GetValue<double>() ?? 0),
+                TransferSizeBytes = node["transferSize"]?.GetValue<long>() ?? 0,
+                DecodedBodySizeBytes = node["decodedSize"]?.GetValue<long>() ?? 0,
+                ResourceCount = node["resourceCount"]?.GetValue<int>() ?? 0,
+                ScriptCount = node["scriptCount"]?.GetValue<int>() ?? 0,
+                StyleCount = node["styleCount"]?.GetValue<int>() ?? 0,
+                ImageCount = node["imageCount"]?.GetValue<int>() ?? 0,
+                DomElementCount = node["domElements"]?.GetValue<int>() ?? 0
+            };
+        }
+        catch (Exception ex)
+        {
+            _log($"性能数据采集异常: {ex.Message}");
+            return null;
+        }
     }
 
     public void GoBack()
@@ -648,6 +777,16 @@ public sealed class BrowserTab : IAsyncDisposable
                 if (!string.IsNullOrEmpty(bridgeJson) &&
                     _webView?.CoreWebView2 is { } coreForBridge)
                 {
+                    if (bridgeJson.Contains("internalRoute"))
+                    {
+                        var msgNode = JsonNode.Parse(bridgeJson);
+                        if (msgNode?["action"]?.ToString() is { } act)
+                        {
+                            InternalUrlActionRequested?.Invoke(this, act);
+                            return;
+                        }
+                    }
+
                     if (await TryHandleNetworkBridgeMessageAsync(coreForBridge, bridgeJson))
                     {
                         return;
@@ -737,6 +876,13 @@ public sealed class BrowserTab : IAsyncDisposable
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs args)
     {
+        if (InternalUrlRouter.IsInternalBrowserUrl(args.Uri))
+        {
+            args.Cancel = true;
+            InternalUrlNavigated?.Invoke(this, args.Uri);
+            return;
+        }
+
         if (IsReaderModeActive)
         {
             IsReaderModeActive = false;

@@ -498,6 +498,7 @@ public sealed class SettingsWindow : Form
 
         _askBeforeRestoringSessionCheckBox.Text = "启动时先询问：恢复上次会话或打开空白页";
         _askBeforeRestoringSessionCheckBox.AutoSize = true;
+        _askBeforeRestoringSessionCheckBox.Visible = false;
         panel.Controls.Add(_askBeforeRestoringSessionCheckBox, 1, 13);
 
         _showBookmarksBarCheckBox.Text = "显示书签栏（第二行）";
@@ -1544,7 +1545,7 @@ public sealed class SettingsWindow : Form
         }
     }
 
-    private void NavigateToCategory(int tabIndex)
+    public void NavigateToCategory(int tabIndex)
     {
         if (tabIndex < 0 || tabIndex >= _tabs.TabPages.Count)
         {
@@ -1952,8 +1953,8 @@ public sealed class SettingsWindow : Form
             _bodySplitContainer.SplitterDistance = targetDistance;
         }
 
-        _bodySplitContainer.Panel1MinSize = SidebarMinWidth;
-        _bodySplitContainer.Panel2MinSize = ContentMinWidth;
+
+
     }
 
     private void MoveSelectedToolbarRow(int offset)
@@ -2747,7 +2748,7 @@ public sealed class SettingsWindow : Form
         using var dialog = new OpenFileDialog
         {
             Title = "导入书签",
-            Filter = "JSON 文件 (*.json)|*.json|所有文件 (*.*)|*.*"
+            Filter = "书签文件 (*.html;*.htm;*.json)|*.html;*.htm;*.json|HTML 文件 (*.html;*.htm)|*.html;*.htm|JSON 文件 (*.json)|*.json|所有文件 (*.*)|*.*"
         };
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {
@@ -2781,8 +2782,8 @@ public sealed class SettingsWindow : Form
         using var dialog = new SaveFileDialog
         {
             Title = "导出书签",
-            FileName = $"bookmarks-{DateTime.Now:yyyyMMdd-HHmmss}.json",
-            Filter = "JSON 文件 (*.json)|*.json"
+            FileName = $"bookmarks-{DateTime.Now:yyyyMMdd-HHmmss}.html",
+            Filter = "HTML 文件 (*.html)|*.html|JSON 文件 (*.json)|*.json"
         };
         if (dialog.ShowDialog(this) != DialogResult.OK)
         {

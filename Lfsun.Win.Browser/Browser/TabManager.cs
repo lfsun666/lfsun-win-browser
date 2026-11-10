@@ -82,6 +82,16 @@ public sealed class TabManager
     /// </summary>
     public event Action<BrowserTab, int>? TabAdBlockedCountChanged;
 
+    /// <summary>
+    /// 中文注释：访问专有浏览器内部协议事件（如 edge://、chrome:// 等）。
+    /// </summary>
+    public event Action<BrowserTab, string>? InternalUrlNavigated;
+
+    /// <summary>
+    /// 中文注释：内部路由页面交互事件（如点击了外观、书签、历史按钮）。
+    /// </summary>
+    public event Action<BrowserTab, string>? InternalUrlActionRequested;
+
     public IReadOnlyList<ClosedTabEntry> RecentlyClosedTabs => _recentlyClosedTabs;
 
     /// <summary>
@@ -108,6 +118,8 @@ public sealed class TabManager
         tab.FindMatchesChanged += HandleTabFindMatchesChanged;
         tab.ZoomChanged += HandleTabZoomChanged;
         tab.AdBlockedCountChanged += HandleTabAdBlockedCountChanged;
+        tab.InternalUrlNavigated += (t, u) => InternalUrlNavigated?.Invoke(t, u);
+        tab.InternalUrlActionRequested += (t, a) => InternalUrlActionRequested?.Invoke(t, a);
         tab.NewTabHtmlProvider = () => NewTabPageHtmlProvider?.Invoke();
         tab.ZoomOverrideResolver = host => ZoomOverrideResolver?.Invoke(host);
         tab.AdBlockService = AdBlockService;

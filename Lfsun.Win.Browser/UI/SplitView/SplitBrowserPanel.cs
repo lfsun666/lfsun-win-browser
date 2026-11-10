@@ -53,6 +53,16 @@ public sealed class SplitBrowserPanel : Panel
         _splitContainer.Panel2MinSize = 0;
         _splitContainer.BackColor = AppTheme.PanelBorder;
         _splitContainer.SizeChanged += (_, _) => SafeApplySplitterLayout();
+        _splitContainer.SplitterMoving += (_, e) =>
+        {
+            var totalWidth = _splitContainer.ClientSize.Width;
+            var splitterWidth = _splitContainer.SplitterWidth;
+            const int minSize = 180;
+            if (totalWidth >= minSize * 2 + splitterWidth)
+            {
+                e.SplitX = Math.Clamp(e.SplitX, minSize, totalWidth - minSize - splitterWidth);
+            }
+        };
 
         // 右侧副屏顶部工具条
         _secondaryHeader.Dock = DockStyle.Top;
@@ -202,23 +212,17 @@ public sealed class SplitBrowserPanel : Panel
             var splitterWidth = _splitContainer.SplitterWidth;
             const int minSize = 180;
 
+            _splitContainer.Panel1MinSize = 0;
+            _splitContainer.Panel2MinSize = 0;
+
             if (totalWidth >= minSize * 2 + splitterWidth)
             {
-                _splitContainer.Panel1MinSize = 0;
-                _splitContainer.Panel2MinSize = 0;
                 var safeDistance = Math.Clamp(totalWidth / 2, minSize, totalWidth - minSize - splitterWidth);
                 _splitContainer.SplitterDistance = safeDistance;
-                _splitContainer.Panel1MinSize = minSize;
-                _splitContainer.Panel2MinSize = minSize;
             }
-            else
+            else if (totalWidth > splitterWidth)
             {
-                _splitContainer.Panel1MinSize = 0;
-                _splitContainer.Panel2MinSize = 0;
-                if (totalWidth > splitterWidth)
-                {
-                    _splitContainer.SplitterDistance = Math.Max(0, (totalWidth - splitterWidth) / 2);
-                }
+                _splitContainer.SplitterDistance = Math.Max(0, (totalWidth - splitterWidth) / 2);
             }
         }
         catch

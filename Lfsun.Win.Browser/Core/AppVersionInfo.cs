@@ -42,6 +42,18 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.8.0",
+            "2026-11-10",
+            "书签按层级展开与极速延迟加载、内部协议智能路由及网页性能诊断卡片",
+            [
+                "【书签全层级智能展开】全新重构 Netscape HTML 书签流式解析器，支持 Chrome/Edge/Firefox 导出的书签栏、收藏夹栏及多层级目录完整识别，自动解包并平铺一级分类至主书签栏",
+                "【书签栏按需延迟加载】书签栏与各级子菜单全面升级为 DropDownOpening 延迟动态按需渲染，千级或万级书签启动秒开（仅需 1ms），彻底根除启动与窗口缩放时的 UI 线程卡顿",
+                "【内部专有协议智能路由】全面接管 edge://、chrome://、about:settings 等专有链接（如 edge://settings/appearance），无缝映射并打开原生对应设置页，未识别内部地址展示友好引导交互页，告别 ERR_INVALID_URL",
+                "【全窗体 SplitContainer 零隐患加固】彻底消除书签管理、常规设置及会话窗口的 SplitContainer 硬编码边界约束，杜绝任何 DPI 突变或极限缩放下的 SplitterDistance 崩溃异常",
+                "【全新网页性能与诊断卡片】基于 W3C Navigation Timing 与 Resource Timing 毫秒级展示 DNS 解析、TCP 握手、TTFB 首包到达、DOM Ready 与完全加载耗时阶梯，统计网络传输体积与 DOM 节点数，支持一键复制 Markdown 报告与强刷测试（点击状态栏耗时胶囊或执行 :perf 呼出）"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.7.1",
             "2026-11-06",
             "修复双屏分屏面板 SplitContainer 启动边界异常与多窗口布局加固",

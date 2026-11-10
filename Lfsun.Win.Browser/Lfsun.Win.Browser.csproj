@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
@@ -8,8 +8,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
         <AssemblyName>LfsunBrowser</AssemblyName>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>0.7.1</Version>
-    <FileVersion>0.7.1</FileVersion>
+    <Version>0.8.0</Version>
+    <FileVersion>0.8.0</FileVersion>
     <Product>LfsunBrowser</Product>
     <Title>LfsunBrowser</Title>
     <Company>LfsunBrowser</Company>

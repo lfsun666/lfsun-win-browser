@@ -35,7 +35,14 @@ public sealed class BookmarkManager
             var loadedRoot = JsonSerializer.Deserialize<BookmarkNode>(json, BuildJsonOptions());
             if (loadedRoot is not null)
             {
-                _root = NormalizeImportedRoot(loadedRoot);
+                var normalized = NormalizeImportedRoot(loadedRoot);
+                var structureChanged = normalized.Children.Count != loadedRoot.Children.Count ||
+                                       (loadedRoot.Children.Count > 0 && LooksLikeToolbarFolder(loadedRoot.Children[0].Name));
+                _root = normalized;
+                if (structureChanged)
+                {
+                    Save();
+                }
                 return;
             }
 
@@ -371,76 +378,69 @@ public sealed class BookmarkManager
     {
         try
         {
-            var anchorRegex = new Regex(
-                "<A\\s+[^>]*HREF\\s*=\\s*(['\"])(.*?)\\1[^>]*>(.*?)</A>",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled);
-            var folderRegex = new Regex(
-                "<H3[^>]*>(.*?)</H3>",
-                RegexOptions.IgnoreCase | RegexOptions.Compiled);
-            var beginFolderRegex = new Regex("<DL\\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-            var endFolderRegex = new Regex("</DL>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return null;
+            }
+
+            // 中文注释：Netscape Bookmark HTML 标准标签流式提取；匹配 <H3>, <A>, <DL>, </DL>；
+            // 解决属性同行、换行不规则以及 Chrome/Edge 导出的特殊格式。
+            var tagRegex = new Regex(
+                @"(?<folder><H3\b[^>]*>(?<h3title>.*?)</H3>)|(?<link><A\b[^>]*HREF\s*=\s*[""'](?<url>[^""']+)[""'][^>]*>(?<atitle>.*?)</A>)|(?<dlopen><DL\b)|(?<dlclose></DL\b)",
+                RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.Compiled);
 
             var root = CreateRoot();
             var stack = new Stack<BookmarkNode>();
             stack.Push(root);
             BookmarkNode? pendingFolder = null;
 
-            foreach (var rawLine in content.Split('\n'))
+            var matches = tagRegex.Matches(content);
+            if (matches.Count == 0)
             {
-                var line = rawLine.Trim();
-                if (line.Length == 0)
-                {
-                    continue;
-                }
+                return null;
+            }
 
-                var folderMatch = folderRegex.Match(line);
-                if (folderMatch.Success)
+            foreach (Match match in matches)
+            {
+                if (match.Groups["folder"].Success)
                 {
-                    var folderName = WebUtility.HtmlDecode(folderMatch.Groups[1].Value).Trim();
-                    pendingFolder = new BookmarkNode
+                    var rawTitle = match.Groups["h3title"].Value;
+                    var folderName = WebUtility.HtmlDecode(rawTitle).Trim();
+                    var folder = new BookmarkNode
                     {
                         Type = BookmarkNodeType.Folder,
                         Name = string.IsNullOrWhiteSpace(folderName) ? "新建文件夹" : folderName
                     };
-                    stack.Peek().Children.Add(pendingFolder);
-                    continue;
+
+                    stack.Peek().Children.Add(folder);
+                    pendingFolder = folder;
                 }
-
-                var linkMatch = anchorRegex.Match(line);
-                if (linkMatch.Success)
-                {
-                    var rawUrl = WebUtility.HtmlDecode(linkMatch.Groups[2].Value).Trim();
-                    var title = WebUtility.HtmlDecode(linkMatch.Groups[3].Value).Trim();
-                    if (!TryNormalizeUrl(rawUrl, out var normalizedUrl))
-                    {
-                        continue;
-                    }
-
-                    stack.Peek().Children.Add(CreateLinkNode(
-                        string.IsNullOrWhiteSpace(title) ? normalizedUrl : title,
-                        normalizedUrl));
-                    continue;
-                }
-
-                if (beginFolderRegex.IsMatch(line))
+                else if (match.Groups["dlopen"].Success)
                 {
                     if (pendingFolder is not null)
                     {
                         stack.Push(pendingFolder);
                         pendingFolder = null;
                     }
-
-                    continue;
                 }
+                else if (match.Groups["link"].Success)
+                {
+                    var rawUrl = WebUtility.HtmlDecode(match.Groups["url"].Value).Trim();
+                    var rawTitle = WebUtility.HtmlDecode(match.Groups["atitle"].Value).Trim();
 
-                if (endFolderRegex.IsMatch(line))
+                    if (TryNormalizeUrl(rawUrl, out var normalizedUrl))
+                    {
+                        var title = string.IsNullOrWhiteSpace(rawTitle) ? normalizedUrl : rawTitle;
+                        stack.Peek().Children.Add(CreateLinkNode(title, normalizedUrl));
+                    }
+                }
+                else if (match.Groups["dlclose"].Success)
                 {
                     if (stack.Count > 1)
                     {
                         stack.Pop();
                     }
-
-                    continue;
+                    pendingFolder = null;
                 }
             }
 
@@ -523,32 +523,45 @@ public sealed class BookmarkManager
         };
     }
 
-    private static BookmarkNode NormalizeImportedRoot(BookmarkNode sourceRoot)
+    public static BookmarkNode NormalizeImportedRoot(BookmarkNode sourceRoot)
     {
         var normalizedRoot = NormalizeTree(sourceRoot, isRoot: true);
         return PromoteToolbarFolderChildren(normalizedRoot);
     }
 
-    private static BookmarkNode PromoteToolbarFolderChildren(BookmarkNode root)
+    internal static BookmarkNode PromoteToolbarFolderChildren(BookmarkNode root)
     {
-        if (root.Children.Count != 1)
+        // 中文注释：循环检测并提升书签栏/收藏夹栏等主工具栏目录。
+        // Chrome/Edge/Firefox 导出时，书签栏通常作为顶级目录之一与“其他收藏夹”并列；
+        // 将主工具栏目录下的子项（如 tools, interview, download, work...）直接提升至根级别，
+        // 确保导入后能够按用户原始层级在主书签栏上完整展开，其余独立项保留在后。
+        while (true)
         {
-            return root;
+            var toolbarIndex = root.Children.FindIndex(c => c.IsFolder && LooksLikeToolbarFolder(c.Name));
+            if (toolbarIndex < 0)
+            {
+                break;
+            }
+
+            var toolbarFolder = root.Children[toolbarIndex];
+            if (toolbarFolder.Children.Count == 0)
+            {
+                root.Children.RemoveAt(toolbarIndex);
+                continue;
+            }
+
+            var promotedChildren = toolbarFolder.Children.ToList();
+            var otherItems = root.Children.Where((_, idx) => idx != toolbarIndex).ToList();
+
+            root.Children.Clear();
+            root.Children.AddRange(promotedChildren);
+            root.Children.AddRange(otherItems);
         }
 
-        var first = root.Children[0];
-        if (!first.IsFolder || first.Children.Count == 0 || !LooksLikeToolbarFolder(first.Name))
-        {
-            return root;
-        }
-
-        var promoted = first.Children.ToList();
-        root.Children.Clear();
-        root.Children.AddRange(promoted);
         return root;
     }
 
-    private static bool LooksLikeToolbarFolder(string folderName)
+    internal static bool LooksLikeToolbarFolder(string folderName)
     {
         if (string.IsNullOrWhiteSpace(folderName))
         {
@@ -561,8 +574,10 @@ public sealed class BookmarkManager
             "书签工具栏" or
             "收藏栏" or
             "收藏夹栏" or
+            "主书签" or
             "bookmarks bar" or
             "bookmark bar" or
+            "bookmarks toolbar" or
             "favorites bar";
     }
 

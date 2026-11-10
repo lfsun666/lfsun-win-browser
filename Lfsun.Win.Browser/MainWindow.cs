@@ -241,7 +241,8 @@ public sealed class MainWindow : Form
         new("freememory", "freememory", "休眠后台标签释放内存", "一键休眠所有后台空闲标签释放系统内存", ["cleanmem", "hibernate", "释放内存"]),
         new("sidepanel", "sidepanel", "切换侧边工具栏", "展开/收起右侧多功能抽屉栏", ["sidebar", "panel", "侧边栏"]),
         new("qrcode", "qrcode", "生成当前页二维码", "跨端手机扫码继续浏览", ["qr", "扫码", "二维码"]),
-        new("screenshot", "screenshot", "网页整页截图", "截取当前网页并复制到剪贴板", ["shot", "capture", "截图"])
+        new("screenshot", "screenshot", "网页整页截图", "截取当前网页并复制到剪贴板", ["shot", "capture", "截图"]),
+        new("perf", "perf", "网页性能与诊断", "展示 DNS/TCP/TTFB/DOM 加载耗时阶梯与资源统计", ["diagnostics", "timing", "性能", "诊断"])
     ];
     private static readonly Dictionary<string, AddressCommandArgumentOption[]> AddressCommandArgumentCatalog = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -532,7 +533,8 @@ public sealed class MainWindow : Form
                 var muted = _tabManager.ToggleMuteAllTabs();
                 RefreshToolbar();
                 return muted;
-            });
+            },
+            () => ShowPagePerformanceCard());
         _sidePanel.CloseRequested += () => _sidePanel.Visible = false;
 
         _verticalTabStrip = new VerticalTabStrip(
@@ -2549,6 +2551,25 @@ public sealed class MainWindow : Form
             PersistSessionState();
         };
         _tabManager.TabSurfaceInteracted += DismissTransientMenus;
+        _tabManager.InternalUrlNavigated += (_, url) => TryHandleInternalBrowserUrl(url);
+        _tabManager.InternalUrlActionRequested += (_, action) =>
+        {
+            switch (action)
+            {
+                case "appearance":
+                    ShowSettings(1);
+                    break;
+                case "bookmarks":
+                    ShowBookmarksSettingsWindow();
+                    break;
+                case "history":
+                    ShowHistoryWindow();
+                    break;
+                case "settings":
+                    ShowSettings(0);
+                    break;
+            }
+        };
 
         _backButton.Click += (_, _) =>
         {
@@ -5316,6 +5337,12 @@ public sealed class MainWindow : Form
             return;
         }
 
+        if (TryHandleInternalBrowserUrl(_addressTextBox.Text))
+        {
+            HideAddressSuggestionPanel();
+            return;
+        }
+
         var active = _tabManager.ActiveTab;
         if (active is null)
         {
@@ -5627,6 +5654,11 @@ public sealed class MainWindow : Form
             case "screenshot":
                 await CaptureScreenshotForActiveTabAsync();
                 Log("已执行指令: screenshot");
+                return;
+            case "perf":
+            case "diagnostics":
+                ShowPagePerformanceCard();
+                Log("已执行指令: perf");
                 return;
             default:
                 ShowToast($"未支持的指令: {commandId}");
@@ -6913,6 +6945,11 @@ public sealed class MainWindow : Form
 
     private async Task NavigateToBookmarkAsync(string bookmarkUrl, bool inNewTab)
     {
+        if (TryHandleInternalBrowserUrl(bookmarkUrl))
+        {
+            return;
+        }
+
         if (!Uri.TryCreate(bookmarkUrl, UriKind.Absolute, out var uri))
         {
             Log("书签地址无效");
@@ -6963,7 +7000,23 @@ public sealed class MainWindow : Form
                 };
                 StyleBookmarkBarItem(folderButton, isFolder: true);
                 folderButton.MouseUp += BookmarkBarItemMouseUp;
-                AddFolderChildrenToDropDown(folderButton.DropDownItems, node.Children, node.Id, menuNameLength);
+
+                var capturedNode = node;
+                var capturedMenuLength = menuNameLength;
+                var isPopulated = false;
+                folderButton.DropDownOpening += (_, _) =>
+                {
+                    if (isPopulated)
+                    {
+                        return;
+                    }
+
+                    isPopulated = true;
+                    folderButton.DropDownItems.Clear();
+                    AddFolderChildrenToDropDown(folderButton.DropDownItems, capturedNode.Children, capturedNode.Id, capturedMenuLength);
+                };
+                folderButton.DropDownItems.Add(new ToolStripMenuItem("加载中...") { Enabled = false });
+
                 AttachBookmarkBarHoverEffect(folderButton);
                 _bookmarksBar.Items.Add(folderButton);
                 continue;
@@ -7059,7 +7112,22 @@ public sealed class MainWindow : Form
                 };
                 StyleBookmarkMenuItem(folder, isFolder: true);
                 folder.MouseUp += BookmarkBarItemMouseUp;
-                AddFolderChildrenToDropDown(folder.DropDownItems, node.Children, node.Id, menuNameLength);
+
+                var capturedChild = node;
+                var isChildPopulated = false;
+                folder.DropDownOpening += (_, _) =>
+                {
+                    if (isChildPopulated)
+                    {
+                        return;
+                    }
+
+                    isChildPopulated = true;
+                    folder.DropDownItems.Clear();
+                    AddFolderChildrenToDropDown(folder.DropDownItems, capturedChild.Children, capturedChild.Id, menuNameLength);
+                };
+                folder.DropDownItems.Add(new ToolStripMenuItem("加载中...") { Enabled = false });
+
                 items.Add(folder);
                 continue;
             }
@@ -7483,6 +7551,7 @@ public sealed class MainWindow : Form
 
     private void WireStatusBarActions()
     {
+        _statusBarPanel.LoadTimeClicked += (_, _) => ShowPagePerformanceCard();
         _statusBarPanel.MemoryClicked += (_, _) => ShowTabStatsDialog();
         _statusBarPanel.ZoomResetClicked += (_, _) => _tabManager.ActiveTab?.SetZoomFactor(1.0);
         _statusBarPanel.AdBlockClicked += (_, _) => ShowSettings();
@@ -7814,7 +7883,7 @@ public sealed class MainWindow : Form
         Log("已收藏当前页");
     }
 
-    private void ShowSettings()
+    private void ShowSettings(int initialCategoryIndex = 0)
     {
         if (_settingsWindow is null || _settingsWindow.IsDisposed)
         {
@@ -7830,7 +7899,55 @@ public sealed class MainWindow : Form
                 ShowShortcutsOverview);
         }
 
+        if (initialCategoryIndex >= 0)
+        {
+            _settingsWindow.NavigateToCategory(initialCategoryIndex);
+        }
+
         ShowOwnedWindow(_settingsWindow);
+    }
+
+    private bool TryHandleInternalBrowserUrl(string? rawUrl)
+    {
+        if (string.IsNullOrWhiteSpace(rawUrl))
+        {
+            return false;
+        }
+
+        var handled = InternalUrlRouter.TryRoute(
+            rawUrl,
+            categoryIndex => ShowSettings(categoryIndex),
+            () => ShowBookmarksSettingsWindow(),
+            () => ShowHistoryWindow(),
+            () => ShowDownloadManager(),
+            msg => ShowToast(msg),
+            out var redirectHtml);
+
+        if (handled)
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(redirectHtml) && _tabManager.ActiveTab is { } activeTab)
+        {
+            _ = activeTab.NavigateToStringAsync(redirectHtml);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void ShowPagePerformanceCard()
+    {
+        var activeTab = _tabManager.ActiveTab;
+        if (activeTab is null || activeTab.CurrentUri is null)
+        {
+            ShowToast("当前无可用的页面用于性能诊断");
+            return;
+        }
+
+        using var dialog = new PagePerformanceCardDialog(activeTab, ShowToast);
+        dialog.ShowDialog(this);
     }
 
     // 中文注释：统一的快捷键一览入口；单例复用，每次打开前刷新数据（配置/插件可能已变更）。
@@ -11743,6 +11860,11 @@ public sealed class MainWindow : Form
 
     private async Task NavigateActiveTabAsync(Uri uri)
     {
+        if (TryHandleInternalBrowserUrl(uri.AbsoluteUri))
+        {
+            return;
+        }
+
         if (_tabManager.ActiveTab is not null)
         {
             await _tabManager.ActiveTab.NavigateAsync(uri);
