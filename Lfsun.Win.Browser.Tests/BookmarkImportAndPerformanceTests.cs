@@ -327,4 +327,19 @@ public sealed class BookmarkImportAndPerformanceTests
         var queued = FaviconService.QueueBatchFetch(root.Children);
         Assert.True(queued >= 0);
     }
+
+    [Fact]
+    public void FaviconService_GetIcon_ShouldProduceValid16x16Bitmap()
+    {
+        var node = new BookmarkNode
+        {
+            Type = BookmarkNodeType.Link,
+            Name = "Bing",
+            Url = "https://www.bing.com"
+        };
+        var icon = FaviconService.GetIcon(node);
+        Assert.NotNull(icon);
+        Assert.Equal(16, icon.Width);
+        Assert.Equal(16, icon.Height);
+    }
 }

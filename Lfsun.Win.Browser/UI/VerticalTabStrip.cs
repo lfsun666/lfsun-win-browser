@@ -1,4 +1,5 @@
 using System.Drawing.Drawing2D;
+using Lfsun.Win.Browser.Bookmarks;
 using Lfsun.Win.Browser.Browser;
 using Lfsun.Win.Browser.Core;
 
@@ -177,14 +178,27 @@ public sealed class VerticalTabStrip : Panel
                 g.FillPath(hoverBrush, path);
             }
 
-            // 图标徽标 (首字母或固定/静音/声音标志)
-            var iconRect = new Rectangle(itemRect.Left + 8, itemRect.Top + (itemRect.Height - 20) / 2, 20, 20);
-            var badgeText = tab.IsPinned ? "📌" : (tab.IsPlayingAudio ? (tab.IsMuted ? "🔇" : "🔊") : ResolveIconLetter(tab.DisplayTitle));
-            using var font = AppTheme.CreateFont(8.5F, FontStyle.Bold);
-            using var textBrush = new SolidBrush(isActive ? AppTheme.Accent : AppTheme.TextPrimary);
-
-            var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-            g.DrawString(badgeText, font, textBrush, iconRect, sf);
+            // 图标徽标 (真实 Favicon 或固定/静音/声音标志)
+            var iconRect = new Rectangle(itemRect.Left + 8, itemRect.Top + (itemRect.Height - 16) / 2, 16, 16);
+            using var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            if (tab.IsPinned)
+            {
+                using var font = AppTheme.CreateFont(8.5F, FontStyle.Bold);
+                using var textBrush = new SolidBrush(isActive ? AppTheme.Accent : AppTheme.TextPrimary);
+                g.DrawString("📌", font, textBrush, new Rectangle(itemRect.Left + 6, itemRect.Top + (itemRect.Height - 20) / 2, 20, 20), sf);
+            }
+            else if (tab.IsPlayingAudio || tab.IsMuted)
+            {
+                var audioSymbol = tab.IsMuted ? "🔇" : "🔊";
+                using var font = AppTheme.CreateFont(8.5F);
+                using var textBrush = new SolidBrush(tab.IsMuted ? AppTheme.TextSecondary : AppTheme.Accent);
+                g.DrawString(audioSymbol, font, textBrush, new Rectangle(itemRect.Left + 6, itemRect.Top + (itemRect.Height - 20) / 2, 20, 20), sf);
+            }
+            else
+            {
+                var fav = FaviconService.GetIcon(tab.CurrentUri?.AbsoluteUri, tab.DisplayTitle);
+                g.DrawImage(fav, iconRect);
+            }
 
             // 文本模式 (未折叠时绘制标题和关闭按钮)
             if (!_isCollapsed)

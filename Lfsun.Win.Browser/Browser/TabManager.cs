@@ -92,6 +92,11 @@ public sealed class TabManager
     /// </summary>
     public event Action<BrowserTab, string>? InternalUrlActionRequested;
 
+    /// <summary>
+    /// 中文注释：标签音频播放或静音状态变化事件，由各标签转发。
+    /// </summary>
+    public event Action<BrowserTab>? TabAudioStateChanged;
+
     public IReadOnlyList<ClosedTabEntry> RecentlyClosedTabs => _recentlyClosedTabs;
 
     /// <summary>
@@ -118,6 +123,7 @@ public sealed class TabManager
         tab.FindMatchesChanged += HandleTabFindMatchesChanged;
         tab.ZoomChanged += HandleTabZoomChanged;
         tab.AdBlockedCountChanged += HandleTabAdBlockedCountChanged;
+        tab.AudioStateChanged += HandleTabAudioStateChanged;
         tab.InternalUrlNavigated += (t, u) => InternalUrlNavigated?.Invoke(t, u);
         tab.InternalUrlActionRequested += (t, a) => InternalUrlActionRequested?.Invoke(t, a);
         tab.NewTabHtmlProvider = () => NewTabPageHtmlProvider?.Invoke();
@@ -165,6 +171,7 @@ public sealed class TabManager
         current.FindMatchesChanged -= HandleTabFindMatchesChanged;
         current.ZoomChanged -= HandleTabZoomChanged;
         current.AdBlockedCountChanged -= HandleTabAdBlockedCountChanged;
+        current.AudioStateChanged -= HandleTabAudioStateChanged;
 
         if (current.CurrentUri is not null &&
             (string.Equals(current.CurrentUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
@@ -440,6 +447,12 @@ public sealed class TabManager
     private void HandleTabAdBlockedCountChanged(BrowserTab tab, int blockedCount)
     {
         TabAdBlockedCountChanged?.Invoke(tab, blockedCount);
+    }
+
+    private void HandleTabAudioStateChanged(BrowserTab tab)
+    {
+        TabAudioStateChanged?.Invoke(tab);
+        PublishTabEvents();
     }
 
     private void PublishTabEvents()

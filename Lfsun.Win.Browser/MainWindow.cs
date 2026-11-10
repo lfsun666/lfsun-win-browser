@@ -2427,7 +2427,7 @@ public sealed class MainWindow : Form
                 await OpenStartupTabsAsync();
                 RefreshToolbar();
                 RefreshMetrics();
-                await LoadPublicIpInfoAsync();
+                _ = LoadPublicIpInfoAsync(); // 异步后台并发执行，绝不阻塞界面启动与标签渲染
             }
             catch (Exception ex)
             {
@@ -2458,6 +2458,12 @@ public sealed class MainWindow : Form
             await _tabManager.CreateTabAsync(new Uri(_config.StartPage));
             RefreshToolbar();
             RefreshMetrics();
+        };
+        _tabManager.TabAudioStateChanged += _ =>
+        {
+            _tabControl.Invalidate();
+            _verticalTabStrip?.RebuildTabs();
+            RefreshToolbar();
         };
 
         _tabManager.ActiveTabChanged += tab =>
@@ -4512,8 +4518,31 @@ public sealed class MainWindow : Form
             eventArgs.Graphics.FillRectangle(indicatorBrush, eventArgs.Bounds.Left + 7, eventArgs.Bounds.Top + 5, 3, Math.Max(8, eventArgs.Bounds.Height - 10));
         }
 
-        var primaryBounds = new Rectangle(eventArgs.Bounds.Left + 10, eventArgs.Bounds.Top + 5, eventArgs.Bounds.Width - 20, 18);
-        var secondaryBounds = new Rectangle(eventArgs.Bounds.Left + 10, eventArgs.Bounds.Top + 21, eventArgs.Bounds.Width - 20, 16);
+        var iconLeft = eventArgs.Bounds.Left + 12;
+        var iconTop = eventArgs.Bounds.Top + (eventArgs.Bounds.Height - 16) / 2;
+        var hasIcon = false;
+
+        var urlCandidate = !string.IsNullOrWhiteSpace(entry.Value) && (entry.Value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || entry.Value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            ? entry.Value
+            : (!string.IsNullOrWhiteSpace(entry.SecondaryText) && (entry.SecondaryText.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || entry.SecondaryText.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) ? entry.SecondaryText : null);
+
+        if (urlCandidate is not null)
+        {
+            var fav = FaviconService.GetIcon(urlCandidate, entry.PrimaryText);
+            eventArgs.Graphics.DrawImage(fav, new Rectangle(iconLeft, iconTop, 16, 16));
+            hasIcon = true;
+        }
+        else if (!string.IsNullOrWhiteSpace(entry.CommandId) || entry.Value.StartsWith(":"))
+        {
+            using var cmdFont = AppTheme.CreateFont(8.5F, FontStyle.Bold);
+            using var cmdBrush = new SolidBrush(AppTheme.Accent);
+            eventArgs.Graphics.DrawString("⚡", cmdFont, cmdBrush, new Rectangle(iconLeft - 1, iconTop - 1, 18, 18));
+            hasIcon = true;
+        }
+
+        var offset = hasIcon ? 24 : 0;
+        var primaryBounds = new Rectangle(eventArgs.Bounds.Left + 10 + offset, eventArgs.Bounds.Top + 5, eventArgs.Bounds.Width - 20 - offset, 18);
+        var secondaryBounds = new Rectangle(eventArgs.Bounds.Left + 10 + offset, eventArgs.Bounds.Top + 21, eventArgs.Bounds.Width - 20 - offset, 16);
         if (!string.IsNullOrWhiteSpace(entry.BadgeText))
         {
             using var badgeFont = AppTheme.CreateFont(6.7F, FontStyle.Bold);
@@ -7063,11 +7092,25 @@ public sealed class MainWindow : Form
                 Tag = new BookmarkBarTag(node.Id, ParentFolderId: null)
             };
             StyleBookmarkBarItem(bookmarkButton, isFolder: false);
-            bookmarkButton.Click += async (_, _) => await NavigateToBookmarkAsync(node.Url, inNewTab: false);
+            bookmarkButton.Click += async (_, _) =>
+            {
+                var inNewTab = (ModifierKeys & Keys.Control) == Keys.Control;
+                await NavigateToBookmarkAsync(node.Url, inNewTab: inNewTab);
+            };
             bookmarkButton.MouseUp += BookmarkBarItemMouseUp;
             AttachBookmarkBarHoverEffect(bookmarkButton);
             _bookmarksBar.Items.Add(bookmarkButton);
         }
+
+        var searchBookmarksButton = new ToolStripButton("🔍")
+        {
+            Alignment = ToolStripItemAlignment.Right,
+            DisplayStyle = ToolStripItemDisplayStyle.Text,
+            ToolTipText = "搜索书签 / 打开书签管理 (Ctrl+B)"
+        };
+        searchBookmarksButton.Click += (_, _) => ShowBookmarksSettingsWindow();
+        AttachBookmarkBarHoverEffect(searchBookmarksButton);
+        _bookmarksBar.Items.Add(searchBookmarksButton);
 
         UpdateAddressSuggestions();
     }
@@ -7176,7 +7219,11 @@ public sealed class MainWindow : Form
                 Tag = new BookmarkBarTag(node.Id, parentFolderId)
             };
             StyleBookmarkMenuItem(bookmark, isFolder: false);
-            bookmark.Click += async (_, _) => await NavigateToBookmarkAsync(node.Url, inNewTab: false);
+            bookmark.Click += async (_, _) =>
+            {
+                var inNewTab = (ModifierKeys & Keys.Control) == Keys.Control;
+                await NavigateToBookmarkAsync(node.Url, inNewTab: inNewTab);
+            };
             bookmark.MouseUp += BookmarkBarItemMouseUp;
             items.Add(bookmark);
         }
@@ -7184,12 +7231,22 @@ public sealed class MainWindow : Form
 
     private void BookmarkBarItemMouseUp(object? sender, MouseEventArgs eventArgs)
     {
-        if (eventArgs.Button != MouseButtons.Right)
+        if (sender is not ToolStripItem item || item.Tag is not BookmarkBarTag tag)
         {
             return;
         }
 
-        if (sender is not ToolStripItem item || item.Tag is not BookmarkBarTag tag)
+        if (eventArgs.Button == MouseButtons.Middle)
+        {
+            var node = _bookmarkManager.FindNode(tag.NodeId);
+            if (node?.IsLink == true && !string.IsNullOrWhiteSpace(node.Url))
+            {
+                _ = NavigateToBookmarkAsync(node.Url, inNewTab: true);
+            }
+            return;
+        }
+
+        if (eventArgs.Button != MouseButtons.Right)
         {
             return;
         }

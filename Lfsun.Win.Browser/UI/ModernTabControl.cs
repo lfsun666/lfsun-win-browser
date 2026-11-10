@@ -13,6 +13,7 @@ public sealed class ModernTabControl : TabControl, IDisposable
     private int _hoverCloseIndex = -1;
     private int _dragTabIndex = -1;
     private readonly Dictionary<int, Rectangle> _closeButtonRects = new();
+    private readonly Dictionary<int, Rectangle> _audioButtonRects = new();
     private readonly ToolTip _tabToolTip = new();
     private string _lastTooltipText = string.Empty;
     private bool _isCompact;
@@ -204,10 +205,43 @@ public sealed class ModernTabControl : TabControl, IDisposable
             contentLeft = tagRect.Right + 6;
         }
 
+        // 网站 Favicon 图标绘制
+        var favicon = browserTab is not null
+            ? Bookmarks.FaviconService.GetIcon(browserTab.CurrentUri?.AbsoluteUri, browserTab.DisplayTitle)
+            : null;
+        if (favicon is not null)
+        {
+            var iconRect = new Rectangle(contentLeft, tabRect.Top + (tabRect.Height - 16) / 2, 16, 16);
+            eventArgs.Graphics.DrawImage(favicon, iconRect);
+            contentLeft = iconRect.Right + 6;
+        }
+
+        // 音频播放 / 静音状态指示
+        var isAudioPlaying = browserTab?.IsPlayingAudio == true;
+        var isMuted = browserTab?.IsMuted == true;
+        var rightBoundary = closeRect.Left - 8;
+        if (isAudioPlaying || isMuted)
+        {
+            var audioSize = _isCompact ? 14 : 16;
+            var audioRect = new Rectangle(closeRect.Left - audioSize - 4, tabRect.Top + (tabRect.Height - audioSize) / 2, audioSize, audioSize);
+            _audioButtonRects[eventArgs.Index] = audioRect;
+            rightBoundary = audioRect.Left - 4;
+
+            var audioSymbol = isMuted ? "🔇" : "🔊";
+            using var audioFont = AppTheme.CreateFont(_isCompact ? 7.5F : 8.5F);
+            using var audioBrush = new SolidBrush(isMuted ? AppTheme.TextSecondary : AppTheme.Accent);
+            var sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            eventArgs.Graphics.DrawString(audioSymbol, audioFont, audioBrush, audioRect, sf);
+        }
+        else
+        {
+            _audioButtonRects.Remove(eventArgs.Index);
+        }
+
         var titleRect = new Rectangle(
             contentLeft,
             tabRect.Top + (_isCompact ? 5 : 7),
-            Math.Max(32, closeRect.Left - contentLeft - 8),
+            Math.Max(24, rightBoundary - contentLeft),
             tabRect.Height - (_isCompact ? 10 : 14));
         var title = TabPages[eventArgs.Index].Text ?? "新标签页";
         using var titleBrush = new SolidBrush(AppTheme.TextPrimary);
@@ -263,6 +297,15 @@ public sealed class ModernTabControl : TabControl, IDisposable
             return;
         }
 
+        var audioTabIndex = HitTestAudio(eventArgs.Location);
+        if (audioTabIndex >= 0 && audioTabIndex < TabPages.Count &&
+            TabPages[audioTabIndex].Tag is BrowserTab audioTab)
+        {
+            audioTab.ToggleMute();
+            Invalidate();
+            return;
+        }
+
         var closeTabIndex = HitTestClose(eventArgs.Location);
         if (closeTabIndex >= 0)
         {
@@ -271,6 +314,19 @@ public sealed class ModernTabControl : TabControl, IDisposable
         }
 
         _dragTabIndex = HitTestTab(eventArgs.Location);
+    }
+
+    private int HitTestAudio(Point location)
+    {
+        foreach (var (index, rect) in _audioButtonRects)
+        {
+            if (rect.Contains(location))
+            {
+                return index;
+            }
+        }
+
+        return -1;
     }
 
     protected override void OnMouseMove(MouseEventArgs eventArgs)
