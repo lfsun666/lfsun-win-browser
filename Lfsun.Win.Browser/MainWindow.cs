@@ -2571,6 +2571,32 @@ public sealed class MainWindow : Form
             }
         };
 
+        FaviconService.FaviconDownloaded += (host, img, _) =>
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try
+            {
+                BeginInvoke(() =>
+                {
+                    foreach (ToolStripItem item in _bookmarksBar.Items)
+                    {
+                        if (item.Tag is BookmarkBarTag tag)
+                        {
+                            var node = _bookmarkManager.FindNode(tag.NodeId);
+                            if (node?.IsLink == true && Uri.TryCreate(node.Url, UriKind.Absolute, out var uri) &&
+                                string.Equals(uri.Host, host, StringComparison.OrdinalIgnoreCase))
+                            {
+                                item.Image = img;
+                            }
+                        }
+                    }
+                });
+            }
+            catch
+            {
+            }
+        };
+
         _backButton.Click += (_, _) =>
         {
             _tabManager.ActiveTab?.GoBack();
@@ -6993,8 +7019,12 @@ public sealed class MainWindow : Form
                 var childCount = CountBookmarkNodes(node.Children);
                 var folderDisplayName = BuildBookmarkDisplayText(node.Name, topNameLength);
                 var folderSuffix = showFolderCounts ? $" ·{childCount}" : string.Empty;
-                var folderButton = new ToolStripDropDownButton($"▸ {folderDisplayName}{folderSuffix}")
+                var folderButton = new ToolStripDropDownButton($"{folderDisplayName}{folderSuffix}")
                 {
+                    Image = FaviconService.GetFolderIcon(),
+                    DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+                    TextImageRelation = TextImageRelation.ImageBeforeText,
+                    ImageScaling = ToolStripItemImageScaling.None,
                     ToolTipText = $"{node.Name}\n文件夹（{childCount} 项）",
                     Tag = new BookmarkBarTag(node.Id, ParentFolderId: null)
                 };
@@ -7023,9 +7053,12 @@ public sealed class MainWindow : Form
             }
 
             var bookmarkDisplayName = BuildBookmarkDisplayText(node.Name, topNameLength);
-            var bookmarkPrefix = ResolveBookmarkGlyph(node.Url, isUltraNarrow);
-            var bookmarkButton = new ToolStripButton($"{bookmarkPrefix}{bookmarkDisplayName}")
+            var bookmarkButton = new ToolStripButton(bookmarkDisplayName)
             {
+                Image = FaviconService.GetIcon(node),
+                DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                ImageScaling = ToolStripItemImageScaling.None,
                 ToolTipText = $"{node.Name}\n{node.Url}",
                 Tag = new BookmarkBarTag(node.Id, ParentFolderId: null)
             };
@@ -7105,8 +7138,10 @@ public sealed class MainWindow : Form
             if (node.IsFolder)
             {
                 var folderName = BuildBookmarkDisplayText(node.Name, menuNameLength);
-                var folder = new ToolStripMenuItem($"▸ {folderName}")
+                var folder = new ToolStripMenuItem(folderName)
                 {
+                    Image = FaviconService.GetFolderIcon(),
+                    ImageScaling = ToolStripItemImageScaling.None,
                     ToolTipText = $"{node.Name}\n文件夹（{CountBookmarkNodes(node.Children)} 项）",
                     Tag = new BookmarkBarTag(node.Id, parentFolderId)
                 };
@@ -7133,9 +7168,10 @@ public sealed class MainWindow : Form
             }
 
             var bookmarkName = BuildBookmarkDisplayText(node.Name, menuNameLength);
-            var bookmarkGlyph = ResolveBookmarkGlyph(node.Url, isUltraNarrow: false).Trim();
-            var bookmark = new ToolStripMenuItem($"{bookmarkGlyph} {bookmarkName}")
+            var bookmark = new ToolStripMenuItem(bookmarkName)
             {
+                Image = FaviconService.GetIcon(node),
+                ImageScaling = ToolStripItemImageScaling.None,
                 ToolTipText = $"{node.Name}\n{node.Url}",
                 Tag = new BookmarkBarTag(node.Id, parentFolderId)
             };

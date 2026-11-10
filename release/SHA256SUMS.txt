@@ -1,4 +1,4 @@
-﻿c10140b1a3ff2e3bb7de5322cbf8a41054dfe061b15562403b4ec027089891a6  LfsunBrowser-portable-latest.zip
+﻿fb89c23151494aa282cf5f056562aa1e55d4be383e8bf029f362a0b99b99a298  LfsunBrowser-portable-latest.zip
 47ef14eeebbb6e7ff209f490eec07aee265e5f253b2697f5666ac88676835d75  LfsunBrowser-portable-win-x64-v0.3.0.zip
 80815cf4ebed7cc315ba57781602d5e8024187ed7fd23c13e860717c9f6b8172  LfsunBrowser-portable-win-x64-v0.4.0.zip
 41849b0bbbdc077d5533a39d0054f286e95875a55b48c1e957dbfca37e54030f  LfsunBrowser-portable-win-x64-v0.5.0.zip
@@ -6,6 +6,7 @@
 3479e2a98e7602677261638fdff4e38f4209e44383f5d0ef48c66c3e55aa75fa  LfsunBrowser-portable-win-x64-v0.7.0.zip
 7277445fa1a83e0e7f8b772c5eff5c496022f37a66b0a98d2a29b71639eae7fd  LfsunBrowser-portable-win-x64-v0.7.1.zip
 c10140b1a3ff2e3bb7de5322cbf8a41054dfe061b15562403b4ec027089891a6  LfsunBrowser-portable-win-x64-v0.8.0.zip
+fb89c23151494aa282cf5f056562aa1e55d4be383e8bf029f362a0b99b99a298  LfsunBrowser-portable-win-x64-v0.8.1.zip
 b3f26de99c613b14bf4fc619d42fe2daa738d768897db166faef94df370b0e6c  LfsunBrowser-setup-0.1.0.exe
 17c162d9f979ea6e14d8df88ffc49b88b018d943ded92d843c51e66bba20d2fa  LfsunBrowser-setup-0.2.0.exe
 c92becb805802d1832e014247903c6c67a3f8dd2a85eb09a098da2e1a9bed812  LfsunBrowser-setup-0.3.0.exe
@@ -15,7 +16,8 @@ c92becb805802d1832e014247903c6c67a3f8dd2a85eb09a098da2e1a9bed812  LfsunBrowser-s
 7e022df62ce5c60c9b53a69844bff708be990dce6fde511e4783e6aa20aeb17c  LfsunBrowser-setup-0.7.0.exe
 fb35d14e866b201daf7b5ec9e3140c74b3dfe53560b2b1e429756d7eab7295ca  LfsunBrowser-setup-0.7.1.exe
 88aac9bf16b73d9ee822d8e5a8660e7308598102ad87762741cd114062d9dcf9  LfsunBrowser-setup-0.8.0.exe
-88aac9bf16b73d9ee822d8e5a8660e7308598102ad87762741cd114062d9dcf9  LfsunBrowser-setup-latest.exe
+064357c5f1f2739f82a066959096eeec49c56a0d35fb381ee9c94f8670bbf718  LfsunBrowser-setup-0.8.1.exe
+064357c5f1f2739f82a066959096eeec49c56a0d35fb381ee9c94f8670bbf718  LfsunBrowser-setup-latest.exe
 e7b93a2a0bbda041b79eff3afb4cf34c876a13fbf935da71b008a39b31e24169  RELEASE_NOTES_v0.1.0.md
 5b3d7fa52ff240e40ed31a055d1959e076c72d2fa3a593347a13b42250a04149  RELEASE_NOTES_v0.2.0.md
 4145b58c83834d4706e0cb9372ce8ccc016038de987b2d36e39c11637d750b57  RELEASE_NOTES_v0.3.0.md
@@ -25,3 +27,4 @@ a5b73c8232d28ba8c2f4122734dffc1cb9f4e3aa30ae4528a249457aa033b556  RELEASE_NOTES_
 47bf38b4a3969e95a5c8d92b2848b59c3b81310e734dcde836a66d66839aa0d0  RELEASE_NOTES_v0.7.0.md
 c106d09c29b447482fee93fd6db42d1b4ce7331349cbf817f8240a8bd160d923  RELEASE_NOTES_v0.7.1.md
 d59759c91ca0b5cafddc71251b6ae2fc9b903da6260f3eeb7a9dfffcc840a43e  RELEASE_NOTES_v0.8.0.md
+b9cae48fc5e694c23adccb5d5953a5f8595d79f347516de541225d1d33ff89dc  RELEASE_NOTES_v0.8.1.md

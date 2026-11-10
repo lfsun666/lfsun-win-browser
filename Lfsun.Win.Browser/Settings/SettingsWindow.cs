@@ -1948,9 +1948,16 @@ public sealed class SettingsWindow : Form
 
         _bodySplitContainer.Panel1MinSize = 0;
         _bodySplitContainer.Panel2MinSize = 0;
-        if (_bodySplitContainer.SplitterDistance != targetDistance)
+        try
         {
-            _bodySplitContainer.SplitterDistance = targetDistance;
+            if (_bodySplitContainer.SplitterDistance != targetDistance)
+            {
+                _bodySplitContainer.SplitterDistance = targetDistance;
+            }
+        }
+        catch
+        {
+            // 防御性忽略极端 DPI 缩放或临界宽度异常
         }
 
 

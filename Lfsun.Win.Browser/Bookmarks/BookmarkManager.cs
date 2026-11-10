@@ -15,6 +15,11 @@ public sealed class BookmarkManager
     {
         _storePath = storePath;
         _log = log;
+
+        FaviconService.FaviconDownloaded += (host, _, base64) =>
+        {
+            UpdateFaviconsByHost(host, base64);
+        };
     }
 
     public BookmarkNode Root => _root;
@@ -131,6 +136,73 @@ public sealed class BookmarkManager
         }
         Save();
         return node;
+    }
+
+    public bool UpdateFaviconByUrl(string url, string favicon)
+    {
+        if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(favicon))
+        {
+            return false;
+        }
+
+        var node = FindByUrl(url);
+        if (node is null || node.Favicon == favicon)
+        {
+            return false;
+        }
+
+        node.Favicon = favicon;
+        Save();
+        return true;
+    }
+
+    public bool UpdateFaviconById(Guid id, string favicon)
+    {
+        var node = FindNode(id);
+        if (node is null || !node.IsLink || node.Favicon == favicon)
+        {
+            return false;
+        }
+
+        node.Favicon = favicon;
+        Save();
+        return true;
+    }
+
+    public int UpdateFaviconsByHost(string host, string favicon)
+    {
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(favicon))
+        {
+            return 0;
+        }
+
+        var updated = 0;
+        void Traverse(BookmarkNode parent)
+        {
+            foreach (var child in parent.Children)
+            {
+                if (child.IsLink && string.IsNullOrWhiteSpace(child.Favicon))
+                {
+                    if (Uri.TryCreate(child.Url, UriKind.Absolute, out var uri) &&
+                        string.Equals(uri.Host, host, StringComparison.OrdinalIgnoreCase))
+                    {
+                        child.Favicon = favicon;
+                        updated++;
+                    }
+                }
+                if (child.IsFolder)
+                {
+                    Traverse(child);
+                }
+            }
+        }
+
+        Traverse(_root);
+        if (updated > 0)
+        {
+            Save();
+        }
+        return updated;
     }
 
     public bool RemoveByUrl(Uri uri)
@@ -428,10 +500,17 @@ public sealed class BookmarkManager
                     var rawUrl = WebUtility.HtmlDecode(match.Groups["url"].Value).Trim();
                     var rawTitle = WebUtility.HtmlDecode(match.Groups["atitle"].Value).Trim();
 
+                    string? favicon = null;
+                    var iconMatch = Regex.Match(match.Value, @"\b(?:ICON|ICON_URI)\s*=\s*[""'](?<icon>[^""']+)[""']", RegexOptions.IgnoreCase);
+                    if (iconMatch.Success)
+                    {
+                        favicon = iconMatch.Groups["icon"].Value.Trim();
+                    }
+
                     if (TryNormalizeUrl(rawUrl, out var normalizedUrl))
                     {
                         var title = string.IsNullOrWhiteSpace(rawTitle) ? normalizedUrl : rawTitle;
-                        stack.Peek().Children.Add(CreateLinkNode(title, normalizedUrl));
+                        stack.Peek().Children.Add(CreateLinkNode(title, normalizedUrl, favicon));
                     }
                 }
                 else if (match.Groups["dlclose"].Success)
@@ -483,11 +562,19 @@ public sealed class BookmarkManager
 
             var name = WebUtility.HtmlEncode(item.Name);
             var url = WebUtility.HtmlEncode(item.Url);
-            sb.AppendLine($"{indent}<DT><A HREF=\"{url}\">{name}</A>");
+            if (!string.IsNullOrWhiteSpace(item.Favicon))
+            {
+                var icon = WebUtility.HtmlEncode(item.Favicon);
+                sb.AppendLine($"{indent}<DT><A HREF=\"{url}\" ICON=\"{icon}\">{name}</A>");
+            }
+            else
+            {
+                sb.AppendLine($"{indent}<DT><A HREF=\"{url}\">{name}</A>");
+            }
         }
     }
 
-    private void Save()
+    public void Save()
     {
         if (!Core.JsonFileStore.Save(_storePath, _root, out var error))
         {
@@ -513,13 +600,14 @@ public sealed class BookmarkManager
         };
     }
 
-    private static BookmarkNode CreateLinkNode(string name, string url)
+    private static BookmarkNode CreateLinkNode(string name, string url, string? favicon = null)
     {
         return new BookmarkNode
         {
             Type = BookmarkNodeType.Link,
             Name = string.IsNullOrWhiteSpace(name) ? url : name,
-            Url = url
+            Url = url,
+            Favicon = favicon
         };
     }
 
@@ -645,7 +733,7 @@ public sealed class BookmarkManager
         return null;
     }
 
-    private BookmarkNode? FindByUrl(string absoluteUrl)
+    public BookmarkNode? FindByUrl(string absoluteUrl)
     {
         return FindByUrlRecursive(_root, absoluteUrl);
     }
@@ -731,6 +819,7 @@ public sealed class BookmarkManager
                     ? (node.Type == BookmarkNodeType.Folder ? "新建文件夹" : "新书签")
                     : node.Name.Trim()),
             Url = node.Type == BookmarkNodeType.Link ? node.Url?.Trim() ?? string.Empty : string.Empty,
+            Favicon = node.Type == BookmarkNodeType.Link ? node.Favicon?.Trim() : null,
             CreatedUtc = node.CreatedUtc == default ? DateTime.UtcNow : node.CreatedUtc
         };
 

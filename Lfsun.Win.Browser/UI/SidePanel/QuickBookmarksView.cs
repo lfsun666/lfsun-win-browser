@@ -15,6 +15,11 @@ public sealed class QuickBookmarksView : UserControl
 
     private readonly TextBox _searchBox = new();
     private readonly TreeView _tree = new();
+    private readonly ImageList _treeImageList = new()
+    {
+        ColorDepth = ColorDepth.Depth32Bit,
+        ImageSize = new Size(16, 16)
+    };
     private readonly ContextMenuStrip _contextMenu = new();
     private readonly ToolStripMenuItem _ctxOpen = new("在当前标签打开");
     private readonly ToolStripMenuItem _ctxOpenNewTab = new("在新标签打开");
@@ -67,6 +72,7 @@ public sealed class QuickBookmarksView : UserControl
 
         _tree.Dock = DockStyle.Fill;
         _tree.BorderStyle = BorderStyle.None;
+        _tree.ImageList = _treeImageList;
         _tree.ShowLines = true;
         _tree.ShowPlusMinus = true;
         _tree.FullRowSelect = true;
@@ -144,6 +150,8 @@ public sealed class QuickBookmarksView : UserControl
     {
         _tree.BeginUpdate();
         _tree.Nodes.Clear();
+        _treeImageList.Images.Clear();
+        _treeImageList.Images.Add("folder", FaviconService.GetFolderIcon());
 
         if (string.IsNullOrWhiteSpace(filter))
         {
@@ -158,10 +166,13 @@ public sealed class QuickBookmarksView : UserControl
             var matched = FindBookmarksRecursive(_bookmarkManager.Root, filter);
             foreach (var bookmark in matched)
             {
-                var node = new TreeNode($"🌐 {bookmark.Name}")
+                var key = FaviconService.EnsureTreeIcon(_treeImageList, bookmark);
+                var node = new TreeNode(bookmark.Name)
                 {
                     Tag = bookmark,
-                    ToolTipText = bookmark.Url
+                    ToolTipText = bookmark.Url,
+                    ImageKey = key,
+                    SelectedImageKey = key
                 };
                 _tree.Nodes.Add(node);
             }
@@ -187,13 +198,16 @@ public sealed class QuickBookmarksView : UserControl
         return list;
     }
 
-    private static TreeNode CreateTreeNode(BookmarkNode node)
+    private TreeNode CreateTreeNode(BookmarkNode node)
     {
+        var key = node.IsFolder ? "folder" : FaviconService.EnsureTreeIcon(_treeImageList, node);
         var treeNode = new TreeNode
         {
-            Text = node.IsFolder ? $"📁 {node.Name}" : $"🌐 {node.Name}",
+            Text = node.Name,
             Tag = node,
-            ToolTipText = node.IsFolder ? $"{node.Children.Count} 项" : node.Url
+            ToolTipText = node.IsFolder ? $"{node.Children.Count} 项" : node.Url,
+            ImageKey = key,
+            SelectedImageKey = key
         };
 
         if (node.IsFolder)

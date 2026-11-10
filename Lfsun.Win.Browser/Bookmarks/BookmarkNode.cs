@@ -12,6 +12,7 @@ public sealed class BookmarkNode
     public BookmarkNodeType Type { get; set; } = BookmarkNodeType.Folder;
     public string Name { get; set; } = string.Empty;
     public string Url { get; set; } = string.Empty;
+    public string? Favicon { get; set; }
     public DateTime CreatedUtc { get; init; } = DateTime.UtcNow;
     public List<BookmarkNode> Children { get; init; } = [];
 

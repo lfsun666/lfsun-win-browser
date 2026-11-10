@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using Lfsun.Win.Browser.Bookmarks;
 using Lfsun.Win.Browser.Core;
 using Lfsun.Win.Browser.Downloads;
 using Lfsun.Win.Browser.Plugins;
@@ -751,6 +752,27 @@ public sealed class BrowserTab : IAsyncDisposable
         await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(PagePointerBridgeScript);
         // 中文注释：注册插件内容脚本（文档创建时按匹配域名执行）。
         await _pluginManager.RegisterContentScriptsAsync(_webView.CoreWebView2);
+
+        _webView.CoreWebView2.FaviconChanged += async (_, _) =>
+        {
+            try
+            {
+                if (_webView?.CoreWebView2 is null) return;
+                var source = _webView.Source;
+                if (source is null || !source.IsAbsoluteUri || string.IsNullOrWhiteSpace(source.Host)) return;
+
+                using var stream = await _webView.CoreWebView2.GetFaviconAsync(Microsoft.Web.WebView2.Core.CoreWebView2FaviconImageFormat.Png);
+                if (stream != null && stream.Length > 0)
+                {
+                    using var img = Image.FromStream(stream);
+                    FaviconService.RegisterFavicon(source.Host, img);
+                }
+            }
+            catch
+            {
+                // 忽略非关键 Favicon 提取异常
+            }
+        };
         _webView.CoreWebView2.WebMessageReceived += async (_, args) =>
         {
             string? message = null;

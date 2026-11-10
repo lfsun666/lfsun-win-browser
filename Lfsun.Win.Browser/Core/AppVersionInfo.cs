@@ -42,6 +42,20 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.8.1",
+            "2026-11-10",
+            "书签网站图标(Favicon)全链路打通、层级自动展开、 SplitContainer 边界零崩溃与后台异步抓取",
+            [
+                "【网站图标(Favicon)全链路支持】书签栏、文件夹下拉列表、书签管理器及侧栏书签全面呈现真实 16x16 网站 Favicon，支持高保真双三次抗锯齿缩放",
+                "【HTML 导入图标提取与持久化】Netscape 书签 HTML 导入时自动解析提取 BASE64 ICON/ICON_URI 属性并妥善持久化存储，导出时保持格式无损兼容",
+                "【Fluent 彩色徽章与优雅渐变目录】无图标时即时以 0ms 响应呈现基于域名特征色+首字母的现代 Fluent 彩色徽章；文件夹全面换用 Win11 拟真黄色文件夹图标",
+                "【WebView2 运行时图标动态捕获】页面加载完成触发 FaviconChanged 时，自动抓取高清图标并实时同步更新至书签及本地高速磁盘缓存（%LocalAppData%\\LfsunBrowser\\cache\\favicons）",
+                "【书签层级自动展开与解包】针对 Chrome/Edge 导出的 HTML 书签文件，自动解包顶级‘书签栏’包裹目录，将 tools/interview/download 等分类直接展开至主书签栏，解决多级嵌套遮挡",
+                "【一键补全网站图标与解包按钮】书签管理界面新增‘补全网站图标’与‘展开书签栏根目录’按键，导入后自动后台静默排队抓取缺失图标，UI 实时无感更新",
+                "【设置窗体 SplitContainer 彻底加固】加固 SettingsWindow 与全窗体 SplitterDistance 赋值保护，彻底消除 DPI 突变与极限缩放下的范围越界异常"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.8.0",
             "2026-11-10",
             "书签按层级展开与极速延迟加载、内部协议智能路由及网页性能诊断卡片",

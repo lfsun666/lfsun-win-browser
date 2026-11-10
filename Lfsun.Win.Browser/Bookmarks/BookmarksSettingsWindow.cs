@@ -20,8 +20,21 @@ public sealed class BookmarksSettingsWindow : Form
     private readonly Button _deleteButton = new();
     private readonly Button _importButton = new();
     private readonly Button _exportButton = new();
+    private readonly Button _fetchIconsButton = new();
+    private readonly Button _unwrapToolbarButton = new();
     private readonly Button _closeButton = new();
     private readonly SplitContainer _splitContainer = new();
+    private readonly ImageList _treeImageList = new()
+    {
+        ColorDepth = ColorDepth.Depth32Bit,
+        ImageSize = new Size(16, 16)
+    };
+    private readonly PictureBox _iconPreviewBox = new()
+    {
+        Size = new Size(20, 20),
+        SizeMode = PictureBoxSizeMode.CenterImage,
+        Margin = new Padding(0, 0, 8, 0)
+    };
     private readonly ContextMenuStrip _treeContextMenu = new();
     private readonly ToolStripMenuItem _treeCtxAddFolder = new("新增文件夹");
     private readonly ToolStripMenuItem _treeCtxAddBookmark = new("新增书签");
@@ -92,6 +105,7 @@ public sealed class BookmarksSettingsWindow : Form
         _tree.Dock = DockStyle.Fill;
         _tree.HideSelection = false;
         _tree.BorderStyle = BorderStyle.FixedSingle;
+        _tree.ImageList = _treeImageList;
         left.Controls.Add(_tree, 0, 3);
         _splitContainer.Panel1.Controls.Add(left);
 
@@ -128,6 +142,17 @@ public sealed class BookmarksSettingsWindow : Form
 
         _typeLabel.AutoSize = true;
         _typeLabel.Text = "类型: -";
+        _typeLabel.TextAlign = ContentAlignment.MiddleLeft;
+
+        var typeFlow = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            WrapContents = false,
+            Margin = new Padding(0, 0, 0, 6)
+        };
+        typeFlow.Controls.Add(_iconPreviewBox);
+        typeFlow.Controls.Add(_typeLabel);
 
         var nameLabel = new Label
         {
@@ -164,29 +189,37 @@ public sealed class BookmarksSettingsWindow : Form
         {
             Dock = DockStyle.Top,
             AutoSize = true,
-            WrapContents = true
+            WrapContents = true,
+            Margin = new Padding(0, 8, 0, 0)
         };
         _importButton.Text = "导入书签";
         _exportButton.Text = "导出书签";
+        _fetchIconsButton.Text = "补全网站图标";
+        _unwrapToolbarButton.Text = "展开书签栏根目录";
         _closeButton.Text = "关闭";
         importExportPanel.Controls.Add(_importButton);
         importExportPanel.Controls.Add(_exportButton);
+        importExportPanel.Controls.Add(_fetchIconsButton);
+        importExportPanel.Controls.Add(_unwrapToolbarButton);
         importExportPanel.Controls.Add(_closeButton);
 
-        right.Controls.Add(_typeLabel, 0, 2);
+        right.Controls.Add(typeFlow, 0, 2);
         right.Controls.Add(nameLabel, 0, 3);
         right.Controls.Add(_nameTextBox, 0, 4);
         right.Controls.Add(urlLabel, 0, 5);
         right.Controls.Add(_urlTextBox, 0, 6);
 
-        var groupPanel = new Panel
+        var groupPanel = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            AutoSize = true
         };
-        editPanel.Top = 0;
-        importExportPanel.Top = 48;
-        groupPanel.Controls.Add(editPanel);
-        groupPanel.Controls.Add(importExportPanel);
+        groupPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        groupPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        groupPanel.Controls.Add(editPanel, 0, 0);
+        groupPanel.Controls.Add(importExportPanel, 0, 1);
         right.Controls.Add(groupPanel, 0, 7);
 
         _splitContainer.Panel2.Controls.Add(right);
@@ -338,6 +371,28 @@ public sealed class BookmarksSettingsWindow : Form
         _deleteButton.Click += (_, _) => DeleteSelectedNode();
         _importButton.Click += (_, _) => ImportBookmarks();
         _exportButton.Click += (_, _) => ExportBookmarks();
+        _fetchIconsButton.Click += (_, _) =>
+        {
+            var queued = FaviconService.QueueBatchFetch(_bookmarkManager.Root.Children);
+            if (queued > 0)
+            {
+                MessageBox.Show(this, $"已在后台任务队列发起 {queued} 个域名的图标抓取，下载完成后将自动更新图标与书签栏。", "获取图标", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                _log($"正在后台为 {queued} 个书签获取网站图标...");
+            }
+            else
+            {
+                MessageBox.Show(this, "当前所有书签均已具备图标或已在本地缓存中，无需重复获取。", "获取图标", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        };
+        _unwrapToolbarButton.Click += (_, _) =>
+        {
+            BookmarkManager.PromoteToolbarFolderChildren(_bookmarkManager.Root);
+            _bookmarkManager.Save();
+            ReloadTree();
+            _onBookmarksChanged();
+            MessageBox.Show(this, "已展开书签栏根目录结构，所有子分类与书签均已按层级直接呈现在书签栏。", "展开书签栏", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            _log("已手动展开书签栏根目录结构");
+        };
         _closeButton.Click += (_, _) => Close();
 
         _treeContextMenu.Items.AddRange(
@@ -365,6 +420,25 @@ public sealed class BookmarksSettingsWindow : Form
         _treeCtxDeleteNode.Click += (_, _) => DeleteSelectedNode();
         _treeCtxClearFolderChildren.Click += (_, _) => ClearSelectedFolderChildren();
         _treeCtxClearAll.Click += (_, _) => ClearAllBookmarks();
+
+        FaviconService.FaviconDownloaded += (_, _, _) =>
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try
+            {
+                BeginInvoke(() =>
+                {
+                    var selected = GetSelectedBookmarkNode();
+                    if (selected is not null)
+                    {
+                        _iconPreviewBox.Image = FaviconService.GetIcon(selected);
+                    }
+                });
+            }
+            catch
+            {
+            }
+        };
     }
 
     private void ShowTreeContextMenu(Point location)
@@ -376,6 +450,8 @@ public sealed class BookmarksSettingsWindow : Form
     {
         _tree.BeginUpdate();
         _tree.Nodes.Clear();
+        _treeImageList.Images.Clear();
+        _treeImageList.Images.Add("folder", FaviconService.GetFolderIcon());
 
         var totalFolderCount = 0;
         var totalBookmarkCount = 0;
@@ -426,11 +502,14 @@ public sealed class BookmarksSettingsWindow : Form
         RefreshEditor();
     }
 
-    private static TreeNode BuildTreeNode(BookmarkNode node)
+    private TreeNode BuildTreeNode(BookmarkNode node)
     {
-        var treeNode = new TreeNode(node.IsFolder ? $"[文件夹] {node.Name}" : node.Name)
+        var key = node.IsFolder ? "folder" : FaviconService.EnsureTreeIcon(_treeImageList, node);
+        var treeNode = new TreeNode(node.Name)
         {
-            Tag = node.Id
+            Tag = node.Id,
+            ImageKey = key,
+            SelectedImageKey = key
         };
 
         foreach (var child in node.Children)
@@ -441,7 +520,7 @@ public sealed class BookmarksSettingsWindow : Form
         return treeNode;
     }
 
-    private static TreeNode? BuildFilteredTreeNode(BookmarkNode node, string query, ref int visibleNodeCount)
+    private TreeNode? BuildFilteredTreeNode(BookmarkNode node, string query, ref int visibleNodeCount)
     {
         var normalizedQuery = query.Trim();
         var selfMatches =
@@ -463,9 +542,12 @@ public sealed class BookmarksSettingsWindow : Form
             return null;
         }
 
-        var treeNode = new TreeNode(node.IsFolder ? $"[文件夹] {node.Name}" : node.Name)
+        var key = node.IsFolder ? "folder" : FaviconService.EnsureTreeIcon(_treeImageList, node);
+        var treeNode = new TreeNode(node.Name)
         {
-            Tag = node.Id
+            Tag = node.Id,
+            ImageKey = key,
+            SelectedImageKey = key
         };
         foreach (var childNode in childMatches)
         {
@@ -497,6 +579,7 @@ public sealed class BookmarksSettingsWindow : Form
         var selectedNode = GetSelectedBookmarkNode();
         if (selectedNode is null)
         {
+            _iconPreviewBox.Visible = false;
             _typeLabel.Text = "类型: -";
             _nameTextBox.Text = string.Empty;
             _urlTextBox.Text = string.Empty;
@@ -506,6 +589,8 @@ public sealed class BookmarksSettingsWindow : Form
             return;
         }
 
+        _iconPreviewBox.Image = FaviconService.GetIcon(selectedNode);
+        _iconPreviewBox.Visible = true;
         _typeLabel.Text = selectedNode.IsFolder ? "类型: 文件夹" : "类型: 书签";
         _nameTextBox.Text = selectedNode.Name;
         _urlTextBox.Enabled = selectedNode.IsLink;
@@ -646,6 +731,12 @@ public sealed class BookmarksSettingsWindow : Form
         ReloadTree();
         _onBookmarksChanged();
         _log(replace ? "书签已导入（替换模式）" : "书签已导入（合并模式）");
+
+        var queuedIcons = FaviconService.QueueBatchFetch(_bookmarkManager.Root.Children);
+        if (queuedIcons > 0)
+        {
+            _log($"已自动在后台为 {queuedIcons} 个导入的书签获取网站图标...");
+        }
     }
 
     private void ExportBookmarks()

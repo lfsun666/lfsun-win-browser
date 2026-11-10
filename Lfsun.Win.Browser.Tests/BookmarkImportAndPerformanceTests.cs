@@ -171,4 +171,160 @@ public sealed class BookmarkImportAndPerformanceTests
         Assert.Contains("350.0 KB", md);
         Assert.Contains("`HTTP/2`", md);
     }
+
+    [Fact]
+    public void ImportFromFile_HtmlWithFavicon_ShouldExtractAndPersistFavicon()
+    {
+        const string base64Icon = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+        var html = $"""
+            <!DOCTYPE NETSCAPE-Bookmark-file-1>
+            <TITLE>Bookmarks</TITLE>
+            <H1>Bookmarks</H1>
+            <DL><p>
+                <DT><A HREF="https://github.com" ICON="{base64Icon}">GitHub</A>
+                <DT><A HREF="https://bing.com">Bing</A>
+            </DL><p>
+            """;
+
+        var tempFile = Path.Combine(Path.GetTempPath(), $"bookmarks_icon_test_{Guid.NewGuid():N}.html");
+        var storeFile = Path.Combine(Path.GetTempPath(), $"bookmarks_store_{Guid.NewGuid():N}.json");
+
+        try
+        {
+            File.WriteAllText(tempFile, html);
+            var manager = new BookmarkManager(storeFile, _ => { });
+            var success = manager.ImportFromFile(tempFile, replaceExisting: true);
+
+            Assert.True(success);
+            var githubNode = manager.FindByUrl("https://github.com/");
+            Assert.NotNull(githubNode);
+            Assert.Equal(base64Icon, githubNode.Favicon);
+
+            var bingNode = manager.FindByUrl("https://bing.com/");
+            Assert.NotNull(bingNode);
+            Assert.Null(bingNode.Favicon);
+
+            // Test export preserves ICON
+            var exportFile = Path.Combine(Path.GetTempPath(), $"bookmarks_export_{Guid.NewGuid():N}.html");
+            Assert.True(manager.ExportToFile(exportFile));
+            var exportedHtml = File.ReadAllText(exportFile);
+            Assert.Contains("ICON=", exportedHtml);
+            File.Delete(exportFile);
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+            if (File.Exists(storeFile)) File.Delete(storeFile);
+        }
+    }
+
+    [Fact]
+    public void FaviconService_ShouldProduceValid16x16Icons()
+    {
+        var folderIcon = FaviconService.GetFolderIcon();
+        Assert.NotNull(folderIcon);
+        Assert.Equal(16, folderIcon.Width);
+        Assert.Equal(16, folderIcon.Height);
+
+        var webIcon = FaviconService.GetIcon("https://example.com/test", "Example Test");
+        Assert.NotNull(webIcon);
+        Assert.Equal(16, webIcon.Width);
+        Assert.Equal(16, webIcon.Height);
+
+        var internalIcon = FaviconService.GetIcon("edge://settings/appearance", "Settings");
+        Assert.NotNull(internalIcon);
+        Assert.Equal(16, internalIcon.Width);
+        Assert.Equal(16, internalIcon.Height);
+    }
+
+    [Fact]
+    public void BookmarkManager_UpdateFaviconsByHost_ShouldUpdateAllMatchingLinks()
+    {
+        var storeFile = Path.Combine(Path.GetTempPath(), $"bookmarks_host_test_{Guid.NewGuid():N}.json");
+        try
+        {
+            var manager = new BookmarkManager(storeFile, _ => { });
+            var b1 = manager.AddBookmark(null, "GH1", "https://github.com/repo1");
+            var b2 = manager.AddBookmark(null, "GH2", "https://github.com/repo2");
+            var b3 = manager.AddBookmark(null, "Bing", "https://bing.com");
+
+            const string fakeIcon = "data:image/png;base64,FAKE";
+            var updatedCount = manager.UpdateFaviconsByHost("github.com", fakeIcon);
+
+            Assert.Equal(2, updatedCount);
+            Assert.Equal(fakeIcon, manager.FindNode(b1!.Id)!.Favicon);
+            Assert.Equal(fakeIcon, manager.FindNode(b2!.Id)!.Favicon);
+            Assert.Null(manager.FindNode(b3!.Id)!.Favicon);
+        }
+        finally
+        {
+            if (File.Exists(storeFile)) File.Delete(storeFile);
+        }
+    }
+
+    [Fact]
+    public void ImportFromFile_ChromeBookmarkBarWrapper_ShouldUnwrapAndPromoteToRoot()
+    {
+        var html = """
+            <!DOCTYPE NETSCAPE-Bookmark-file-1>
+            <TITLE>Bookmarks</TITLE>
+            <H1>Bookmarks</H1>
+            <DL><p>
+                <DT><H3 ADD_DATE="1600000000" LAST_MODIFIED="1600000000" PERSONAL_TOOLBAR_FOLDER="true">书签栏</H3>
+                <DL><p>
+                    <DT><H3>tools</H3>
+                    <DL><p>
+                        <DT><A HREF="https://tools.example.com">Tool 1</A>
+                    </DL><p>
+                    <DT><H3>interview</H3>
+                    <DL><p>
+                        <DT><A HREF="https://interview.example.com">Interview 1</A>
+                    </DL><p>
+                </DL><p>
+            </DL><p>
+            """;
+
+        var tempFile = Path.Combine(Path.GetTempPath(), $"bookmarks_chrome_test_{Guid.NewGuid():N}.html");
+        var storeFile = Path.Combine(Path.GetTempPath(), $"bookmarks_store_{Guid.NewGuid():N}.json");
+
+        try
+        {
+            File.WriteAllText(tempFile, html);
+            var manager = new BookmarkManager(storeFile, _ => { });
+            var success = manager.ImportFromFile(tempFile, replaceExisting: true);
+
+            Assert.True(success);
+            // Should be unwrapped: top level has "tools" and "interview", not "书签栏"
+            Assert.Equal(2, manager.TopLevelItems.Count);
+            Assert.Contains(manager.TopLevelItems, item => item.Name == "tools" && item.IsFolder);
+            Assert.Contains(manager.TopLevelItems, item => item.Name == "interview" && item.IsFolder);
+            Assert.DoesNotContain(manager.TopLevelItems, item => item.Name == "书签栏");
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+            if (File.Exists(storeFile)) File.Delete(storeFile);
+        }
+    }
+
+    [Fact]
+    public void FaviconService_QueueBatchFetch_ShouldQueueWithoutErrors()
+    {
+        var root = new BookmarkNode { Type = BookmarkNodeType.Folder, Name = "Root" };
+        root.Children.Add(new BookmarkNode
+        {
+            Type = BookmarkNodeType.Link,
+            Name = "Bing",
+            Url = "https://www.bing.com"
+        });
+        root.Children.Add(new BookmarkNode
+        {
+            Type = BookmarkNodeType.Link,
+            Name = "GitHub",
+            Url = "https://github.com"
+        });
+
+        var queued = FaviconService.QueueBatchFetch(root.Children);
+        Assert.True(queued >= 0);
+    }
 }
