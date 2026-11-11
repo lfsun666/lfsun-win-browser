@@ -199,15 +199,15 @@ public sealed class BrowserSidePanel : Panel
         var btn = new Button
         {
             Text = $"{icon} {label}",
-            Width = 58,
+            Width = 54,
             Height = 30,
             Font = AppTheme.CreateFont(8.4F, FontStyle.Bold),
             FlatStyle = FlatStyle.Flat,
-            Margin = new Padding(2, 1, 2, 1),
+            Margin = new Padding(1, 1, 1, 1),
             Cursor = Cursors.Hand
         };
         btn.FlatAppearance.BorderSize = 0;
-        ApplyControlRegion(btn, 6);
+        AppTheme.ApplyControlRegion(btn, 6);
         btn.Click += (_, _) => SwitchTo(mode);
         _navButtons[mode] = btn;
         return btn;
@@ -215,10 +215,7 @@ public sealed class BrowserSidePanel : Panel
 
     private static void ApplyControlRegion(Control control, int radius)
     {
-        var old = control.Region;
-        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, control.Width, control.Height), radius);
-        control.Region = new Region(path);
-        old?.Dispose();
+        AppTheme.ApplyControlRegion(control, radius);
     }
 
     public void SwitchTo(SidePanelMode mode)

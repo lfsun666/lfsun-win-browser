@@ -306,19 +306,21 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
             return;
         }
 
-        if (size.Width <= 0 || size.Height <= 0)
+        var bounds = new Rectangle(Point.Empty, size);
+        bounds.Inflate(-2, -2);
+        if (bounds.Width <= 0 || bounds.Height <= 0)
         {
             return;
         }
 
-        var bounds = new Rectangle(Point.Empty, size);
-
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
         var color = isPressed
             ? (AppTheme.IsDark ? Color.FromArgb(60, 255, 255, 255) : Color.FromArgb(35, 0, 0, 0))
             : (AppTheme.IsDark ? Color.FromArgb(32, 255, 255, 255) : Color.FromArgb(18, 0, 0, 0));
 
+        using var path = AppTheme.BuildRoundedRect(bounds, 4);
         using var brush = new SolidBrush(color);
-        graphics.FillRectangle(brush, bounds);
+        graphics.FillPath(brush, path);
     }
 
     private static void RenderToolbarButtonBackground(
@@ -379,10 +381,15 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
         var fillColor = isPressed
             ? (AppTheme.IsDark ? Color.FromArgb(50, 255, 255, 255) : Color.FromArgb(30, 0, 0, 0))
             : (AppTheme.IsDark ? Color.FromArgb(28, 255, 255, 255) : Color.FromArgb(16, 0, 0, 0));
+        var borderColor = isPressed
+            ? (AppTheme.IsDark ? Color.FromArgb(70, 255, 255, 255) : Color.FromArgb(45, 0, 0, 0))
+            : (AppTheme.IsDark ? Color.FromArgb(36, 255, 255, 255) : Color.FromArgb(22, 0, 0, 0));
 
         using var path = AppTheme.BuildRoundedRect(bounds, 6);
         using var brush = new SolidBrush(fillColor);
+        using var borderPen = new Pen(borderColor, 1F);
         graphics.FillPath(brush, path);
+        graphics.DrawPath(borderPen, path);
     }
 
     private static void RenderTitleTabBackground(

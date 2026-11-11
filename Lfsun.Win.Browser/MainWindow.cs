@@ -737,6 +737,7 @@ public sealed class MainWindow : Form
         _addressSuggestionPanel.BorderStyle = BorderStyle.None;
         _addressSuggestionPanel.Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right;
         _addressSuggestionPanel.Padding = new Padding(2);
+        AppTheme.ApplyControlRegion(_addressSuggestionPanel, 12);
         _addressSuggestionPanel.Paint += (_, eventArgs) => DrawAddressSuggestionSurface(eventArgs.Graphics);
 
         _addressSuggestionListBox.Dock = DockStyle.Fill;

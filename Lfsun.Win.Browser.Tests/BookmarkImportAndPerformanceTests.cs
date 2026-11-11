@@ -790,4 +790,51 @@ public sealed class BookmarkImportAndPerformanceTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void ModernTabControl_And_SidePanel_And_SplitPanel_ConfiguredProperly()
+    {
+        var thread = new Thread(() =>
+        {
+            // 1. ModernTabControl
+            using var tabControl = new Lfsun.Win.Browser.UI.ModernTabControl();
+            tabControl.TabPages.Add(new TabPage("测试标签 1"));
+            tabControl.TabPages.Add(new TabPage("测试标签 2"));
+            tabControl.SelectedIndex = 0;
+            tabControl.ApplyDensity(compact: false);
+            Assert.Equal(2, tabControl.TabPages.Count);
+
+            // 2. BrowserSidePanel
+            var tempDir = Path.Combine(Path.GetTempPath(), "sidepanel_test_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try
+            {
+                var bm = new BookmarkManager(Path.Combine(tempDir, "b.json"), _ => { });
+                var hm = new HistoryManager(Path.Combine(tempDir, "h.json"), _ => { });
+                var dm = new DownloadManager(tempDir, _ => { });
+                using var sidePanel = new Lfsun.Win.Browser.UI.SidePanel.BrowserSidePanel(
+                    bm, hm, dm, () => null, (_, _) => Task.CompletedTask, _ => { }, () => { }, () => { }, () => { });
+                Assert.NotNull(sidePanel);
+                sidePanel.ApplyTheme();
+                sidePanel.SwitchTo(Lfsun.Win.Browser.UI.SidePanel.SidePanelMode.Scratchpad);
+                Assert.Equal(Lfsun.Win.Browser.UI.SidePanel.SidePanelMode.Scratchpad, sidePanel.CurrentMode);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    try { Directory.Delete(tempDir, true); } catch { }
+                }
+            }
+
+            // 3. SplitBrowserPanel
+            using var splitPanel = new Lfsun.Win.Browser.UI.SplitView.SplitBrowserPanel();
+            Assert.NotNull(splitPanel);
+            splitPanel.ApplyTheme();
+            Assert.False(splitPanel.IsSplitActive);
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }

@@ -110,7 +110,13 @@ public sealed class ModernTabControl : TabControl, IDisposable
                     ? AppTheme.Mix(AppTheme.SurfaceAlt, Color.White, 0.05F)
                     : AppTheme.Mix(AppTheme.SurfaceAlt, Color.Black, 0.025F))
                 : AppTheme.Surface;
-        var border = selected ? AppTheme.PanelBorder : AppTheme.Surface;
+        var border = selected
+            ? AppTheme.Mix(AppTheme.Accent, AppTheme.PanelBorder, 0.40F)
+            : (hovered
+                ? (AppTheme.IsDark
+                    ? Color.FromArgb(55, 255, 255, 255)
+                    : Color.FromArgb(38, 0, 0, 0))
+                : AppTheme.Surface);
 
         var tabRect = Rectangle.Inflate(bounds, -3, selected ? -1 : (_isCompact ? -2 : -4));
         if (selected)
@@ -147,6 +153,14 @@ public sealed class ModernTabControl : TabControl, IDisposable
         {
             using var closeHoverBrush = new SolidBrush(AppTheme.Danger);
             eventArgs.Graphics.FillEllipse(closeHoverBrush, closeRect);
+        }
+        else if (hovered || selected)
+        {
+            var subtleColor = AppTheme.IsDark
+                ? Color.FromArgb(18, 255, 255, 255)
+                : Color.FromArgb(12, 0, 0, 0);
+            using var closeSubtleBrush = new SolidBrush(subtleColor);
+            eventArgs.Graphics.FillEllipse(closeSubtleBrush, closeRect);
         }
 
         var contentLeft = tabRect.Left + 12;

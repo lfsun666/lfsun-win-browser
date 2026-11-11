@@ -69,6 +69,11 @@ public sealed class SplitBrowserPanel : Panel
         _secondaryHeader.Height = 36;
         _secondaryHeader.Padding = new Padding(6, 4, 6, 4);
         _secondaryHeader.BackColor = AppTheme.SurfaceAlt;
+        _secondaryHeader.Paint += (_, e) =>
+        {
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawLine(pen, 0, _secondaryHeader.Height - 1, _secondaryHeader.Width, _secondaryHeader.Height - 1);
+        };
 
         var headerFlow = new FlowLayoutPanel
         {
@@ -326,18 +331,15 @@ public sealed class SplitBrowserPanel : Panel
         {
             btn.FlatAppearance.MouseOverBackColor = hoverBg;
             btn.FlatAppearance.MouseDownBackColor = pressBg;
-            ApplyControlRegion(btn, 5);
+            ApplyControlRegion(btn, 6);
         }
         _btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(232, 17, 35);
         _btnClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(199, 15, 29);
-        ApplyControlRegion(_btnClose, 5);
+        ApplyControlRegion(_btnClose, 6);
     }
 
     private static void ApplyControlRegion(Control control, int radius)
     {
-        var old = control.Region;
-        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, control.Width, control.Height), radius);
-        control.Region = new Region(path);
-        old?.Dispose();
+        AppTheme.ApplyControlRegion(control, radius);
     }
 }
