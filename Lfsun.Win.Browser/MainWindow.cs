@@ -1192,7 +1192,11 @@ public sealed class MainWindow : Form
         _appMenu.Items.Add(MenuItem("关于 LfsunBrowser", string.Empty, (_, _) => ShowAbout()));
 
         AppTheme.ApplyContextMenu(_appMenu);
-        _appMenuButton.Click += (_, _) => _appMenu.Show(Cursor.Position);
+        _appMenuButton.Click += (_, _) =>
+        {
+            var popupPoint = new Point(_appMenuButton.Bounds.Left, _appMenuButton.Bounds.Bottom + 1);
+            _appMenu.Show(_topBar, popupPoint);
+        };
     }
 
     private static ToolStripMenuItem HeaderItem(string text)
@@ -1746,31 +1750,51 @@ public sealed class MainWindow : Form
     {
         _topBar.SuspendLayout();
         _topBar.Items.Clear();
-        // 中文注释：应用菜单（汉堡）固定在工具栏最左侧，每次重建都重新加入，避免被清理。
+
+        // 1. 左侧核心导航：应用菜单与前进/后退/刷新
         _appMenuButton.Alignment = ToolStripItemAlignment.Left;
         _topBar.Items.Add(_appMenuButton);
-        var insertedAddress = false;
-        var insertedAddressTools = false;
-        var insertedQuickCluster = false;
-        var insertedPinnedPlugins = false;
-        var hasToolbarItem = false;
-        var previousGroup = int.MinValue;
 
-        foreach (var button in _config.ToolbarButtons
-                     .Where(item => item.Visible)
-                     .OrderBy(item => item.Order))
+        var navIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ToolbarButtonIds.Back,
+            ToolbarButtonIds.Forward,
+            ToolbarButtonIds.Refresh
+        };
+
+        var orderedButtons = _config.ToolbarButtons
+            .Where(item => item.Visible)
+            .OrderBy(item => item.Order)
+            .ToList();
+
+        foreach (var button in orderedButtons.Where(b => navIds.Contains(b.Id)))
         {
             if (_toolbarItemsById.TryGetValue(button.Id, out var item))
             {
-                var group = ResolveToolbarGroup(button.Id);
-                if (hasToolbarItem && previousGroup != group)
-                {
-                    AppendTopBarSeparatorIfNeeded();
-                }
+                item.Overflow = ToolStripItemOverflow.Never;
+                _topBar.Items.Add(item);
+            }
+        }
 
+        // 2. 中央核心地址栏（紧随导航键，自然伸展占满剩余视域）
+        _siteBadgeLabel.Alignment = ToolStripItemAlignment.Left;
+        _topBar.Items.Add(_siteBadgeLabel);
+        _topBar.Items.Add(_addressTextBox);
+        _topBar.Items.Add(_zoomPillButton);
+        _topBar.Items.Add(_commandPaletteButton);
+        _topBar.Items.Add(_tabSwitchButton);
+
+        // 3. 右侧工具与快捷功能按键集群（统一单分隔线，集群化无冗余分割线）
+        AppendTopBarSeparatorIfNeeded();
+        var insertedPinnedPlugins = false;
+
+        foreach (var button in orderedButtons.Where(b => !navIds.Contains(b.Id)))
+        {
+            if (_toolbarItemsById.TryGetValue(button.Id, out var item))
+            {
                 item.Overflow = ToolStripItemOverflow.AsNeeded;
                 _topBar.Items.Add(item);
-                // 中文注释：固定的插件快捷按钮紧跟在“插件”按钮后，任意页面可见。
+
                 if (string.Equals(button.Id, ToolbarButtonIds.Plugins, StringComparison.OrdinalIgnoreCase))
                 {
                     foreach (var pinnedButton in _pinnedPluginButtons)
@@ -1781,41 +1805,11 @@ public sealed class MainWindow : Form
 
                     insertedPinnedPlugins = true;
                 }
-
-                hasToolbarItem = true;
-                previousGroup = group;
-                if (!insertedQuickCluster && string.Equals(button.Id, "settings", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (!insertedAddress)
-                    {
-                        AppendTopBarSeparatorIfNeeded();
-                        _siteBadgeLabel.Alignment = ToolStripItemAlignment.Left;
-                        _topBar.Items.Add(_siteBadgeLabel);
-                        _topBar.Items.Add(_addressTextBox);
-                        _topBar.Items.Add(_zoomPillButton);
-                        _topBar.Items.Add(_commandPaletteButton);
-                        _topBar.Items.Add(_tabSwitchButton);
-                        insertedAddressTools = true;
-                        insertedAddress = true;
-                    }
-
-                    AppendTopBarSeparatorIfNeeded();
-                    _recentTabsButton.Alignment = ToolStripItemAlignment.Left;
-                    _topBar.Items.Add(_recentTabsButton);
-                    _sessionButton.Alignment = ToolStripItemAlignment.Left;
-                    _topBar.Items.Add(_sessionButton);
-                    _tabQuickButton.Alignment = ToolStripItemAlignment.Left;
-                    _topBar.Items.Add(_tabQuickButton);
-                    insertedQuickCluster = true;
-                }
             }
         }
 
-        // 中文注释：“插件”按钮被隐藏（如只用标题栏插件入口）时，固定的插件快捷按钮也必须上工具栏，
-        // 否则“固定到工具栏”后没有任何可见按钮，仍要钻插件下拉三级菜单才能运行。
         if (!insertedPinnedPlugins && _pinnedPluginButtons.Count > 0)
         {
-            AppendTopBarSeparatorIfNeeded();
             foreach (var pinnedButton in _pinnedPluginButtons)
             {
                 pinnedButton.Overflow = ToolStripItemOverflow.AsNeeded;
@@ -1823,30 +1817,15 @@ public sealed class MainWindow : Form
             }
         }
 
-        if (!insertedAddress)
-        {
-            AppendTopBarSeparatorIfNeeded();
-            _siteBadgeLabel.Alignment = ToolStripItemAlignment.Left;
-            _topBar.Items.Add(_siteBadgeLabel);
-            _topBar.Items.Add(_addressTextBox);
-        }
-
-        if (!insertedAddressTools)
-        {
-            _topBar.Items.Add(_commandPaletteButton);
-            _topBar.Items.Add(_tabSwitchButton);
-        }
-
-        if (!insertedQuickCluster)
-        {
-            AppendTopBarSeparatorIfNeeded();
-            _recentTabsButton.Alignment = ToolStripItemAlignment.Left;
-            _topBar.Items.Add(_recentTabsButton);
-            _sessionButton.Alignment = ToolStripItemAlignment.Left;
-            _topBar.Items.Add(_sessionButton);
-            _tabQuickButton.Alignment = ToolStripItemAlignment.Left;
-            _topBar.Items.Add(_tabQuickButton);
-        }
+        _recentTabsButton.Alignment = ToolStripItemAlignment.Left;
+        _recentTabsButton.Overflow = ToolStripItemOverflow.AsNeeded;
+        _topBar.Items.Add(_recentTabsButton);
+        _sessionButton.Alignment = ToolStripItemAlignment.Left;
+        _sessionButton.Overflow = ToolStripItemOverflow.AsNeeded;
+        _topBar.Items.Add(_sessionButton);
+        _tabQuickButton.Alignment = ToolStripItemAlignment.Left;
+        _tabQuickButton.Overflow = ToolStripItemOverflow.AsNeeded;
+        _topBar.Items.Add(_tabQuickButton);
 
         _topBar.ResumeLayout();
     }
@@ -7193,6 +7172,7 @@ public sealed class MainWindow : Form
             DisplayStyle = ToolStripItemDisplayStyle.Text,
             ToolTipText = "搜索书签 / 打开书签管理 (Ctrl+B)"
         };
+        StyleBookmarkBarItem(searchBookmarksButton, isFolder: false);
         searchBookmarksButton.Click += (_, _) => ShowBookmarksSettingsWindow();
         AttachBookmarkBarHoverEffect(searchBookmarksButton);
         _bookmarksBar.Items.Add(searchBookmarksButton);

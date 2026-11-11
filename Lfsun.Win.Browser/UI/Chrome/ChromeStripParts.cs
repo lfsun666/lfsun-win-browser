@@ -163,7 +163,7 @@ public sealed class ToolStripSpringLabel : ToolStripLabel
 
         foreach (ToolStripItem item in Owner.Items)
         {
-            if (item == this || item.IsOnOverflow)
+            if (item == this || !item.Available)
             {
                 continue;
             }
@@ -197,7 +197,7 @@ public sealed class ToolStripSpringTextBox : ToolStripTextBox
 
         foreach (ToolStripItem item in Owner.Items)
         {
-            if (item == this || item.IsOnOverflow)
+            if (item == this || !item.Available)
             {
                 continue;
             }
@@ -205,9 +205,8 @@ public sealed class ToolStripSpringTextBox : ToolStripTextBox
             width -= item.Width + item.Margin.Horizontal;
         }
 
-        var minWidth = AppTheme.IsCompact ? 150 : 180;
-        var threshold = AppTheme.IsCompact ? 200 : 240;
-        if (width < threshold)
+        var minWidth = AppTheme.IsCompact ? 160 : 200;
+        if (width < minWidth)
         {
             width = minWidth;
         }

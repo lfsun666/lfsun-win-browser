@@ -331,7 +331,7 @@ public static class AppTheme
         button.Padding = padding;
         var textHeight = TextRenderer.MeasureText("中Ay", button.Font, Size.Empty, TextFormatFlags.SingleLine).Height;
         var minHeight = textHeight + padding.Vertical + (_isCompact ? 6 : 8);
-        button.MinimumSize = new Size(_isCompact ? 96 : 112, minHeight);
+        button.MinimumSize = new Size(_isCompact ? 76 : 84, minHeight);
         button.FlatStyle = FlatStyle.Flat;
         // 中文注释：Fluent 风扁平按钮：强调按钮纯色无描边，普通按钮中性底 + 细边。
         button.FlatAppearance.BorderSize = emphasize ? 0 : 1;

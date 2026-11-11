@@ -1,30 +1,35 @@
-# LfsunBrowser 全版本发布与交付说明
+﻿# LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.6 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.7 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 3 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.6)
+## 当前最新交付清单 (v0.9.7)
 
-- **LfsunBrowser-portable-latest.zip** (65.54 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.4.zip** (65.54 MB)
+- **LfsunBrowser-portable-latest.zip** (63.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.5.zip** (65.54 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.6.zip** (65.54 MB)
-- **LfsunBrowser-setup-0.9.4.exe** (47.67 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.7.zip** (63.57 MB)
 - **LfsunBrowser-setup-0.9.5.exe** (47.67 MB)
 - **LfsunBrowser-setup-0.9.6.exe** (47.67 MB)
-- **LfsunBrowser-setup-latest.exe** (47.67 MB)
+- **LfsunBrowser-setup-0.9.7.exe** (47.68 MB)
+- **LfsunBrowser-setup-latest.exe** (47.68 MB)
 
 ## 当前版本更新亮点
 
-- 全局UI布局全域精细化规范：导航工具栏与标题栏全量图标药丸化、多开/扩展/外观/引擎统一32px规整、圆角安全芯片与折叠Chevron渲染重绘、书签栏紧凑微间距、Splitter临界尺寸防御加固
+- 常规更新与体验优化
 
 ---
 
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.7] - 2026-11-11
+
+### 变更内容
+- 现代经典三段式工具栏架构重构：地址栏紧随左侧核心导航自然舒展居中、右侧工具按键集群化对齐、弹簧文本框防挤占溢出防御、全局通用按钮微间距统一与 Fluent 设计准则对齐
 
 ## [0.9.6] - 2026-11-11
 

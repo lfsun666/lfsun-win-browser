@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "0.9.6"
+  #define MyAppVersion "0.9.7"
 #endif
 
 #ifndef MySourceDir

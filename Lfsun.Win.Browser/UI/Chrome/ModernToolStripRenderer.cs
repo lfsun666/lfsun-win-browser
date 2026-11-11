@@ -120,8 +120,11 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
         using var arrowPen = new Pen(AppTheme.TextSecondary, 1.6F);
         var cx = bounds.Left + bounds.Width / 2;
         var cy = bounds.Top + bounds.Height / 2;
-        e.Graphics.DrawLine(arrowPen, cx - 4, cy - 2, cx, cy + 2);
-        e.Graphics.DrawLine(arrowPen, cx, cy + 2, cx + 4, cy - 2);
+        // 绘制精致的双重折叠 chevron "»"
+        e.Graphics.DrawLine(arrowPen, cx - 4, cy - 4, cx - 1, cy);
+        e.Graphics.DrawLine(arrowPen, cx - 1, cy, cx - 4, cy + 4);
+        e.Graphics.DrawLine(arrowPen, cx + 1, cy - 4, cx + 4, cy);
+        e.Graphics.DrawLine(arrowPen, cx + 4, cy, cx + 1, cy + 4);
     }
 
     protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)

@@ -1,4 +1,4 @@
-namespace Lfsun.Win.Browser.UI.Chrome;
+﻿namespace Lfsun.Win.Browser.UI.Chrome;
 
 /// <summary>
 /// 底部状态栏组件：四段状态标签（主状态/模式/公网IP/内存统计）。
@@ -122,8 +122,8 @@ public sealed class StatusBarPanel
         }
 
         // 中文注释：窄屏时让状态栏优先展示运行状态和内存，弱化次级信息，避免信息挤压。
-        StatusLabel.Spring = isCompact;
-        StatusLabel.TextAlign = isCompact ? ContentAlignment.MiddleLeft : ContentAlignment.MiddleCenter;
+        StatusLabel.Spring = true;
+        StatusLabel.TextAlign = ContentAlignment.MiddleLeft;
         StatusLabel.Padding = isUltraNarrow ? new Padding(2, 1, 2, 1) : new Padding(8, 2, 8, 2);
         var compactPadding = isUltraNarrow ? new Padding(4, 1, 4, 1) : new Padding(7, 2, 7, 2);
         AdBlockLabel.Padding = compactPadding;
