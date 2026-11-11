@@ -288,6 +288,8 @@ public sealed class HistoryWindow : Form
         StyleControlTree(this);
         AppTheme.ApplyPrimaryButton(_openButton, emphasize: true);
         AppTheme.ApplyPrimaryButton(_closeButton, emphasize: false);
+        AppTheme.ApplyControlRegion(_openButton, 6);
+        AppTheme.ApplyControlRegion(_closeButton, 6);
         _clearHistoryButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
         _deleteSelectedButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
         AppTheme.ApplyContextMenu(_historyContextMenu);
@@ -322,6 +324,7 @@ public sealed class HistoryWindow : Form
             if (control is Button button)
             {
                 AppTheme.ApplyPrimaryButton(button);
+                AppTheme.ApplyControlRegion(button, 6);
             }
             else if (control is TextBox textBox)
             {

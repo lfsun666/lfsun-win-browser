@@ -70,6 +70,8 @@ public sealed class FindBar : Panel
         _matchCountLabel.TextAlign = ContentAlignment.MiddleCenter;
         _matchCountLabel.Font = AppTheme.CreateFont(8.5F, FontStyle.Bold);
         _matchCountLabel.Text = string.Empty;
+        _matchCountLabel.BackColor = AppTheme.InputBackground;
+        AppTheme.ApplyControlRegion(_matchCountLabel, 4);
 
         ConfigureIconButton(_previousButton, "\uE70E", "↑", "上一个匹配 (Shift+Enter)", new Point(246, 7));
         _previousButton.Click += (_, _) => PreviousRequested?.Invoke();
@@ -84,6 +86,7 @@ public sealed class FindBar : Panel
         _matchCaseCheckBox.FlatStyle = FlatStyle.Flat;
         _matchCaseCheckBox.FlatAppearance.BorderSize = 0;
         _matchCaseCheckBox.Font = AppTheme.CreateFont(8.5F, FontStyle.Bold);
+        AppTheme.ApplyControlRegion(_matchCaseCheckBox, 5);
         new ToolTip().SetToolTip(_matchCaseCheckBox, "区分大小写");
         _matchCaseCheckBox.CheckedChanged += (_, _) => RaiseSearch();
 
@@ -155,6 +158,7 @@ public sealed class FindBar : Panel
         ForeColor = AppTheme.TextPrimary;
         _searchTextBox.BackColor = AppTheme.InputBackground;
         _searchTextBox.ForeColor = AppTheme.TextPrimary;
+        _matchCountLabel.BackColor = AppTheme.InputBackground;
         _matchCountLabel.ForeColor = AppTheme.TextSecondary;
 
         foreach (var button in new[] { _previousButton, _nextButton })
@@ -216,6 +220,7 @@ public sealed class FindBar : Panel
         button.Location = location;
         button.FlatStyle = FlatStyle.Flat;
         button.FlatAppearance.BorderSize = 0;
+        AppTheme.ApplyControlRegion(button, 6);
         var iconFont = AppTheme.CreateIconFont(9.5F);
         if (iconFont is not null)
         {

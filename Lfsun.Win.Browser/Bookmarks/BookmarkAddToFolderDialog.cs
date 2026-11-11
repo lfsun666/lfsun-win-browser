@@ -153,6 +153,8 @@ public sealed class BookmarkAddToFolderDialog : Form
         _summaryLabel.ForeColor = AppTheme.TextSecondary;
         AppTheme.ApplyPrimaryButton(_okButton, emphasize: true);
         AppTheme.ApplyPrimaryButton(_cancelButton);
+        AppTheme.ApplyControlRegion(_okButton, 6);
+        AppTheme.ApplyControlRegion(_cancelButton, 6);
         StyleControlTree(this);
         UpdateCardRegion(_treeCardPanel);
     }

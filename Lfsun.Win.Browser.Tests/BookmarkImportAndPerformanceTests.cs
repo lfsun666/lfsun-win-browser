@@ -736,4 +736,58 @@ public sealed class BookmarkImportAndPerformanceTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void AboutWindow_And_SiteInfo_And_QrCode_And_FindBar_And_TabStrip_ConfiguredProperly()
+    {
+        var thread = new Thread(() =>
+        {
+            // 1. AboutWindow
+            using var aboutWindow = new Lfsun.Win.Browser.UI.AboutWindow();
+            Assert.NotNull(aboutWindow);
+            Assert.True(aboutWindow.Controls.Count > 0);
+
+            // 2. FindBar
+            using var findBar = new Lfsun.Win.Browser.UI.FindBar();
+            Assert.NotNull(findBar);
+            findBar.ApplyTheme();
+            findBar.Controls.OfType<TextBox>().First().Text = "search";
+            findBar.UpdateMatches(1, 5);
+            Assert.Equal("1/5", findBar.Controls.OfType<Label>().First().Text);
+
+            // 3. QrCodeCardDialog
+            using var qrDialog = new Lfsun.Win.Browser.UI.QrCodeCardDialog("https://example.com", "Test");
+            Assert.NotNull(qrDialog);
+            Assert.True(qrDialog.Controls.Count > 0);
+
+            // 4. SiteInfoCardDialog
+            using var siteDialog = new Lfsun.Win.Browser.UI.SiteInfoCardDialog(
+                new Uri("https://example.com"),
+                blockedCount: 3,
+                loadMs: 150,
+                clearCookiesAction: null,
+                hardRefreshAction: null,
+                viewSourceAction: null,
+                showQrAction: null);
+            Assert.NotNull(siteDialog);
+            Assert.True(siteDialog.Controls.Count > 0);
+
+            // 5. VerticalTabStrip
+            using var vTabStrip = new Lfsun.Win.Browser.UI.VerticalTabStrip(
+                () => Array.Empty<Lfsun.Win.Browser.Browser.BrowserTab>(),
+                () => null,
+                _ => { },
+                _ => { },
+                () => { },
+                (_, _) => { });
+            Assert.NotNull(vTabStrip);
+            Assert.False(vTabStrip.IsCollapsed);
+            vTabStrip.IsCollapsed = true;
+            Assert.True(vTabStrip.IsCollapsed);
+            vTabStrip.ApplyTheme();
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }

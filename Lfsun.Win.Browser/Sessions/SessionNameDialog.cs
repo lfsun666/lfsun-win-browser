@@ -5,6 +5,7 @@ namespace Lfsun.Win.Browser.Sessions;
 
 public sealed class SessionNameDialog : Form
 {
+    private readonly Panel _cardPanel = new();
     private readonly TextBox _nameTextBox = new();
     private readonly Button _okButton = new();
     private readonly Button _cancelButton = new();
@@ -13,7 +14,7 @@ public sealed class SessionNameDialog : Form
     {
         Text = "命名会话";
         Width = 520;
-        Height = 200;
+        Height = 210;
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -40,40 +41,68 @@ public sealed class SessionNameDialog : Form
 
     private void BuildLayout(string defaultName)
     {
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(14, 14, 14, 10)
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        _cardPanel.Dock = DockStyle.Fill;
+        _cardPanel.BackColor = AppTheme.SurfaceAlt;
+        _cardPanel.Padding = new Padding(14, 12, 14, 12);
+        AppTheme.ApplyControlRegion(_cardPanel, 8);
+        _cardPanel.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, _cardPanel.Width - 1, _cardPanel.Height - 1), 8);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
+
         var panel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            Padding = new Padding(12)
+            RowCount = 2,
+            BackColor = Color.Transparent
         };
-        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 100));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-        panel.Controls.Add(new Label
+        var titleLabel = new Label
         {
             Text = "会话名称",
             AutoSize = true,
-            Anchor = AnchorStyles.Left
-        }, 0, 0);
+            Anchor = AnchorStyles.Left,
+            Font = AppTheme.CreateFont(9.2F, FontStyle.Bold),
+            ForeColor = AppTheme.TextPrimary
+        };
+        panel.Controls.Add(titleLabel, 0, 0);
 
         _nameTextBox.Dock = DockStyle.Fill;
         _nameTextBox.Text = defaultName;
         panel.Controls.Add(_nameTextBox, 1, 0);
 
-        panel.Controls.Add(new Label
+        var hintLabel = new Label
         {
             Text = "示例：工作标签 / 购物对比 / 多账号登录",
             AutoSize = true,
             ForeColor = AppTheme.TextSecondary,
-            Margin = new Padding(0, 10, 0, 0)
-        }, 1, 1);
+            Margin = new Padding(0, 8, 0, 0)
+        };
+        panel.Controls.Add(hintLabel, 1, 1);
+        _cardPanel.Controls.Add(panel);
 
         var footer = new FlowLayoutPanel
         {
-            Dock = DockStyle.Bottom,
+            Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.RightToLeft,
             AutoSize = true,
-            Padding = new Padding(12)
+            Padding = new Padding(0, 8, 0, 0)
         };
 
         _okButton.Text = "保存";
@@ -99,17 +128,20 @@ public sealed class SessionNameDialog : Form
         footer.Controls.Add(_okButton);
         footer.Controls.Add(_cancelButton);
 
-        Controls.Add(panel);
-        Controls.Add(footer);
+        root.Controls.Add(_cardPanel, 0, 0);
+        root.Controls.Add(footer, 0, 1);
+        Controls.Add(root);
     }
 
     private void ApplyTheme()
     {
         BackColor = AppTheme.WindowBackground;
+        _cardPanel.BackColor = AppTheme.SurfaceAlt;
         AppTheme.ApplyTextInput(_nameTextBox);
         AppTheme.ApplyPrimaryButton(_okButton, emphasize: true);
         AppTheme.ApplyPrimaryButton(_cancelButton);
-        StyleControlTree(this);
+        AppTheme.ApplyControlRegion(_okButton, 6);
+        AppTheme.ApplyControlRegion(_cancelButton, 6);
     }
 
     protected override void OnPaintBackground(PaintEventArgs eventArgs)
@@ -123,19 +155,6 @@ public sealed class SessionNameDialog : Form
 
         using var gradient = new LinearGradientBrush(ClientRectangle, startColor, endColor, 90F);
         eventArgs.Graphics.FillRectangle(gradient, ClientRectangle);
-    }
-
-    private static void StyleControlTree(Control root)
-    {
-        foreach (Control control in root.Controls)
-        {
-            if (control is Label label)
-            {
-                label.ForeColor = AppTheme.TextSecondary;
-            }
-
-            StyleControlTree(control);
-        }
     }
 }
 

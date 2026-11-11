@@ -52,10 +52,20 @@ public sealed class AboutWindow : Form
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        // 顶部品牌区
+        // 顶部品牌区 (Fluent 卡片质感)
         _headerPanel.Dock = DockStyle.Fill;
         _headerPanel.AutoSize = true;
-        _headerPanel.Padding = new Padding(8, 6, 8, 12);
+        _headerPanel.Padding = new Padding(14, 12, 14, 12);
+        _headerPanel.BackColor = AppTheme.SurfaceAlt;
+        _headerPanel.Margin = new Padding(0, 0, 0, 8);
+        AppTheme.ApplyControlRegion(_headerPanel, 8);
+        _headerPanel.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, _headerPanel.Width - 1, _headerPanel.Height - 1), 8);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
 
         var titleRow = new FlowLayoutPanel
         {
@@ -184,9 +194,32 @@ public sealed class AboutWindow : Form
 
         _versionBadgeLabel.BackColor = AppTheme.AccentMuted;
         _versionBadgeLabel.ForeColor = AppTheme.Accent;
+        AppTheme.ApplyControlRegion(_versionBadgeLabel, 10);
 
         _changelogBox.BackColor = AppTheme.Surface;
         _changelogBox.ForeColor = AppTheme.TextPrimary;
+
+        AppTheme.ApplyControlRegion(_closeButton, 6);
+        AppTheme.ApplyControlRegion(_openReleaseFolderButton, 6);
+        AppTheme.ApplyControlRegion(_openRepoButton, 6);
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs eventArgs)
+    {
+        var startColor = AppTheme.IsDark
+            ? AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.11F)
+            : AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.05F);
+        var endColor = AppTheme.IsDark
+            ? AppTheme.Mix(AppTheme.WindowBackground, Color.Black, 0.15F)
+            : AppTheme.Mix(AppTheme.WindowBackground, Color.White, 0.04F);
+
+        using var gradient = new LinearGradientBrush(ClientRectangle, startColor, endColor, 90F);
+        eventArgs.Graphics.FillRectangle(gradient, ClientRectangle);
+
+        eventArgs.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        var glow = Color.FromArgb(AppTheme.IsDark ? 22 : 16, AppTheme.Accent);
+        using var glowBrush = new SolidBrush(glow);
+        eventArgs.Graphics.FillEllipse(glowBrush, new Rectangle(-60, -40, 200, 160));
     }
 
     private void PopulateContent()

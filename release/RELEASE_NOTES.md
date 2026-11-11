@@ -1,19 +1,19 @@
 # LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.15 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.16 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 3 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.15)
+## 当前最新交付清单 (v0.9.16)
 
 - **LfsunBrowser-portable-latest.zip** (65.57 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.13.zip** (65.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.14.zip** (65.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.15.zip** (65.57 MB)
-- **LfsunBrowser-setup-0.9.13.exe** (47.68 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.16.zip** (65.57 MB)
 - **LfsunBrowser-setup-0.9.14.exe** (47.68 MB)
 - **LfsunBrowser-setup-0.9.15.exe** (47.68 MB)
+- **LfsunBrowser-setup-0.9.16.exe** (47.68 MB)
 - **LfsunBrowser-setup-latest.exe** (47.68 MB)
 
 ## 当前版本更新亮点
@@ -25,6 +25,11 @@
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.16] - 2026-11-11
+
+### 变更内容
+- 全局UI布局与辅助弹窗/查找栏/垂直标签体系全域深化：关于窗口品牌卡片化与版本胶囊徽标、会话命名表单独立卡片包裹与圆角按键、网页性能诊断报告卡片与指标芯片化、站点安全属性卡片平滑渐变底板与拦截统计药丸化、手机扫码弹窗输入胶囊与操作流重构、页内查找栏按键全量圆角裁剪与匹配计数药丸化、垂直标签栏活动项圆角线帽与悬浮边框微交互
 
 ## [0.9.15] - 2026-11-11
 

@@ -82,6 +82,7 @@ public sealed class PagePerformanceCardDialog : Form
             : AppTheme.Mix(AppTheme.Accent, Color.White, 0.15F);
         _protocolBadge.Padding = new Padding(8, 3, 8, 3);
         _protocolBadge.AutoSize = true;
+        AppTheme.ApplyControlRegion(_protocolBadge, 8);
         headerPanel.Controls.Add(_protocolBadge);
 
         _urlLabel.Text = _tab.CurrentUri?.AbsoluteUri ?? "加载中...";
@@ -268,6 +269,7 @@ public sealed class PagePerformanceCardDialog : Form
             Size = new Size(310, 14),
             BackColor = AppTheme.SurfaceAlt
         };
+        AppTheme.ApplyControlRegion(barContainer, 4);
 
         var pct = Math.Clamp(valueMs / maxMs, 0.02, 1.0);
         var fillWidth = (int)Math.Round(barContainer.Width * pct);
@@ -277,6 +279,7 @@ public sealed class PagePerformanceCardDialog : Form
             Size = new Size(fillWidth, 14),
             BackColor = barColor
         };
+        AppTheme.ApplyControlRegion(fillBar, 4);
         barContainer.Controls.Add(fillBar);
         row.Controls.Add(barContainer);
 
@@ -291,6 +294,14 @@ public sealed class PagePerformanceCardDialog : Form
             BackColor = AppTheme.SurfaceAlt,
             Margin = new Padding(3),
             Padding = new Padding(6)
+        };
+        AppTheme.ApplyControlRegion(p, 6);
+        p.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, p.Width - 1, p.Height - 1), 6);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
         };
 
         var titleLabel = new Label
@@ -360,7 +371,26 @@ public sealed class PagePerformanceCardDialog : Form
             btn.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.Surface, 0.40F);
         }
 
+        AppTheme.ApplyControlRegion(btn, 6);
         btn.Click += (_, _) => onClick();
         return btn;
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs eventArgs)
+    {
+        var startColor = AppTheme.IsDark
+            ? AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.10F)
+            : AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.05F);
+        var endColor = AppTheme.IsDark
+            ? AppTheme.Mix(AppTheme.WindowBackground, Color.Black, 0.14F)
+            : AppTheme.Mix(AppTheme.WindowBackground, Color.White, 0.04F);
+
+        using var gradient = new LinearGradientBrush(ClientRectangle, startColor, endColor, 90F);
+        eventArgs.Graphics.FillRectangle(gradient, ClientRectangle);
+
+        eventArgs.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        var glow = Color.FromArgb(AppTheme.IsDark ? 22 : 16, AppTheme.Accent);
+        using var glowBrush = new SolidBrush(glow);
+        eventArgs.Graphics.FillEllipse(glowBrush, new Rectangle(-60, -40, 200, 160));
     }
 }

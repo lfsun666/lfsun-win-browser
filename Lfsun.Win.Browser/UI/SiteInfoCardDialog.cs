@@ -138,17 +138,34 @@ public sealed class SiteInfoCardDialog : Form
         };
         mainPanel.Controls.Add(hostLabel, 0, 1);
 
-        // 3. Stats
-        var statsText = $"🛡️ 本页拦截广告/追踪: {_blockedCount} 个\n⚡ 加载耗时: {(_loadMs > 0 ? $"{_loadMs} ms" : "即时响应")}";
+        // 3. Stats card
+        var statsCard = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = AppTheme.SurfaceAlt,
+            Padding = new Padding(12, 6, 12, 6),
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        AppTheme.ApplyControlRegion(statsCard, 6);
+        statsCard.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, statsCard.Width - 1, statsCard.Height - 1), 6);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
+
+        var statsText = $"🛡️ 拦截广告/追踪: {_blockedCount} 个\n⚡ 加载耗时: {(_loadMs > 0 ? $"{_loadMs} ms" : "即时响应")}";
         var statsLabel = new Label
         {
             Dock = DockStyle.Fill,
             Text = statsText,
-            Font = AppTheme.CreateFont(8.8F),
+            Font = AppTheme.CreateFont(8.6F),
             ForeColor = AppTheme.TextSecondary,
             TextAlign = ContentAlignment.MiddleLeft
         };
-        mainPanel.Controls.Add(statsLabel, 0, 2);
+        statsCard.Controls.Add(statsLabel);
+        mainPanel.Controls.Add(statsCard, 0, 2);
 
         // 4. Action buttons grid
         var actionsPanel = new TableLayoutPanel
@@ -210,7 +227,21 @@ public sealed class SiteInfoCardDialog : Form
         btn.FlatAppearance.BorderColor = AppTheme.PanelBorder;
         btn.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F);
         btn.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.SurfaceAlt, 0.45F);
+        AppTheme.ApplyControlRegion(btn, 6);
         btn.Click += (_, _) => onClick();
         return btn;
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs eventArgs)
+    {
+        var startColor = AppTheme.IsDark
+            ? AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.08F)
+            : AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.04F);
+        var endColor = AppTheme.IsDark
+            ? AppTheme.Mix(AppTheme.WindowBackground, Color.Black, 0.12F)
+            : AppTheme.Mix(AppTheme.WindowBackground, Color.White, 0.03F);
+
+        using var gradient = new LinearGradientBrush(ClientRectangle, startColor, endColor, 90F);
+        eventArgs.Graphics.FillRectangle(gradient, ClientRectangle);
     }
 }

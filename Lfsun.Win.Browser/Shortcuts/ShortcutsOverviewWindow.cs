@@ -153,6 +153,8 @@ public sealed class ShortcutsOverviewWindow : Form
         _countLabel.ForeColor = AppTheme.TextSecondary;
         AppTheme.ApplyPrimaryButton(_copyButton, emphasize: false);
         AppTheme.ApplyPrimaryButton(_closeButton, emphasize: true);
+        AppTheme.ApplyControlRegion(_copyButton, 6);
+        AppTheme.ApplyControlRegion(_closeButton, 6);
         UpdateCardRegion(_topPanel);
         UpdateCardRegion(_listCardPanel);
     }

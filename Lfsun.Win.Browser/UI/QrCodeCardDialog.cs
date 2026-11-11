@@ -105,9 +105,7 @@ public sealed class QrCodeCardDialog : Form
         _urlTextBox.ReadOnly = true;
         _urlTextBox.Text = _targetUrl;
         _urlTextBox.Font = AppTheme.CreateFont(8.5F);
-        _urlTextBox.BackColor = AppTheme.SurfaceAlt;
-        _urlTextBox.ForeColor = AppTheme.TextSecondary;
-        _urlTextBox.BorderStyle = BorderStyle.FixedSingle;
+        AppTheme.ApplyTextInput(_urlTextBox);
         mainPanel.Controls.Add(_urlTextBox, 0, 2);
 
         var buttonBar = new FlowLayoutPanel
@@ -119,7 +117,8 @@ public sealed class QrCodeCardDialog : Form
         };
 
         _copyUrlButton.Text = "复制网址";
-        _copyUrlButton.Size = new Size(94, 30);
+        _copyUrlButton.Size = new Size(96, 32);
+        _copyUrlButton.Margin = new Padding(0, 0, 8, 0);
         _copyUrlButton.Font = AppTheme.CreateFont(8.8F);
         _copyUrlButton.FlatStyle = FlatStyle.Flat;
         _copyUrlButton.BackColor = AppTheme.Accent;
@@ -128,6 +127,7 @@ public sealed class QrCodeCardDialog : Form
         _copyUrlButton.FlatAppearance.MouseOverBackColor = AppTheme.AccentHover;
         _copyUrlButton.FlatAppearance.MouseDownBackColor = AppTheme.AccentPressed;
         _copyUrlButton.Cursor = Cursors.Hand;
+        AppTheme.ApplyControlRegion(_copyUrlButton, 6);
         _copyUrlButton.Click += (_, _) =>
         {
             Clipboard.SetText(_targetUrl);
@@ -135,7 +135,8 @@ public sealed class QrCodeCardDialog : Form
         };
 
         _saveImageButton.Text = "保存图片";
-        _saveImageButton.Size = new Size(94, 30);
+        _saveImageButton.Size = new Size(96, 32);
+        _saveImageButton.Margin = new Padding(0, 0, 8, 0);
         _saveImageButton.Font = AppTheme.CreateFont(8.8F);
         _saveImageButton.FlatStyle = FlatStyle.Flat;
         _saveImageButton.BackColor = AppTheme.SurfaceAlt;
@@ -145,10 +146,12 @@ public sealed class QrCodeCardDialog : Form
         _saveImageButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F);
         _saveImageButton.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.SurfaceAlt, 0.45F);
         _saveImageButton.Cursor = Cursors.Hand;
+        AppTheme.ApplyControlRegion(_saveImageButton, 6);
         _saveImageButton.Click += (_, _) => SaveQrImage();
 
         _closeButton.Text = "关闭";
-        _closeButton.Size = new Size(94, 30);
+        _closeButton.Size = new Size(96, 32);
+        _closeButton.Margin = new Padding(0);
         _closeButton.Font = AppTheme.CreateFont(8.8F);
         _closeButton.FlatStyle = FlatStyle.Flat;
         _closeButton.BackColor = AppTheme.SurfaceAlt;
@@ -158,6 +161,7 @@ public sealed class QrCodeCardDialog : Form
         _closeButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F);
         _closeButton.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.SurfaceAlt, 0.45F);
         _closeButton.Cursor = Cursors.Hand;
+        AppTheme.ApplyControlRegion(_closeButton, 6);
         _closeButton.Click += (_, _) => Close();
 
         buttonBar.Controls.Add(_copyUrlButton);
@@ -166,6 +170,19 @@ public sealed class QrCodeCardDialog : Form
         mainPanel.Controls.Add(buttonBar, 0, 3);
 
         Controls.Add(mainPanel);
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs eventArgs)
+    {
+        var startColor = AppTheme.IsDark
+            ? AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.08F)
+            : AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.04F);
+        var endColor = AppTheme.IsDark
+            ? AppTheme.Mix(AppTheme.WindowBackground, Color.Black, 0.12F)
+            : AppTheme.Mix(AppTheme.WindowBackground, Color.White, 0.03F);
+
+        using var gradient = new LinearGradientBrush(ClientRectangle, startColor, endColor, 90F);
+        eventArgs.Graphics.FillRectangle(gradient, ClientRectangle);
     }
 
     private void SaveQrImage()

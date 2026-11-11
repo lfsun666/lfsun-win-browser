@@ -559,6 +559,7 @@ public sealed class DownloadsWindow : Form
     private static void StyleButton(Button button, bool emphasize = false)
     {
         AppTheme.ApplyPrimaryButton(button, emphasize);
+        AppTheme.ApplyControlRegion(button, 6);
     }
 
     private static void StyleControlTree(Control root)

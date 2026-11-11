@@ -2491,6 +2491,7 @@ public sealed class SessionsWindow : Form
     private void StyleButton(Button button, bool emphasize = false)
     {
         AppTheme.ApplyPrimaryButton(button, emphasize);
+        AppTheme.ApplyControlRegion(button, 6);
         if (IsKpiActionButton(button))
         {
             button.MinimumSize = new Size(AppTheme.IsCompact ? 98 : 110, AppTheme.IsCompact ? 28 : 32);

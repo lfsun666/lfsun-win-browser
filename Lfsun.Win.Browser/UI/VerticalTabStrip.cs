@@ -95,6 +95,7 @@ public sealed class VerticalTabStrip : Panel
         _toggleCollapseButton.Font = AppTheme.CreateFont(8.5F, FontStyle.Bold);
         _toggleCollapseButton.ForeColor = AppTheme.TextSecondary;
         _toggleCollapseButton.Cursor = Cursors.Hand;
+        AppTheme.ApplyControlRegion(_toggleCollapseButton, 6);
         _toolTip.SetToolTip(_toggleCollapseButton, "折叠垂直标签栏 (仅显示图标)");
         _toggleCollapseButton.Click += (_, _) => IsCollapsed = !IsCollapsed;
 
@@ -108,6 +109,7 @@ public sealed class VerticalTabStrip : Panel
         _newTabButton.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.40F);
         _newTabButton.ForeColor = AppTheme.Accent;
         _newTabButton.Cursor = Cursors.Hand;
+        AppTheme.ApplyControlRegion(_newTabButton, 6);
         _toolTip.SetToolTip(_newTabButton, "新建标签页");
         _newTabButton.Click += (_, _) => _newTab();
 
@@ -172,15 +174,25 @@ public sealed class VerticalTabStrip : Panel
                 using var path = CreateRoundedPath(itemRect, 6);
                 g.FillPath(bgBrush, path);
 
-                // 左侧指示条
-                using var accentPen = new Pen(AppTheme.Accent, 3);
-                g.DrawLine(accentPen, itemRect.Left + 2, itemRect.Top + 4, itemRect.Left + 2, itemRect.Bottom - 4);
+                using var borderPen = new Pen(AppTheme.Mix(AppTheme.Accent, AppTheme.PanelBorder, 0.40F), 1F);
+                g.DrawPath(borderPen, path);
+
+                // 左侧指示条（圆角端点）
+                using var accentPen = new Pen(AppTheme.Accent, 3)
+                {
+                    StartCap = LineCap.Round,
+                    EndCap = LineCap.Round
+                };
+                g.DrawLine(accentPen, itemRect.Left + 3, itemRect.Top + 6, itemRect.Left + 3, itemRect.Bottom - 6);
             }
             else if (isHover)
             {
                 using var hoverBrush = new SolidBrush(AppTheme.SurfaceAlt);
                 using var path = CreateRoundedPath(itemRect, 6);
                 g.FillPath(hoverBrush, path);
+
+                using var hoverBorderPen = new Pen(AppTheme.PanelBorder, 1F);
+                g.DrawPath(hoverBorderPen, path);
             }
 
             // 图标徽标 (真实 Favicon 或固定/静音/声音标志)
