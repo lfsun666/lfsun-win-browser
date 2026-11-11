@@ -693,9 +693,9 @@ public sealed class SessionsWindow : Form
         {
             split.SplitterDistance = desired;
         }
-        catch (InvalidOperationException)
+        catch (Exception)
         {
-            // 中文注释：极端窗口尺寸下兜底忽略，等待下一次 SizeChanged 重新校准。
+            // 中文注释：极端窗口尺寸或 DPI 缩放下兜底忽略，等待下一次 SizeChanged 重新校准。
         }
 
         _contentSplitInitialized = true;
