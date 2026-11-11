@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "0.9.19"
+  #define MyAppVersion "0.9.20"
 #endif
 
 #ifndef MySourceDir
@@ -18,6 +18,8 @@ AppPublisher=LfsunBrowser
 DefaultDirName={localappdata}\LfsunBrowser
 DefaultGroupName=LfsunBrowser
 DisableProgramGroupPage=yes
+DisableDirPage=no
+AlwaysShowDirOnReadyPage=yes
 PrivilegesRequired=lowest
 OutputDir={#MyOutputDir}
 OutputBaseFilename=LfsunBrowser-setup-{#MyAppVersion}

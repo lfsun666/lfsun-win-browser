@@ -42,6 +42,14 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.20",
+            "2026-11-11",
+            "安装包向导支持自定义安装路径与路径确认",
+            [
+                "【安装向导支持自定义安装路径】安装程序显式开启目录选择向导页（DisableDirPage=no），彻底解决由于 Inno Setup 默认 DisableDirPage=auto 导致在覆盖安装或升级时自动跳过目标路径选择页面的问题",
+                "【准备安装页路径清晰呈现】启用 AlwaysShowDirOnReadyPage=yes，在点击正式安装前直观展示目标安装磁盘与文件夹，用户可自由浏览并更换目标路径"
+            ]),
+        new VersionReleaseEntry(
             "0.9.19",
             "2026-11-11",
             "顶部导航与操作工具栏统一紧凑图标化布局精细化重构",

@@ -1,20 +1,20 @@
 # LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.19 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.20 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 3 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.19)
+## 当前最新交付清单 (v0.9.20)
 
 - **LfsunBrowser-portable-latest.zip** (65.57 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.17.zip** (65.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.18.zip** (65.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.19.zip** (65.57 MB)
-- **LfsunBrowser-setup-0.9.17.exe** (47.69 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.20.zip** (65.57 MB)
 - **LfsunBrowser-setup-0.9.18.exe** (47.69 MB)
 - **LfsunBrowser-setup-0.9.19.exe** (47.68 MB)
-- **LfsunBrowser-setup-latest.exe** (47.68 MB)
+- **LfsunBrowser-setup-0.9.20.exe** (47.7 MB)
+- **LfsunBrowser-setup-latest.exe** (47.7 MB)
 
 ## 当前版本更新亮点
 
@@ -25,6 +25,11 @@
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.20] - 2026-11-11
+
+### 变更内容
+- 安装包向导支持自定义安装路径与路径确认：安装程序显式开启目录选择向导页（`DisableDirPage=no`），彻底解决由于 Inno Setup 默认 `DisableDirPage=auto` 导致在已安装或升级时自动跳过目标路径选择页面的问题；同时启用 `AlwaysShowDirOnReadyPage=yes`，在正式点击安装前直观呈现安装目标磁盘路径，方便用户自由浏览指定自定义安装路径
 
 ## [0.9.19] - 2026-11-11
 

@@ -43,4 +43,21 @@ public sealed class AppVersionInfoTests
         Assert.NotEmpty(recent);
         Assert.True(recent.Count() <= 10);
     }
+
+    [Fact]
+    public void InstallerScript_ShouldAllowUserToSelectInstallationDirectory()
+    {
+        var issPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../packaging/LfsunWin.iss"));
+        if (!File.Exists(issPath))
+        {
+            issPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../packaging/LfsunWin.iss"));
+        }
+
+        if (File.Exists(issPath))
+        {
+            var content = File.ReadAllText(issPath);
+            Assert.Contains("DisableDirPage=no", content);
+            Assert.Contains("AlwaysShowDirOnReadyPage=yes", content);
+        }
+    }
 }
