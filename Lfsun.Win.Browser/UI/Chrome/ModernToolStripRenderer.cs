@@ -63,11 +63,58 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
     {
-        var center = e.Item.Bounds.Left + (e.Item.Bounds.Width / 2);
-        var top = Math.Max(4, (e.Item.Bounds.Height - 16) / 2);
-        var bottom = Math.Min(e.Item.Bounds.Height - 4, top + 16);
         using var pen = new Pen(AppTheme.PanelBorder);
-        e.Graphics.DrawLine(pen, center, top, center, bottom);
+        if (e.Vertical)
+        {
+            var center = e.Item.Width / 2;
+            var top = Math.Max(4, (e.Item.Height - 16) / 2);
+            var bottom = Math.Min(e.Item.Height - 4, top + 16);
+            e.Graphics.DrawLine(pen, center, top, center, bottom);
+        }
+        else
+        {
+            var y = e.Item.Height / 2;
+            var left = e.ToolStrip is ToolStripDropDownMenu ? 28 : 8;
+            var right = e.Item.Width - 8;
+            if (right > left)
+            {
+                e.Graphics.DrawLine(pen, left, y, right, y);
+            }
+        }
+    }
+
+    protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
+    {
+        var bounds = e.ImageRectangle;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return;
+        }
+
+        bounds.Inflate(2, 2);
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+        using var fillBrush = new SolidBrush(AppTheme.Accent);
+        using var path = BuildRoundedRectangle(bounds, 4);
+        e.Graphics.FillPath(fillBrush, path);
+
+        using var checkPen = new Pen(Color.White, 1.8F);
+        var cx = bounds.Left + bounds.Width / 2;
+        var cy = bounds.Top + bounds.Height / 2;
+        e.Graphics.DrawLine(checkPen, cx - 4, cy, cx - 1, cy + 3);
+        e.Graphics.DrawLine(checkPen, cx - 1, cy + 3, cx + 4, cy - 3);
+    }
+
+    protected override void OnRenderItemImage(ToolStripItemImageRenderEventArgs e)
+    {
+        if (e.Image is null)
+        {
+            return;
+        }
+
+        e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        base.OnRenderItemImage(e);
     }
 
     protected override void OnRenderLabelBackground(ToolStripItemRenderEventArgs e)
@@ -225,6 +272,18 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
 
         var isEmphasized = button.Tag is "primary";
         RenderToolbarButtonBackground(e.Graphics, button.Size, button.Pressed, button.Selected, isEmphasized);
+    }
+
+    protected override void OnRenderSplitButtonBackground(ToolStripItemRenderEventArgs e)
+    {
+        if (e.Item is not ToolStripSplitButton button)
+        {
+            base.OnRenderSplitButtonBackground(e);
+            return;
+        }
+
+        var isEmphasized = button.Tag is "primary";
+        RenderToolbarButtonBackground(e.Graphics, button.Size, button.Pressed || button.ButtonPressed, button.Selected || button.ButtonSelected, isEmphasized);
     }
 
     private static void RenderWindowCloseBackground(Graphics graphics, Size size, bool isPressed, bool isSelected)

@@ -1169,7 +1169,6 @@ public sealed class MainWindow : Form
         _appMenu.Items.Add(MenuItem("页面缩小", "Ctrl+-", (_, _) => AdjustActiveTabZoom(-1)));
         _appMenu.Items.Add(MenuItem("页面缩放重置", "Ctrl+0", (_, _) => _tabManager.ActiveTab?.SetZoomFactor(1.0)));
         _appMenu.Items.Add(new ToolStripSeparator());
-        _appMenu.Items.Add(MenuItem("显示 / 隐藏书签栏", "Ctrl+B", (_, _) => ToggleBookmarksBarVisibility()));
         _appMenu.Items.Add(MenuItem("开发者工具", "F12", (_, _) => _tabManager.ActiveTab?.OpenDevTools()));
         _appMenu.Items.Add(MenuItem("沉浸（禅）模式", "Ctrl+Shift+Z", (_, _) =>
             ApplyZenMode(!_isZenMode, persist: true, showToast: true)));
@@ -4673,8 +4672,6 @@ public sealed class MainWindow : Form
                 : Color.FromArgb(213, 228, 246));
             eventArgs.Graphics.DrawLine(dividerPen, eventArgs.Bounds.Left + 8, eventArgs.Bounds.Bottom - 1, eventArgs.Bounds.Right - 8, eventArgs.Bounds.Bottom - 1);
         }
-
-        eventArgs.DrawFocusRectangle();
     }
 
     private static Color ResolveSuggestionCategoryAccent(AddressSuggestionEntry entry)

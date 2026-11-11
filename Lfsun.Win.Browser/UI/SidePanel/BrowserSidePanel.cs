@@ -124,6 +124,8 @@ public sealed class BrowserSidePanel : Panel
         _closeButton.Width = 32;
         _closeButton.FlatStyle = FlatStyle.Flat;
         _closeButton.FlatAppearance.BorderSize = 0;
+        _closeButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(232, 17, 35);
+        _closeButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(199, 15, 29);
         _closeButton.Font = AppTheme.CreateFont(9.5F, FontStyle.Bold);
         _closeButton.ForeColor = AppTheme.TextSecondary;
         _closeButton.Cursor = Cursors.Hand;
@@ -203,6 +205,8 @@ public sealed class BrowserSidePanel : Panel
             Cursor = Cursors.Hand
         };
         btn.FlatAppearance.BorderSize = 0;
+        btn.FlatAppearance.MouseOverBackColor = AppTheme.IsDark ? Color.FromArgb(40, 255, 255, 255) : Color.FromArgb(20, 0, 0, 0);
+        btn.FlatAppearance.MouseDownBackColor = AppTheme.IsDark ? Color.FromArgb(60, 255, 255, 255) : Color.FromArgb(36, 0, 0, 0);
         btn.Click += (_, _) => SwitchTo(mode);
         _navButtons[mode] = btn;
         return btn;

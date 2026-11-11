@@ -172,8 +172,20 @@ public sealed class QuickHistoryView : UserControl
         var isSelected = (eventArgs.State & DrawItemState.Selected) == DrawItemState.Selected;
         var bounds = eventArgs.Bounds;
 
-        using var bgBrush = new SolidBrush(isSelected ? (AppTheme.IsDark ? Color.FromArgb(44, 56, 78) : Color.FromArgb(220, 235, 252)) : AppTheme.Surface);
-        eventArgs.Graphics.FillRectangle(bgBrush, bounds);
+        var cardRect = Rectangle.Inflate(bounds, -2, -1);
+        if (isSelected)
+        {
+            var selectBg = AppTheme.IsDark
+                ? AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F)
+                : AppTheme.Mix(AppTheme.AccentHover, Color.White, 0.60F);
+            using var bgBrush = new SolidBrush(selectBg);
+            eventArgs.Graphics.FillRectangle(bgBrush, cardRect);
+        }
+        else
+        {
+            using var bgBrush = new SolidBrush(AppTheme.Surface);
+            eventArgs.Graphics.FillRectangle(bgBrush, bounds);
+        }
 
         var title = string.IsNullOrWhiteSpace(entry.Title) ? entry.Url : entry.Title;
         var timeStr = entry.VisitedAtUtc.ToLocalTime().ToString("MM-dd HH:mm");

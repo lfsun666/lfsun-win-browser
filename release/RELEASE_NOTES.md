@@ -1,20 +1,20 @@
 ﻿# LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.8 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.9 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 3 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.8)
+## 当前最新交付清单 (v0.9.9)
 
 - **LfsunBrowser-portable-latest.zip** (63.57 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.6.zip** (65.54 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.7.zip** (63.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.8.zip** (63.57 MB)
-- **LfsunBrowser-setup-0.9.6.exe** (47.67 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.9.zip** (63.57 MB)
 - **LfsunBrowser-setup-0.9.7.exe** (47.68 MB)
 - **LfsunBrowser-setup-0.9.8.exe** (47.68 MB)
-- **LfsunBrowser-setup-latest.exe** (47.68 MB)
+- **LfsunBrowser-setup-0.9.9.exe** (47.67 MB)
+- **LfsunBrowser-setup-latest.exe** (47.67 MB)
 
 ## 当前版本更新亮点
 
@@ -25,6 +25,11 @@
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.9] - 2026-11-11
+
+### 变更内容
+- 全局UI布局与渲染极致打磨：重构右键与下拉菜单横向分割线、新增Fluent圆角复选标记与SplitButton悬停底色、高清双三次插值抗锯齿图片渲染、消除地址建议项Win95虚线框、侧边栏全套按键平滑微动与历史列表胶囊高亮
 
 ## [0.9.8] - 2026-11-11
 

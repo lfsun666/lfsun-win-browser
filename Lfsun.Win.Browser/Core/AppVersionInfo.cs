@@ -42,6 +42,19 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.9",
+            "2026-11-11",
+            "全局UI布局与渲染极致打磨：重构右键与下拉菜单横向分割线、新增Fluent圆角复选标记与SplitButton悬停底色、高清双三次插值抗锯齿图片渲染、消除地址建议项Win95虚线框、侧边栏全套按键平滑微动与历史列表胶囊高亮",
+            [
+                "【菜单横向分割线精准适配】彻底修复 ModernToolStripRenderer 与 AccentMenuRenderer 菜单分隔线在下拉/上下文菜单中误绘为纵向短棒的缺陷，智能区分垂直工具条与水平菜单，绘制优雅的 1px 全宽微中性分割线",
+                "【Fluent 圆角复选标记重绘】重写 OnRenderItemCheck，菜单选中状态告别传统 3D 凹陷灰框，升级为主题强调色（Accent）圆角胶囊底衬配纯白精致对勾（✓）",
+                "【SplitButton 与全景图片高清平滑渲染】全面接管 ToolStripSplitButton 现代圆角悬停反馈；全局开启 HighQualityBicubic 双三次插值与高质量像素偏移，网站 Favicon 与菜单图标彻底告别锯齿与模糊",
+                "【地址候选栏消除旧式虚线框】彻底移除地址栏下拉联想项（_addressSuggestionListBox）获得焦点时绘制的 Windows 95 点状虚线边框，与现代纯粹圆角高亮卡片完美契合",
+                "【侧边多功能抽屉栏微动与高亮进化】侧边栏全套顶部分页导航键与工具箱按钮接入响应式平滑悬停微动；关闭键增加原生红叉警示；历史记录列表选中项重构为现代圆角芯片高亮卡片",
+                "【自动化流水线与轮转交付】自动构建发布 v0.9.9 安装包与免安装便携版，严格轮转保留最新 3 个版本（v0.9.7、v0.9.8、v0.9.9），合并更新全量发布历史记录"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.9.8",
             "2026-11-11",
             "全局UI布局极致精修：标题栏窗口控制键极点贴边（菲茨定律与Win11 Fluent全高直角悬停）、地址栏与站点安全芯片一体化胶囊紧致对接、弹簧布局Margin精准扣减防溢出抖动、状态栏左侧清爽文本与右侧指标微胶囊层级分明",

@@ -500,6 +500,34 @@ public static class AppTheme
             e.Graphics.DrawPath(borderPen, path);
         }
 
+        protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
+        {
+            var y = e.Item.Height / 2;
+            var left = 10;
+            var right = e.Item.Width - 10;
+            if (right > left)
+            {
+                using var pen = new Pen(PanelBorder, 1F);
+                e.Graphics.DrawLine(pen, left, y, right, y);
+            }
+        }
+
+        protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
+        {
+            var bounds = e.ImageRectangle;
+            if (bounds.Width <= 0 || bounds.Height <= 0) return;
+            bounds.Inflate(2, 2);
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var fillBrush = new SolidBrush(Accent);
+            using var path = BuildRoundedRect(bounds, 4);
+            e.Graphics.FillPath(fillBrush, path);
+            using var checkPen = new Pen(Color.White, 1.8F);
+            var cx = bounds.Left + bounds.Width / 2;
+            var cy = bounds.Top + bounds.Height / 2;
+            e.Graphics.DrawLine(checkPen, cx - 4, cy, cx - 1, cy + 3);
+            e.Graphics.DrawLine(checkPen, cx - 1, cy + 3, cx + 4, cy - 3);
+        }
+
         protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
         {
             if (e.Item is not ToolStripMenuItem menuItem)

@@ -405,6 +405,8 @@ public sealed class ToolboxView : UserControl
             Cursor = Cursors.Hand
         };
         btn.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+        btn.FlatAppearance.MouseOverBackColor = AppTheme.IsDark ? Color.FromArgb(48, 255, 255, 255) : Color.FromArgb(24, 0, 0, 0);
+        btn.FlatAppearance.MouseDownBackColor = AppTheme.IsDark ? Color.FromArgb(64, 255, 255, 255) : Color.FromArgb(36, 0, 0, 0);
         btn.Click += (_, _) => onClick();
         return btn;
     }

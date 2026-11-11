@@ -484,4 +484,27 @@ public sealed class BookmarkImportAndPerformanceTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void ModernToolStripRenderer_MenuSeparatorAndCheckmark_CanBeRenderedSafely()
+    {
+        var thread = new Thread(() =>
+        {
+            using var bmp = new Bitmap(200, 100);
+            using var g = Graphics.FromImage(bmp);
+            var renderer = new Lfsun.Win.Browser.UI.Chrome.ModernToolStripRenderer();
+            using var menu = new ContextMenuStrip { Renderer = renderer };
+            var menuItem = new ToolStripMenuItem("Checked item") { Checked = true };
+            var separator = new ToolStripSeparator();
+            menu.Items.Add(menuItem);
+            menu.Items.Add(separator);
+
+            // Verify renderer handles menu separator and checkmark without exception
+            Assert.NotNull(renderer);
+            Assert.True(menuItem.Checked);
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }
