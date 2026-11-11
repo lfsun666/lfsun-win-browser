@@ -62,12 +62,12 @@ public sealed class MainWindow : Form
     // 中文注释：插件固定入口：下拉列出已安装插件可直接启停，并提供重载/管理入口，任意页面可见。
     private readonly ToolStripDropDownButton _pluginButton = new("插件");
     private readonly BrowserSidePanel _sidePanel;
-    private readonly ToolStripDropDownButton _sidePanelButton = new("◧ 侧栏");
+    private readonly ToolStripDropDownButton _sidePanelButton = new("◧");
     private readonly SplitBrowserPanel _splitPanel;
     private readonly VerticalTabStrip _verticalTabStrip;
-    private readonly ToolStripButton _verticalTabsToggleButton = new("📑 垂直标签");
-    private readonly ToolStripButton _splitViewButton = new("◫ 分屏");
-    private readonly ToolStripButton _readerModeButton = new("📖 阅读");
+    private readonly ToolStripButton _verticalTabsToggleButton = new("📑");
+    private readonly ToolStripButton _splitViewButton = new("◫");
+    private readonly ToolStripButton _readerModeButton = new("📖");
     private readonly ToolStripButton _zoomPillButton = new("100% 🔍");
 
     // 中文注释：固定到工具栏的插件快捷按钮（按配置 PinnedPluginIds 动态生成，点击即启/停插件）。
@@ -2047,9 +2047,9 @@ public sealed class MainWindow : Form
         {
             button.DisplayStyle = ToolStripItemDisplayStyle.Text;
             button.AutoSize = false;
-            button.Width = compact ? 34 : 38;
+            button.Width = compact ? 30 : 34;
             button.Height = compact ? 28 : 32;
-            button.Margin = new Padding(3, 1, 3, 1);
+            button.Margin = new Padding(1, 1, 1, 1);
             button.ForeColor = AppTheme.TextPrimary;
             button.BackColor = Color.Transparent;
             button.Font = AppTheme.CreateFont(compact ? 10.8F : 11.6F, FontStyle.Bold);
@@ -2057,9 +2057,9 @@ public sealed class MainWindow : Form
 
         _appMenuButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _appMenuButton.AutoSize = false;
-        _appMenuButton.Width = compact ? 34 : 38;
+        _appMenuButton.Width = compact ? 30 : 34;
         _appMenuButton.Height = compact ? 28 : 32;
-        _appMenuButton.Margin = new Padding(3, 1, 3, 1);
+        _appMenuButton.Margin = new Padding(1, 1, 1, 1);
         _appMenuButton.BackColor = Color.Transparent;
         _appMenuButton.ForeColor = AppTheme.TextPrimary;
         _appMenuButton.Font = AppTheme.CreateFont(compact ? 12F : 13F, FontStyle.Bold);
@@ -2079,7 +2079,7 @@ public sealed class MainWindow : Form
         _pluginButton.ShowDropDownArrow = false;
         _pluginButton.Width = compact ? 30 : 34;
         _pluginButton.Height = compact ? 28 : 32;
-        _pluginButton.Margin = new Padding(2, 1, 2, 1);
+        _pluginButton.Margin = new Padding(1, 1, 1, 1);
         _pluginButton.BackColor = Color.Transparent;
         _pluginButton.ForeColor = AppTheme.TextPrimary;
         _pluginButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
@@ -2089,11 +2089,12 @@ public sealed class MainWindow : Form
         ConfigureToolbarIconButton(_devToolsButton, AppIconNames.DevTools, "</>", "开发者工具", shortcutText: "F12");
         ConfigureToolbarIconButton(_commandPaletteButton, AppIconNames.CommandPalette, "⌘", "命令面板", shortcutText: "Ctrl+Shift+P");
         ConfigureToolbarIconButton(_tabSwitchButton, string.Empty, "@", "标签快速切换", shortcutText: "Ctrl+K");
-        _commandPaletteButton.Width = compact ? 30 : 34;
-        _tabSwitchButton.Width = compact ? 30 : 34;
-        _commandPaletteButton.Margin = compact ? new Padding(3, 1, 2, 1) : new Padding(3, 1, 2, 1);
-        _tabSwitchButton.Margin = compact ? new Padding(2, 1, 4, 1) : new Padding(2, 1, 4, 1);
-        _toggleBookmarksBarButton.Width = compact ? 34 : 38;
+        _commandPaletteButton.Width = compact ? 28 : 32;
+        _tabSwitchButton.Width = compact ? 28 : 32;
+        _commandPaletteButton.Margin = new Padding(1, 1, 1, 1);
+        _tabSwitchButton.Margin = new Padding(1, 1, 1, 1);
+        _toggleBookmarksBarButton.Width = compact ? 30 : 34;
+        _toggleBookmarksBarButton.Margin = new Padding(1, 1, 1, 1);
         _toggleBookmarksBarButton.BackColor = Color.Transparent;
         UpdateBookmarkBarToggleButtonText();
 
@@ -2105,7 +2106,7 @@ public sealed class MainWindow : Form
         _searchEngineButton.AutoSize = false;
         _searchEngineButton.Width = compact ? 30 : 34;
         _searchEngineButton.Height = compact ? 28 : 32;
-        _searchEngineButton.Margin = new Padding(2, 1, 2, 1);
+        _searchEngineButton.Margin = new Padding(1, 1, 1, 1);
         _searchEngineButton.BackColor = Color.Transparent;
         _searchEngineButton.ForeColor = AppTheme.TextPrimary;
         _searchEngineButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
@@ -2115,7 +2116,7 @@ public sealed class MainWindow : Form
         _appearanceButton.AutoSize = false;
         _appearanceButton.Width = compact ? 30 : 34;
         _appearanceButton.Height = compact ? 28 : 32;
-        _appearanceButton.Margin = new Padding(2, 1, 2, 1);
+        _appearanceButton.Margin = new Padding(1, 1, 1, 1);
         _appearanceButton.BackColor = Color.Transparent;
         _appearanceButton.ForeColor = AppTheme.TextPrimary;
         _appearanceButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
@@ -2125,13 +2126,59 @@ public sealed class MainWindow : Form
         _multiWindowButton.AutoSize = false;
         _multiWindowButton.Width = compact ? 30 : 34;
         _multiWindowButton.Height = compact ? 28 : 32;
-        _multiWindowButton.Margin = new Padding(2, 1, 2, 1);
+        _multiWindowButton.Margin = new Padding(1, 1, 1, 1);
         _multiWindowButton.BackColor = Color.Transparent;
         _multiWindowButton.ForeColor = AppTheme.TextPrimary;
         _multiWindowButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _multiWindowButton.Font = AppTheme.CreateFont(compact ? 10F : 11F, FontStyle.Bold);
         _multiWindowButton.Text = "❐";
         _multiWindowButton.ToolTipText = "多开 / 双开窗口：独立、共享或无痕";
+
+        _sidePanelButton.AutoSize = false;
+        _sidePanelButton.ShowDropDownArrow = false;
+        _sidePanelButton.Width = compact ? 30 : 34;
+        _sidePanelButton.Height = compact ? 28 : 32;
+        _sidePanelButton.Margin = new Padding(1, 1, 1, 1);
+        _sidePanelButton.BackColor = Color.Transparent;
+        _sidePanelButton.ForeColor = AppTheme.TextPrimary;
+        _sidePanelButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _sidePanelButton.Font = AppTheme.CreateFont(compact ? 10F : 11F, FontStyle.Bold);
+        _sidePanelButton.Text = "◧";
+        _sidePanelButton.ToolTipText = "侧边栏 (Alt+S)\n包含工具箱、书签、历史、下载与便签";
+
+        _splitViewButton.AutoSize = false;
+        _splitViewButton.Width = compact ? 30 : 34;
+        _splitViewButton.Height = compact ? 28 : 32;
+        _splitViewButton.Margin = new Padding(1, 1, 1, 1);
+        _splitViewButton.BackColor = Color.Transparent;
+        _splitViewButton.ForeColor = AppTheme.TextPrimary;
+        _splitViewButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _splitViewButton.Font = AppTheme.CreateFont(compact ? 10F : 11F, FontStyle.Bold);
+        _splitViewButton.Text = "◫";
+        _splitViewButton.ToolTipText = "双屏分屏并行浏览 (Alt+D)";
+
+        _readerModeButton.AutoSize = false;
+        _readerModeButton.Width = compact ? 30 : 34;
+        _readerModeButton.Height = compact ? 28 : 32;
+        _readerModeButton.Margin = new Padding(1, 1, 1, 1);
+        _readerModeButton.BackColor = Color.Transparent;
+        _readerModeButton.ForeColor = AppTheme.TextPrimary;
+        _readerModeButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        _readerModeButton.Font = AppTheme.CreateFont(compact ? 10F : 11F, FontStyle.Bold);
+        _readerModeButton.Text = "📖";
+        _readerModeButton.ToolTipText = "沉浸式阅读模式 (Alt+R)";
+
+        foreach (var pinnedButton in _pinnedPluginButtons)
+        {
+            pinnedButton.AutoSize = false;
+            pinnedButton.Width = compact ? 30 : 34;
+            pinnedButton.Height = compact ? 28 : 32;
+            pinnedButton.Margin = new Padding(1, 1, 1, 1);
+            pinnedButton.BackColor = Color.Transparent;
+            pinnedButton.ForeColor = AppTheme.TextPrimary;
+            pinnedButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            pinnedButton.Font = AppTheme.CreateFont(compact ? 10F : 11F, FontStyle.Bold);
+        }
 
         _recentTabsButton.AutoSize = false;
         _recentTabsButton.ToolTipText = "最近关闭标签\n快捷键: Ctrl+Shift+T";
@@ -2146,7 +2193,7 @@ public sealed class MainWindow : Form
         _recentTabsButton.Text = "⟲";
 
         _sessionButton.AutoSize = false;
-        _sessionButton.ToolTipText = "会话中心\n包含恢复、共享打开、无痕打开";
+        _sessionButton.ToolTipText = "会话与工作区管理\n包含恢复历史会话、共享打开、无痕打开与导入导出";
         _sessionButton.ShowDropDownArrow = false;
         _sessionButton.Width = compact ? 30 : 34;
         _sessionButton.Height = compact ? 28 : 32;
@@ -2155,7 +2202,7 @@ public sealed class MainWindow : Form
         _sessionButton.ForeColor = AppTheme.TextPrimary;
         _sessionButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _sessionButton.Font = AppTheme.CreateFont(compact ? 10F : 11F, FontStyle.Bold);
-        _sessionButton.Text = "☰";
+        _sessionButton.Text = "🗂";
 
         _tabQuickButton.AutoSize = false;
         _tabQuickButton.ShowDropDownArrow = false;
@@ -2189,7 +2236,7 @@ public sealed class MainWindow : Form
         _verticalTabsToggleButton.ForeColor = AppTheme.TextPrimary;
         _verticalTabsToggleButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         _verticalTabsToggleButton.Font = AppTheme.CreateFont(compact ? 9.5F : 10.5F, FontStyle.Bold);
-        _verticalTabsToggleButton.Text = "▤";
+        _verticalTabsToggleButton.Text = "📑";
         _verticalTabsToggleButton.ToolTipText = "切换垂直标签栏 / 水平标签栏 (Ctrl+Shift+V)";
 
         _titleNewTabButton.AutoSize = false;
@@ -8444,15 +8491,20 @@ public sealed class MainWindow : Form
 
                 validIds.Add(package.Id);
                 var stateText = package.Enabled ? "已启用" : "已禁用";
-                var button = new ToolStripButton(package.Name)
+                var glyph = ResolvePluginShortGlyph(package.Name);
+                var compact = AppTheme.IsCompact;
+                var button = new ToolStripButton(glyph)
                 {
-                    AutoSize = true,
-                    Margin = new Padding(3, 1, 3, 1),
-                    BackColor = package.Enabled ? AppTheme.AccentHover : AppTheme.AccentMuted,
+                    AutoSize = false,
+                    Width = compact ? 30 : 34,
+                    Height = compact ? 28 : 32,
+                    Margin = new Padding(1, 1, 1, 1),
+                    BackColor = Color.Transparent,
                     ForeColor = AppTheme.TextPrimary,
-                    Font = AppTheme.CreateFont(9F, FontStyle.Regular),
+                    Font = AppTheme.CreateFont(compact ? 10F : 11F, FontStyle.Bold),
                     Checked = package.Enabled,
-                    ToolTipText = $"{package.Name}（{stateText}）\n点击：在当前页面运行该插件\n启停/取消固定请在“插件”下拉中操作"
+                    DisplayStyle = ToolStripItemDisplayStyle.Text,
+                    ToolTipText = $"插件：{package.Name}（{stateText}）\n点击：在当前页面运行该插件\n启停/取消固定请在“插件”下拉中操作"
                 };
                 var pluginId = package.Id;
                 var pluginName = package.Name;
@@ -8480,6 +8532,62 @@ public sealed class MainWindow : Form
         }
 
         RebuildTopBarItems();
+    }
+
+    internal static string ResolvePluginShortGlyph(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "🧩";
+        }
+
+        var trimmed = name.Trim();
+        if (trimmed.Contains("填", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("表单", StringComparison.OrdinalIgnoreCase))
+        {
+            return "✍";
+        }
+
+        if (trimmed.Contains("夜间", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("深色", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("暗", StringComparison.OrdinalIgnoreCase))
+        {
+            return "🌙";
+        }
+
+        if (trimmed.Contains("翻译", StringComparison.OrdinalIgnoreCase))
+        {
+            return "🌐";
+        }
+
+        if (trimmed.Contains("阅读", StringComparison.OrdinalIgnoreCase))
+        {
+            return "📖";
+        }
+
+        if (trimmed.Contains("广告", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("拦截", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("屏蔽", StringComparison.OrdinalIgnoreCase))
+        {
+            return "🛡";
+        }
+
+        if (trimmed.Contains("下载", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("抓取", StringComparison.OrdinalIgnoreCase))
+        {
+            return "📥";
+        }
+
+        if (trimmed.Contains("截", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("图", StringComparison.OrdinalIgnoreCase))
+        {
+            return "✂";
+        }
+
+        if (trimmed.Contains("密码", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("安全", StringComparison.OrdinalIgnoreCase))
+        {
+            return "🔑";
+        }
+
+        if (trimmed.Contains("码", StringComparison.OrdinalIgnoreCase) || trimmed.Contains("脚本", StringComparison.OrdinalIgnoreCase))
+        {
+            return "⚡";
+        }
+
+        return trimmed[0].ToString();
     }
 
     private void BuildSearchEngineMenu()
@@ -8971,15 +9079,17 @@ public sealed class MainWindow : Form
     {
         var tabs = _tabManager.Tabs;
         var active = _tabManager.ActiveTab;
-        var isNarrow = ClientSize.Width < 1160;
-        var isUltraNarrow = ClientSize.Width < 980;
+        var compact = AppTheme.IsCompact;
+        _tabQuickButton.Text = "❖";
+        _tabQuickButton.AutoSize = false;
+        _tabQuickButton.ShowDropDownArrow = false;
+        _tabQuickButton.Width = compact ? 30 : 34;
+        _tabQuickButton.Height = compact ? 28 : 32;
+        _tabQuickButton.Margin = new Padding(1, 1, 1, 1);
+        _tabQuickButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
         if (active is null || tabs.Count == 0)
         {
-            _tabQuickButton.Text = isUltraNarrow ? "0" : "标签 0";
-            _tabQuickButton.ToolTipText = "当前没有可用标签";
-            _tabQuickButton.Width = isUltraNarrow
-                ? (AppTheme.IsCompact ? 46 : 54)
-                : (AppTheme.IsCompact ? 90 : 104);
+            _tabQuickButton.ToolTipText = "快速切换标签\n当前没有可用标签 (Ctrl+Tab / Ctrl+K)";
             return;
         }
 
@@ -8988,18 +9098,7 @@ public sealed class MainWindow : Form
             .FirstOrDefault(item => ReferenceEquals(item.tab, active))
             ?.index ?? 0;
         var displayTitle = string.IsNullOrWhiteSpace(active.DisplayTitle) ? "新标签页" : active.DisplayTitle.Trim();
-        var maxTitleLength = isUltraNarrow ? 8 : isNarrow ? 12 : 18;
-        var shortTitle = displayTitle.Length > maxTitleLength ? $"{displayTitle[..maxTitleLength]}..." : displayTitle;
-        _tabQuickButton.Text = isUltraNarrow
-            ? $"{activeIndex + 1}/{tabs.Count}"
-            : $"标签[{activeIndex + 1}/{tabs.Count}] {shortTitle}";
-        _tabQuickButton.ToolTipText = $"切换标签 ({activeIndex + 1}/{tabs.Count})\n{displayTitle}\n快捷键: Ctrl+Tab / Ctrl+Shift+Tab / Ctrl+1..9 / Ctrl+Shift+T / Ctrl+Shift+PgUp/PgDn 或 Ctrl+Shift+←/→(移动) / Ctrl+Shift+W(关其他) / Ctrl+Shift+L(关左侧) / Ctrl+Shift+R(关右侧) / Ctrl+Shift+D(去重)";
-        var measured = TextRenderer.MeasureText(_tabQuickButton.Text, _topBar.Font).Width + (AppTheme.IsCompact ? 20 : 24);
-        _tabQuickButton.Width = isUltraNarrow
-            ? Math.Clamp(measured, AppTheme.IsCompact ? 50 : 58, AppTheme.IsCompact ? 82 : 92)
-            : isNarrow
-                ? Math.Clamp(measured, AppTheme.IsCompact ? 112 : 126, AppTheme.IsCompact ? 218 : 242)
-                : Math.Clamp(measured, AppTheme.IsCompact ? 166 : 186, AppTheme.IsCompact ? 312 : 360);
+        _tabQuickButton.ToolTipText = $"快速切换标签 ({activeIndex + 1}/{tabs.Count}) · {displayTitle}\n点击展开标签与工作区列表\n快捷键: Ctrl+Tab / Ctrl+Shift+Tab / Ctrl+1..9 / Ctrl+Shift+T / Ctrl+Shift+PgUp/PgDn 或 Ctrl+Shift+←/→(移动) / Ctrl+Shift+W(关其他) / Ctrl+Shift+L(关左侧) / Ctrl+Shift+R(关右侧) / Ctrl+Shift+D(去重)";
     }
 
     private void UpdateWorkspaceButtonBadge(int? preloadedCount = null)
@@ -9099,7 +9198,7 @@ public sealed class MainWindow : Form
         _recentTabsButton.Margin = new Padding(1, 1, 1, 1);
         _recentTabsButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
 
-        _sessionButton.Text = "☰";
+        _sessionButton.Text = "🗂";
         _sessionButton.AutoSize = false;
         _sessionButton.Width = compact ? 30 : 34;
         _sessionButton.Height = iconHeight;
@@ -9108,10 +9207,42 @@ public sealed class MainWindow : Form
 
         _tabQuickButton.Text = "❖";
         _tabQuickButton.AutoSize = false;
+        _tabQuickButton.ShowDropDownArrow = false;
         _tabQuickButton.Width = compact ? 30 : 34;
         _tabQuickButton.Height = iconHeight;
         _tabQuickButton.Margin = new Padding(1, 1, 1, 1);
         _tabQuickButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+
+        _sidePanelButton.Text = "◧";
+        _sidePanelButton.AutoSize = false;
+        _sidePanelButton.ShowDropDownArrow = false;
+        _sidePanelButton.Width = compact ? 30 : 34;
+        _sidePanelButton.Height = iconHeight;
+        _sidePanelButton.Margin = new Padding(1, 1, 1, 1);
+        _sidePanelButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+
+        _splitViewButton.Text = "◫";
+        _splitViewButton.AutoSize = false;
+        _splitViewButton.Width = compact ? 30 : 34;
+        _splitViewButton.Height = iconHeight;
+        _splitViewButton.Margin = new Padding(1, 1, 1, 1);
+        _splitViewButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+
+        _readerModeButton.Text = "📖";
+        _readerModeButton.AutoSize = false;
+        _readerModeButton.Width = compact ? 30 : 34;
+        _readerModeButton.Height = iconHeight;
+        _readerModeButton.Margin = new Padding(1, 1, 1, 1);
+        _readerModeButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+
+        foreach (var pinnedButton in _pinnedPluginButtons)
+        {
+            pinnedButton.AutoSize = false;
+            pinnedButton.Width = compact ? 30 : 34;
+            pinnedButton.Height = iconHeight;
+            pinnedButton.Margin = new Padding(1, 1, 1, 1);
+            pinnedButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+        }
 
         _commandPaletteButton.Text = "⌘";
         _commandPaletteButton.AutoSize = false;

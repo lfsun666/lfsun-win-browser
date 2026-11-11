@@ -888,4 +888,22 @@ public sealed class BookmarkImportAndPerformanceTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void TopToolbarLayoutAndPluginGlyphs_ShouldBeConsistentAndValid()
+    {
+        // 1. Semantic plugin glyph resolver tests
+        Assert.Equal("✍", MainWindow.ResolvePluginShortGlyph("一键填充表单"));
+        Assert.Equal("✍", MainWindow.ResolvePluginShortGlyph("自动填表神器"));
+        Assert.Equal("🌙", MainWindow.ResolvePluginShortGlyph("夜间深色护眼模式"));
+        Assert.Equal("🌐", MainWindow.ResolvePluginShortGlyph("网页划词翻译插件"));
+        Assert.Equal("📖", MainWindow.ResolvePluginShortGlyph("沉浸式网页阅读助手"));
+        Assert.Equal("🛡", MainWindow.ResolvePluginShortGlyph("广告拦截大师"));
+        Assert.Equal("📥", MainWindow.ResolvePluginShortGlyph("资源嗅探与下载器"));
+        Assert.Equal("✂", MainWindow.ResolvePluginShortGlyph("页面长截图与涂鸦"));
+        Assert.Equal("🔑", MainWindow.ResolvePluginShortGlyph("密码安全管理器"));
+        Assert.Equal("⚡", MainWindow.ResolvePluginShortGlyph("油猴脚本管理器"));
+        Assert.Equal("C", MainWindow.ResolvePluginShortGlyph("CustomExtension"));
+        Assert.Equal("🧩", MainWindow.ResolvePluginShortGlyph(""));
+    }
 }

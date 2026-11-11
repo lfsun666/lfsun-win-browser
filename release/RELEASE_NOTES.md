@@ -1,30 +1,35 @@
 # LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.18 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.19 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 3 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.18)
+## 当前最新交付清单 (v0.9.19)
 
 - **LfsunBrowser-portable-latest.zip** (65.57 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.16.zip** (65.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.17.zip** (65.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.18.zip** (65.57 MB)
-- **LfsunBrowser-setup-0.9.16.exe** (47.68 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.19.zip** (65.57 MB)
 - **LfsunBrowser-setup-0.9.17.exe** (47.69 MB)
 - **LfsunBrowser-setup-0.9.18.exe** (47.69 MB)
-- **LfsunBrowser-setup-latest.exe** (47.69 MB)
+- **LfsunBrowser-setup-0.9.19.exe** (47.68 MB)
+- **LfsunBrowser-setup-latest.exe** (47.68 MB)
 
 ## 当前版本更新亮点
 
-- 全局UI布局与标签资源诊断/状态栏芯片/书签编辑卡片全域优化：新增全新Fluent标签与内存诊断卡片（TabStatsCardDialog）彻底替代传统原生MessageBox弹窗，直观呈现标签生命周期6大指标芯片、实时内存评级胶囊、站点Top域名分布芯片与一键运维动作（去重、休眠、关其他）；书签设置（BookmarksSettingsWindow）右侧表单全量引入8px悬浮Surface圆角卡片包裹与抗锯齿边框，与左侧结构卡片完美平衡对齐；状态栏芯片（ModernStatusStripRenderer）非激活态边框接入AppTheme.PanelBorder语义色，彻底消除硬编码RGB色彩；查找栏关闭按钮鼠标悬浮反色为高对比度白字并微调贴边
+- 常规更新与体验优化
 
 ---
 
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.19] - 2026-11-11
+
+### 变更内容
+- 顶部导航与操作工具栏统一紧凑图标化布局精细化重构：工具栏右侧按钮（侧边栏、分屏、阅读模式、会话中心、快速切签、固定插件等）全量标准化为 Fluent 34px/30px 紧凑图标按钮，彻底消除文字截断（如“分”、“阅”）与混排错位；固定到工具栏的插件按钮采用透明底色自适应语义图标（如✍/🌙/🌐/📖/🛡/📥/⚡/首字符），移除突兀的实色大长条色块；会话中心图标升级为“🗂”，与左侧主菜单汉堡图标“☰”彻底区分；“当前标签”快速切签按钮收拢为轻巧微型图标“❖”，去除冗余横条文字占位，详细标题移入 Tooltip 浮窗；标题栏垂直标签栏开关字符替换为“📑”，解决部分中文字体环境下字符渲染形似汉字“日”的视觉误导
 
 ## [0.9.18] - 2026-11-11
 
