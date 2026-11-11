@@ -528,6 +528,19 @@ public static class AppTheme
             e.Graphics.DrawLine(checkPen, cx - 1, cy + 3, cx + 4, cy - 3);
         }
 
+        protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
+        {
+            e.ArrowColor = TextSecondary;
+            base.OnRenderArrow(e);
+        }
+
+        protected override void OnRenderItemImage(ToolStripItemImageRenderEventArgs e)
+        {
+            e.Graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            e.Graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            base.OnRenderItemImage(e);
+        }
+
         protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
         {
             if (e.Item is not ToolStripMenuItem menuItem)

@@ -395,8 +395,10 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
             graphics.FillPath(cardBrush, path);
             graphics.DrawPath(borderPen, path);
 
-            // 底部强调指示条
+            // 底部强调指示条（圆角端点）
             using var activeIndicatorPen = new Pen(AppTheme.Accent, 2.5F);
+            activeIndicatorPen.StartCap = LineCap.Round;
+            activeIndicatorPen.EndCap = LineCap.Round;
             var y = bounds.Bottom - 1;
             graphics.DrawLine(activeIndicatorPen, bounds.Left + 8, y, bounds.Right - 8, y);
         }

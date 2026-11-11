@@ -116,6 +116,7 @@ public sealed class BookmarksSettingsWindow : Form
             RowCount = 8,
             Padding = new Padding(12)
         };
+        right.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -159,7 +160,8 @@ public sealed class BookmarksSettingsWindow : Form
             AutoSize = true,
             Text = "名称"
         };
-        _nameTextBox.Width = 420;
+        _nameTextBox.Dock = DockStyle.Top;
+        _nameTextBox.MaximumSize = new Size(800, 30);
         _nameTextBox.BorderStyle = BorderStyle.FixedSingle;
 
         var urlLabel = new Label
@@ -167,7 +169,8 @@ public sealed class BookmarksSettingsWindow : Form
             AutoSize = true,
             Text = "地址（仅书签）"
         };
-        _urlTextBox.Width = 420;
+        _urlTextBox.Dock = DockStyle.Top;
+        _urlTextBox.MaximumSize = new Size(800, 30);
         _urlTextBox.BorderStyle = BorderStyle.FixedSingle;
 
         var editPanel = new FlowLayoutPanel

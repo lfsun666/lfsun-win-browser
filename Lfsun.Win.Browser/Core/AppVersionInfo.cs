@@ -42,6 +42,18 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.10",
+            "2026-11-11",
+            "全局UI布局与视觉细节深度进化：设置与会话列表彻底告别Win95虚线聚焦框、浮动查找条防透底圆角裁剪、侧边栏与垂直标签栏1px边框精准分离、下载列表现代圆角卡片胶囊化、标签指示条圆角化与右键二级菜单箭头渲染",
+            [
+                "【设置与会话列表清爽重构】彻底移除设置分类项与会话管理列表中的 Windows 95 点阵虚线聚焦框（DrawFocusRectangle），解决系统默认深蓝高亮闪烁问题，选中态无缝融合当前主题 Accent 微混色",
+                "【页内浮动查找条圆角裁剪】FindBar 浮动面板接入自适应 Region 几何裁剪，彻底根除 WinForms 矩形底板四角外露的视觉瑕疵，与网页内容呈现纯粹的悬浮圆角质感",
+                "【抽屉与垂直标签栏像素级界定】BrowserSidePanel 与 VerticalTabStrip 精准配置 1px 内衬边距，确保分割细线不被内层面板遮蔽，主浏览区与侧栏界线清晰利落",
+                "【侧边快捷下载列表卡片化】QuickDownloadsView 下载项升级为与历史记录一致的微圆角卡片芯片，去除整行硬切分割线，提升进度与文件状态的排版呼吸感",
+                "【活动标签指示条与上下文二级箭头优化】标题栏与水平标签页的当前活动指示条全面圆角化（LineCap.Round）；AccentMenuRenderer 补全二级子菜单箭头着色与双三次图标插值"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.9.9",
             "2026-11-11",
             "全局UI布局与渲染极致打磨：重构右键与下拉菜单横向分割线、新增Fluent圆角复选标记与SplitButton悬停底色、高清双三次插值抗锯齿图片渲染、消除地址建议项Win95虚线框、侧边栏全套按键平滑微动与历史列表胶囊高亮",

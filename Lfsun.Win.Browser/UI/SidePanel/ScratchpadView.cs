@@ -209,6 +209,16 @@ public sealed class ScratchpadView : UserControl
         _clearButton.BackColor = AppTheme.SurfaceAlt;
         _clearButton.ForeColor = AppTheme.TextSecondary;
         _clearButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+
+        var hoverBg = AppTheme.IsDark ? Color.FromArgb(40, 255, 255, 255) : Color.FromArgb(20, 0, 0, 0);
+        var pressBg = AppTheme.IsDark ? Color.FromArgb(60, 255, 255, 255) : Color.FromArgb(36, 0, 0, 0);
+        _insertLinkButton.FlatAppearance.MouseOverBackColor = hoverBg;
+        _insertLinkButton.FlatAppearance.MouseDownBackColor = pressBg;
+        _copyAllButton.FlatAppearance.MouseOverBackColor = hoverBg;
+        _copyAllButton.FlatAppearance.MouseDownBackColor = pressBg;
+        _clearButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(232, 17, 35);
+        _clearButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(199, 15, 29);
+
         _statsLabel.ForeColor = AppTheme.TextSecondary;
     }
 }

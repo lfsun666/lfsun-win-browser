@@ -95,6 +95,22 @@ public sealed class FindBar : Panel
         Controls.Add(_matchCaseCheckBox);
         Controls.Add(_closeButton);
         ApplyTheme();
+        UpdateCardRegion();
+    }
+
+    protected override void OnSizeChanged(EventArgs e)
+    {
+        base.OnSizeChanged(e);
+        UpdateCardRegion();
+    }
+
+    private void UpdateCardRegion()
+    {
+        if (Width <= 0 || Height <= 0) return;
+        var oldRegion = Region;
+        using var path = BuildRoundedRectangle(new Rectangle(0, 0, Width, Height), 10);
+        Region = new Region(path);
+        oldRegion?.Dispose();
     }
 
     public string SearchTerm => _searchTextBox.Text;

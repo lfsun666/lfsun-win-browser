@@ -79,6 +79,7 @@ public sealed class BrowserSidePanel : Panel
 
         Width = 340;
         Dock = DockStyle.Right;
+        Padding = new Padding(1, 0, 0, 0);
         Visible = false;
         DoubleBuffered = true;
         Font = AppTheme.CreateFont(9F);

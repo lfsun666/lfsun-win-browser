@@ -4495,10 +4495,14 @@ public sealed class MainWindow : Form
 
     private void DrawAddressSuggestionItem(object? sender, DrawItemEventArgs eventArgs)
     {
-        eventArgs.DrawBackground();
         if (eventArgs.Index < 0 || eventArgs.Index >= _addressSuggestionListBox.Items.Count)
         {
             return;
+        }
+
+        using (var clearBrush = new SolidBrush(_addressSuggestionListBox.BackColor))
+        {
+            eventArgs.Graphics.FillRectangle(clearBrush, eventArgs.Bounds);
         }
 
         if (_addressSuggestionListBox.Items[eventArgs.Index] is not AddressSuggestionEntry entry)

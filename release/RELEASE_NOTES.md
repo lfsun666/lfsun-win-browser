@@ -1,17 +1,17 @@
-﻿# LfsunBrowser 全版本发布与交付说明
+# LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.9 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.10 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 3 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.9)
+## 当前最新交付清单 (v0.9.10)
 
-- **LfsunBrowser-portable-latest.zip** (63.57 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.7.zip** (63.57 MB)
+- **LfsunBrowser-portable-latest.zip** (65.55 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.10.zip** (65.55 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.8.zip** (63.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.9.zip** (63.57 MB)
-- **LfsunBrowser-setup-0.9.7.exe** (47.68 MB)
+- **LfsunBrowser-setup-0.9.10.exe** (47.67 MB)
 - **LfsunBrowser-setup-0.9.8.exe** (47.68 MB)
 - **LfsunBrowser-setup-0.9.9.exe** (47.67 MB)
 - **LfsunBrowser-setup-latest.exe** (47.67 MB)
@@ -25,6 +25,11 @@
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.10] - 2026-11-11
+
+### 变更内容
+- 全局UI布局与视觉细节深度进化：设置与会话列表彻底告别Win95虚线聚焦框、浮动查找条防透底圆角裁剪、侧边栏与垂直标签栏1px边框精准分离、下载列表现代圆角卡片胶囊化、标签指示条圆角化与右键二级菜单箭头渲染
 
 ## [0.9.9] - 2026-11-11
 

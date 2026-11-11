@@ -53,6 +53,7 @@ public sealed class VerticalTabStrip : Panel
 
         Dock = DockStyle.Left;
         Width = ExpandedWidth;
+        Padding = new Padding(0, 0, 1, 0);
         Visible = false;
         DoubleBuffered = true;
         Font = AppTheme.CreateFont(9F);
@@ -141,6 +142,8 @@ public sealed class VerticalTabStrip : Panel
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
         var tabs = _getTabs();
         var activeTab = _getActiveTab();

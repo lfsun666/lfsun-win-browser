@@ -1643,11 +1643,6 @@ public sealed class SessionsWindow : Form
             textBounds,
             foreColor,
             TextFormatFlags.Left | TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-
-        if ((eventArgs.State & DrawItemState.Focus) == DrawItemState.Focus)
-        {
-            eventArgs.DrawFocusRectangle();
-        }
     }
 
     private static string BuildUniqueImportedSessionName(string baseName, HashSet<string> existingNames)

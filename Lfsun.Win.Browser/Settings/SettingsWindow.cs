@@ -1892,15 +1892,20 @@ public sealed class SettingsWindow : Form
 
     private static void DrawSidebarListItem(ListBox listBox, DrawItemEventArgs eventArgs, bool isSearchResult)
     {
-        eventArgs.DrawBackground();
         if (eventArgs.Index < 0 || eventArgs.Index >= listBox.Items.Count)
         {
             return;
         }
 
+        // 中文注释：用容器背景色替代 Win32 默认绘制，避免老旧系统深蓝高亮闪烁
+        using (var clearBrush = new SolidBrush(listBox.BackColor))
+        {
+            eventArgs.Graphics.FillRectangle(clearBrush, eventArgs.Bounds);
+        }
+
         var selected = (eventArgs.State & DrawItemState.Selected) == DrawItemState.Selected;
         var background = selected
-            ? (AppTheme.IsDark ? Color.FromArgb(72, 99, 136) : Color.FromArgb(199, 222, 251))
+            ? AppTheme.Mix(AppTheme.AccentHover, AppTheme.Surface, AppTheme.IsDark ? 0.32F : 0.22F)
             : isSearchResult
                 ? AppTheme.InputBackground
                 : AppTheme.Surface;
@@ -1909,6 +1914,12 @@ public sealed class SettingsWindow : Form
         using var backgroundBrush = new SolidBrush(background);
         eventArgs.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
         eventArgs.Graphics.FillPath(backgroundBrush, surfacePath);
+
+        if (selected)
+        {
+            using var borderPen = new Pen(AppTheme.Mix(AppTheme.Accent, AppTheme.PanelBorder, 0.40F), 1F);
+            eventArgs.Graphics.DrawPath(borderPen, surfacePath);
+        }
 
         using var textBrush = new SolidBrush(selected ? AppTheme.TextPrimary : AppTheme.TextSecondary);
         using var selectedFont = selected ? new Font(listBox.Font, FontStyle.Bold) : null;
@@ -1927,8 +1938,6 @@ public sealed class SettingsWindow : Form
             using var indicatorPath = BuildRoundRectPath(new Rectangle(surfaceBounds.Left + 2, surfaceBounds.Top + 4, 4, surfaceBounds.Height - 8), 2);
             eventArgs.Graphics.FillPath(indicatorBrush, indicatorPath);
         }
-
-        eventArgs.DrawFocusRectangle();
     }
 
     protected override void OnPaintBackground(PaintEventArgs eventArgs)

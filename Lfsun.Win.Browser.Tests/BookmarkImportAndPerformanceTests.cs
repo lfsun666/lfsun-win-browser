@@ -507,4 +507,45 @@ public sealed class BookmarkImportAndPerformanceTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void FindBar_And_BrowserSidePanel_LayoutProperties_ConfiguredProperly()
+    {
+        var thread = new Thread(() =>
+        {
+            var findBar = new Lfsun.Win.Browser.UI.FindBar();
+            Assert.NotNull(findBar.Region);
+
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try
+            {
+                var bm = new BookmarkManager(Path.Combine(tempDir, "bm.json"), _ => { });
+                var hm = new Lfsun.Win.Browser.History.HistoryManager(Path.Combine(tempDir, "hm.json"), _ => { });
+                var dm = new Lfsun.Win.Browser.Downloads.DownloadManager(tempDir, _ => { });
+
+                var sidePanel = new Lfsun.Win.Browser.UI.SidePanel.BrowserSidePanel(
+                    bm,
+                    hm,
+                    dm,
+                    () => null,
+                    (_, _) => Task.CompletedTask,
+                    _ => { },
+                    () => { },
+                    () => { },
+                    () => { });
+                Assert.Equal(new Padding(1, 0, 0, 0), sidePanel.Padding);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    try { Directory.Delete(tempDir, true); } catch { }
+                }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }

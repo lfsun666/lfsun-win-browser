@@ -139,6 +139,14 @@ public sealed class SplitBrowserPanel : Panel
         headerFlow.Controls.Add(_btnSwap);
         headerFlow.Controls.Add(_btnClose);
 
+        _secondaryHeader.SizeChanged += (_, _) =>
+        {
+            var navWidth = _btnBack.Width + _btnForward.Width + _btnRefresh.Width + 24;
+            var actionWidth = _btnSwap.Width + _btnClose.Width + 24;
+            var avail = _secondaryHeader.ClientSize.Width - navWidth - actionWidth;
+            _secondaryUrlBox.Width = Math.Clamp(avail, 140, 600);
+        };
+
         _secondaryHeader.Controls.Add(headerFlow);
 
         _splitContainer.Panel2.Controls.Add(_secondaryHeader);
@@ -307,5 +315,15 @@ public sealed class SplitBrowserPanel : Panel
         _btnRefresh.ForeColor = AppTheme.TextSecondary;
         _btnSwap.ForeColor = AppTheme.Accent;
         _btnClose.ForeColor = Color.FromArgb(235, 87, 87);
+
+        var hoverBg = AppTheme.IsDark ? Color.FromArgb(40, 255, 255, 255) : Color.FromArgb(20, 0, 0, 0);
+        var pressBg = AppTheme.IsDark ? Color.FromArgb(60, 255, 255, 255) : Color.FromArgb(36, 0, 0, 0);
+        foreach (var btn in new[] { _btnBack, _btnForward, _btnRefresh, _btnSwap })
+        {
+            btn.FlatAppearance.MouseOverBackColor = hoverBg;
+            btn.FlatAppearance.MouseDownBackColor = pressBg;
+        }
+        _btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(232, 17, 35);
+        _btnClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(199, 15, 29);
     }
 }

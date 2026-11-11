@@ -138,7 +138,9 @@ public sealed class ModernTabControl : TabControl, IDisposable
                 ? AppTheme.Mix(AppTheme.Accent, tabColor.Value, 0.56F)
                 : AppTheme.Accent;
             using var activeBarBrush = new SolidBrush(activeBarColor);
-            eventArgs.Graphics.FillRectangle(activeBarBrush, tabRect.Left + 8, tabRect.Top + 1, Math.Max(18, tabRect.Width - 16), 3);
+            var barRect = new Rectangle(tabRect.Left + 8, tabRect.Top + 1, Math.Max(18, tabRect.Width - 16), 3);
+            using var barPath = BuildRoundedRect(barRect, 2);
+            eventArgs.Graphics.FillPath(activeBarBrush, barPath);
         }
 
         if (hoveredClose)
