@@ -2626,7 +2626,11 @@ public sealed class MainWindow : Form
             PersistSessionState();
         };
         _tabManager.TabSurfaceInteracted += DismissTransientMenus;
-        _tabManager.InternalUrlNavigated += (_, url) => TryHandleInternalBrowserUrl(url);
+        _tabManager.InternalUrlNavigated += (tab, url) =>
+        {
+            var html = InternalUrlRouter.BuildInternalRedirectHtml(url);
+            _ = tab.NavigateToStringAsync(html);
+        };
         _tabManager.InternalUrlActionRequested += (_, action) =>
         {
             switch (action)
@@ -5461,7 +5465,7 @@ public sealed class MainWindow : Form
             return;
         }
 
-        if (TryHandleInternalBrowserUrl(_addressTextBox.Text))
+        if (TryHandleInternalBrowserUrl(_addressTextBox.Text, userInitiated: true))
         {
             HideAddressSuggestionPanel();
             return;
@@ -7069,7 +7073,7 @@ public sealed class MainWindow : Form
 
     private async Task NavigateToBookmarkAsync(string bookmarkUrl, bool inNewTab)
     {
-        if (TryHandleInternalBrowserUrl(bookmarkUrl))
+        if (TryHandleInternalBrowserUrl(bookmarkUrl, userInitiated: true))
         {
             return;
         }
@@ -8086,10 +8090,25 @@ public sealed class MainWindow : Form
         ShowOwnedWindow(_settingsWindow);
     }
 
-    private bool TryHandleInternalBrowserUrl(string? rawUrl)
+    private bool TryHandleInternalBrowserUrl(string? rawUrl, bool userInitiated = false)
     {
         if (string.IsNullOrWhiteSpace(rawUrl))
         {
+            return false;
+        }
+
+        // 启动尚未就绪、正在恢复会话或非用户主动显式操作时，绝不自动弹出任何外部窗口
+        if (!_startupCompleted || _isRestoringSession || !userInitiated)
+        {
+            if (InternalUrlRouter.IsInternalBrowserUrl(rawUrl))
+            {
+                var html = InternalUrlRouter.BuildInternalRedirectHtml(rawUrl);
+                if (_tabManager.ActiveTab is { } activeTab)
+                {
+                    _ = activeTab.NavigateToStringAsync(html);
+                }
+                return true;
+            }
             return false;
         }
 
@@ -8107,9 +8126,9 @@ public sealed class MainWindow : Form
             return true;
         }
 
-        if (!string.IsNullOrEmpty(redirectHtml) && _tabManager.ActiveTab is { } activeTab)
+        if (!string.IsNullOrEmpty(redirectHtml) && _tabManager.ActiveTab is { } currentTab)
         {
-            _ = activeTab.NavigateToStringAsync(redirectHtml);
+            _ = currentTab.NavigateToStringAsync(redirectHtml);
             return true;
         }
 
@@ -12039,7 +12058,7 @@ public sealed class MainWindow : Form
 
     private async Task NavigateActiveTabAsync(Uri uri)
     {
-        if (TryHandleInternalBrowserUrl(uri.AbsoluteUri))
+        if (TryHandleInternalBrowserUrl(uri.AbsoluteUri, userInitiated: true))
         {
             return;
         }

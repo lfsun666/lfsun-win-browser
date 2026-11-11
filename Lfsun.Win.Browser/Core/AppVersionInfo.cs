@@ -42,6 +42,16 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.4",
+            "2026-11-11",
+            "启动禁止自动打开设置窗体、专有协议页内静默中转、发布包轮转保留最新3个版本与说明文档全量合并统一归档",
+            [
+                "【禁止进入浏览器自动弹设置】严格限制启动与会话恢复生命周期中的外部窗体弹出，恢复包含 edge:// 等内部地址标签时采用页内静默转接，杜绝任何启动误弹设置窗口",
+                "【安装包与绿色包保留最新3个版本】流水线打包与历史版本轮转调整为严格保留最新 3 个版本独立包（加最新 latest 链接），彻底减轻历史包积压",
+                "【版本说明全量合并为一个文档】废弃分散的各版本独立 RELEASE_NOTES 文件，统一生成并归档至单一权威的 RELEASE_NOTES.md 文档中"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.9.3",
             "2026-11-11",
             "设置未修改误提示弹窗彻底消除、脏检查与表格生命周期精准解耦、Esc与关闭链路统一规范",

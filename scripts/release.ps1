@@ -4,7 +4,7 @@
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
     [string]$OutputDir = "",
-    [int]$KeepVersions = 10,
+    [int]$KeepVersions = 3,
     [switch]$SkipTests,
     [switch]$SkipInstaller
 )
@@ -216,7 +216,7 @@ $existingFiles = Get-ChildItem -Path $OutputDir -File
 $versionMap = @{}
 
 foreach ($f in $existingFiles) {
-    if ($f.Name -match "latest" -or $f.Name -eq "SHA256SUMS.txt") {
+    if ($f.Name -match "latest" -or $f.Name -eq "SHA256SUMS.txt" -or $f.Name -eq "RELEASE_NOTES.md") {
         continue
     }
     if ($f.Name -match $versionPattern) {
@@ -250,25 +250,47 @@ if ($sortedVersions.Count -gt $KeepVersions) {
     Write-Host "历史版本数量 ($($sortedVersions.Count)) 在保留上限 ($KeepVersions) 之内，全部保留: $($sortedVersions -join ', ')" -ForegroundColor Green
 }
 
-# 11. 生成本次发布的独立说明文件
-$releaseNotesFile = Join-Path $OutputDir "RELEASE_NOTES_v$targetVersion.md"
-$fileListLines = (Get-ChildItem -Path $OutputDir -File | ForEach-Object { "- **$($_.Name)** ($([math]::Round($_.Length / 1MB, 2)) MB)" }) -join "`r`n"
-$notesText = if ($Notes) { $Notes } else { "详见项目 CHANGELOG.md" }
+# 11. 清理旧版分散的独立说明文件，生成全版本统一的 RELEASE_NOTES.md
+Write-Host "`n[说明汇总] 清理历史分散说明文件并生成统一 RELEASE_NOTES.md..." -ForegroundColor Cyan
+Get-ChildItem -Path $OutputDir -Filter "RELEASE_NOTES_v*.md" | ForEach-Object {
+    Write-Host "  删除分散说明: $($_.Name)" -ForegroundColor DarkGray
+    Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+}
+
+$changelogText = if (Test-Path $changelogPath) {
+    (Get-Content $changelogPath -Raw -Encoding UTF8).Trim()
+} else {
+    "详见各版本代码提交记录与 CHANGELOG.md"
+}
+
+$fileListLines = (Get-ChildItem -Path $OutputDir -File | Where-Object { $_.Name -ne "SHA256SUMS.txt" -and $_.Name -ne "RELEASE_NOTES.md" } | ForEach-Object { "- **$($_.Name)** ($([math]::Round($_.Length / 1MB, 2)) MB)" }) -join "`r`n"
+$notesText = if ($Notes) { $Notes } else { "常规更新与体验优化" }
+
+$releaseNotesFile = Join-Path $OutputDir "RELEASE_NOTES.md"
 $releaseNotesLines = @(
-    "# LfsunBrowser v$targetVersion 发布说明",
+    "# LfsunBrowser 全版本发布与交付说明",
     "",
-    "- **发布日期**: $today",
-    "- **运行时环境**: .NET 8.0 (Self-Contained)",
-    "- **目标平台**: Windows x64 (Windows 10/11)",
-    "- **版本保留**: 自动保留最近 $KeepVersions 个历史发布版本",
+    "> **当前最新版本**: `v$targetVersion` | **发布日期**: $today | **运行时**: .NET 8.0 (Self-Contained x64)",
+    "> **发布规范**: 自动保留最新 $KeepVersions 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。",
     "",
-    "## 交付文件清单",
+    "---",
+    "",
+    "## 当前最新交付清单 (v$targetVersion)",
+    "",
     $fileListLines,
     "",
-    "## 更新摘要",
-    $notesText
+    "## 当前版本更新亮点",
+    "",
+    "- $notesText",
+    "",
+    "---",
+    "",
+    "## 全版本历史更新说明汇总 (Changelog)",
+    "",
+    $changelogText
 )
 Set-Content -Path $releaseNotesFile -Value ($releaseNotesLines -join "`r`n") -Encoding UTF8
+Write-Host "统一发布说明已更新: $releaseNotesFile" -ForegroundColor Green
 
 # 12. 重新计算 release 目录全量有效文件的 SHA256 校验和清单
 Write-Host "`n生成 release 目录全量文件 SHA256 校验清单..." -ForegroundColor Cyan
