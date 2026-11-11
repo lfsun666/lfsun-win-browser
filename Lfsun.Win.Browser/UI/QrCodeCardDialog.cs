@@ -82,6 +82,23 @@ public sealed class QrCodeCardDialog : Form
         _qrBox.Image = _qrBitmap;
         _qrBox.BackColor = AppTheme.IsDark ? Color.FromArgb(32, 38, 52) : Color.White;
         _qrBox.Margin = new Padding(12, 6, 12, 10);
+
+        void UpdateQrBoxRegion()
+        {
+            if (_qrBox.Width > 8 && _qrBox.Height > 8)
+            {
+                using var path = AppTheme.BuildRoundedRect(_qrBox.ClientRectangle, 10);
+                _qrBox.Region = new Region(path);
+            }
+        }
+        _qrBox.SizeChanged += (_, _) => UpdateQrBoxRegion();
+        _qrBox.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, _qrBox.Width - 1, _qrBox.Height - 1), 10);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
         mainPanel.Controls.Add(_qrBox, 0, 1);
 
         _urlTextBox.Dock = DockStyle.Fill;
@@ -108,6 +125,9 @@ public sealed class QrCodeCardDialog : Form
         _copyUrlButton.BackColor = AppTheme.Accent;
         _copyUrlButton.ForeColor = Color.White;
         _copyUrlButton.FlatAppearance.BorderSize = 0;
+        _copyUrlButton.FlatAppearance.MouseOverBackColor = AppTheme.AccentHover;
+        _copyUrlButton.FlatAppearance.MouseDownBackColor = AppTheme.AccentPressed;
+        _copyUrlButton.Cursor = Cursors.Hand;
         _copyUrlButton.Click += (_, _) =>
         {
             Clipboard.SetText(_targetUrl);
@@ -120,7 +140,11 @@ public sealed class QrCodeCardDialog : Form
         _saveImageButton.FlatStyle = FlatStyle.Flat;
         _saveImageButton.BackColor = AppTheme.SurfaceAlt;
         _saveImageButton.ForeColor = AppTheme.TextPrimary;
+        _saveImageButton.FlatAppearance.BorderSize = 1;
         _saveImageButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+        _saveImageButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F);
+        _saveImageButton.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.SurfaceAlt, 0.45F);
+        _saveImageButton.Cursor = Cursors.Hand;
         _saveImageButton.Click += (_, _) => SaveQrImage();
 
         _closeButton.Text = "关闭";
@@ -129,7 +153,11 @@ public sealed class QrCodeCardDialog : Form
         _closeButton.FlatStyle = FlatStyle.Flat;
         _closeButton.BackColor = AppTheme.SurfaceAlt;
         _closeButton.ForeColor = AppTheme.TextSecondary;
+        _closeButton.FlatAppearance.BorderSize = 1;
         _closeButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+        _closeButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F);
+        _closeButton.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.SurfaceAlt, 0.45F);
+        _closeButton.Cursor = Cursors.Hand;
         _closeButton.Click += (_, _) => Close();
 
         buttonBar.Controls.Add(_copyUrlButton);

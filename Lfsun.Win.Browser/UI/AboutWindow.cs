@@ -116,7 +116,32 @@ public sealed class AboutWindow : Form
         _changelogBox.ReadOnly = true;
         _changelogBox.BorderStyle = BorderStyle.None;
         _changelogBox.Font = AppTheme.CreateFont(9.2F);
-        _changelogBox.Margin = new Padding(0, 2, 0, 10);
+
+        var changelogContainer = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = AppTheme.Surface,
+            Padding = new Padding(6),
+            Margin = new Padding(0, 2, 0, 10)
+        };
+
+        void UpdateChangelogRegion()
+        {
+            if (changelogContainer.Width > 8 && changelogContainer.Height > 8)
+            {
+                using var path = AppTheme.BuildRoundedRect(changelogContainer.ClientRectangle, 6);
+                changelogContainer.Region = new Region(path);
+            }
+        }
+        changelogContainer.SizeChanged += (_, _) => UpdateChangelogRegion();
+        changelogContainer.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, changelogContainer.Width - 1, changelogContainer.Height - 1), 6);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
+        changelogContainer.Controls.Add(_changelogBox);
 
         // 底部操作按钮
         _actionsPanel.Dock = DockStyle.Fill;
@@ -126,15 +151,15 @@ public sealed class AboutWindow : Form
 
         _closeButton.Text = "关闭";
         _closeButton.Click += (_, _) => Close();
-        AppTheme.ApplyPrimaryButton(_closeButton);
+        AppTheme.ApplyPrimaryButton(_closeButton, emphasize: true);
 
         _openReleaseFolderButton.Text = "打开发布目录 (release/)";
         _openReleaseFolderButton.Click += (_, _) => OpenReleaseFolder();
-        AppTheme.ApplyPrimaryButton(_openReleaseFolderButton);
+        AppTheme.ApplyPrimaryButton(_openReleaseFolderButton, emphasize: false);
 
         _openRepoButton.Text = "访问项目仓库";
         _openRepoButton.Click += (_, _) => OpenRepository();
-        AppTheme.ApplyPrimaryButton(_openRepoButton);
+        AppTheme.ApplyPrimaryButton(_openRepoButton, emphasize: false);
 
         _actionsPanel.Controls.Add(_closeButton);
         _actionsPanel.Controls.Add(_openReleaseFolderButton);
@@ -142,7 +167,7 @@ public sealed class AboutWindow : Form
 
         root.Controls.Add(_headerPanel, 0, 0);
         root.Controls.Add(changelogTitle, 0, 1);
-        root.Controls.Add(_changelogBox, 0, 2);
+        root.Controls.Add(changelogContainer, 0, 2);
         root.Controls.Add(_actionsPanel, 0, 3);
 
         Controls.Add(root);

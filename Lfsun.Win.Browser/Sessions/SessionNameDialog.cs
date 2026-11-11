@@ -56,6 +56,7 @@ public sealed class SessionNameDialog : Form
             Anchor = AnchorStyles.Left
         }, 0, 0);
 
+        _nameTextBox.Dock = DockStyle.Fill;
         _nameTextBox.Text = defaultName;
         panel.Controls.Add(_nameTextBox, 1, 0);
 

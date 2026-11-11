@@ -42,6 +42,9 @@ public static class AppTheme
     public static Color AccentHover => _isDark
         ? Blend(Accent, Surface, ResolveHoverRatio(isDark: true))
         : Blend(Accent, Color.White, ResolveHoverRatio(isDark: false));
+    public static Color AccentPressed => _isDark
+        ? Blend(Accent, Color.Black, 0.16F)
+        : Blend(Accent, Color.Black, 0.16F);
     public static Color TextPrimary => _isDark ? Color.FromArgb(237, 240, 245) : Color.FromArgb(26, 31, 40);
     public static Color TextSecondary => _isDark ? Color.FromArgb(158, 167, 180) : Color.FromArgb(96, 106, 122);
     public static Color InputBackground => _isDark ? Color.FromArgb(36, 40, 47) : Color.White;
@@ -571,22 +574,22 @@ public static class AppTheme
                 e.Graphics.FillPath(brush, path);
             }
         }
+    }
 
-        private static GraphicsPath BuildRoundedRect(Rectangle rect, int radius)
-        {
-            var path = new GraphicsPath();
-            var diameter = radius * 2;
-            var arc = new Rectangle(rect.Left, rect.Top, diameter, diameter);
-            path.AddArc(arc, 180, 90);
-            arc.X = rect.Right - diameter;
-            path.AddArc(arc, 270, 90);
-            arc.Y = rect.Bottom - diameter;
-            path.AddArc(arc, 0, 90);
-            arc.X = rect.Left;
-            path.AddArc(arc, 90, 90);
-            path.CloseFigure();
-            return path;
-        }
+    public static GraphicsPath BuildRoundedRect(Rectangle rect, int radius)
+    {
+        var path = new GraphicsPath();
+        var diameter = Math.Max(1, radius * 2);
+        var arc = new Rectangle(rect.Left, rect.Top, diameter, diameter);
+        path.AddArc(arc, 180, 90);
+        arc.X = rect.Right - diameter;
+        path.AddArc(arc, 270, 90);
+        arc.Y = rect.Bottom - diameter;
+        path.AddArc(arc, 0, 90);
+        arc.X = rect.Left;
+        path.AddArc(arc, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 }
 

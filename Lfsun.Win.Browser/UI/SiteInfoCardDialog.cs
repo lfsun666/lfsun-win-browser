@@ -71,16 +71,40 @@ public sealed class SiteInfoCardDialog : Form
         mainPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         // 1. Security header card
+        var cardBg = isLocal
+            ? AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.15F)
+            : (isHttps
+                ? (AppTheme.IsDark ? Color.FromArgb(28, 54, 42) : Color.FromArgb(232, 248, 238))
+                : (AppTheme.IsDark ? Color.FromArgb(64, 44, 24) : Color.FromArgb(254, 244, 230)));
+        var borderColor = isLocal
+            ? AppTheme.Mix(AppTheme.Accent, AppTheme.PanelBorder, 0.40F)
+            : (isHttps
+                ? (AppTheme.IsDark ? Color.FromArgb(45, 90, 65) : Color.FromArgb(170, 225, 190))
+                : (AppTheme.IsDark ? Color.FromArgb(120, 80, 40) : Color.FromArgb(240, 195, 150)));
+
         var securityCard = new Panel
         {
             Dock = DockStyle.Fill,
-            BackColor = isLocal
-                ? AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.15F)
-                : (isHttps
-                    ? (AppTheme.IsDark ? Color.FromArgb(28, 54, 42) : Color.FromArgb(232, 248, 238))
-                    : (AppTheme.IsDark ? Color.FromArgb(64, 44, 24) : Color.FromArgb(254, 244, 230))),
+            BackColor = cardBg,
             Padding = new Padding(12, 10, 12, 10),
             Margin = new Padding(0, 0, 0, 8)
+        };
+
+        void UpdateSecurityCardRegion()
+        {
+            if (securityCard.Width > 8 && securityCard.Height > 8)
+            {
+                using var path = AppTheme.BuildRoundedRect(securityCard.ClientRectangle, 8);
+                securityCard.Region = new Region(path);
+            }
+        }
+        securityCard.SizeChanged += (_, _) => UpdateSecurityCardRegion();
+        securityCard.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, securityCard.Width - 1, securityCard.Height - 1), 8);
+            using var pen = new Pen(borderColor, 1F);
+            e.Graphics.DrawPath(pen, path);
         };
 
         var securityLabel = new Label
@@ -182,7 +206,10 @@ public sealed class SiteInfoCardDialog : Form
             Margin = new Padding(3),
             Cursor = Cursors.Hand
         };
+        btn.FlatAppearance.BorderSize = 1;
         btn.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+        btn.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F);
+        btn.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.SurfaceAlt, 0.45F);
         btn.Click += (_, _) => onClick();
         return btn;
     }

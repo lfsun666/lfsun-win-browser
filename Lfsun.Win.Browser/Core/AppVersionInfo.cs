@@ -42,6 +42,19 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.11",
+            "2026-11-11",
+            "全局UI布局与浮动卡片交互全面升华：站点安全卡片圆角边界与按钮微交互、扫码卡片圆角立体包裹与操作反馈、网页性能诊断面板圆角容器与高阶交互、工具栏缩放胶囊无缝融合与悬停动画全覆盖、书签编辑与会话命名自适应拉伸",
+            [
+                "【站点安全卡片精雕细琢】SiteInfoCardDialog 站点安全顶栏接入动态 Region 圆角裁剪与状态匹配的轻边框，清除 Cookie、强刷及扫码按钮全部赋予平滑悬停与按压微交互反馈",
+                "【扫码卡片圆角立体包裹】QrCodeCardDialog 二维码展示区采用自适应圆角 Region 裁剪与 1px 优雅描边，复制网址与保存图片按键增强 Fluent 交互反馈",
+                "【网页诊断面板圆角容器】PagePerformanceCardDialog 指标瀑布面板升级圆角几何裁剪与边框包裹，主次操作按键全面支持 Hover / Pressed 动态色阶过渡",
+                "【缩放胶囊无缝融合】Toolbar 自定义缩放指示胶囊 (_zoomPillButton) 全面接入主题系统与 Toolbar 悬停微动画矩阵，分屏、垂直标签与阅读模式按键同步获得顺滑悬停过渡",
+                "【对话框编辑框自适应拉伸】书签编辑 (BookmarkEditDialog) 与会话命名 (SessionNameDialog) 文本输入框接入 DockStyle.Fill 自适应布局，彻底消除固定短输入框留白，导入会话动作按钮对齐标准 UX 交互规范",
+                "【全局视觉统一】AppTheme 提炼公共 BuildRoundedRect 与 AccentPressed 设计令牌，消除各控件重复构建圆角路径与硬编码按压状态的碎片化实现"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.9.10",
             "2026-11-11",
             "全局UI布局与视觉细节深度进化：设置与会话列表彻底告别Win95虚线聚焦框、浮动查找条防透底圆角裁剪、侧边栏与垂直标签栏1px边框精准分离、下载列表现代圆角卡片胶囊化、标签指示条圆角化与右键二级菜单箭头渲染",

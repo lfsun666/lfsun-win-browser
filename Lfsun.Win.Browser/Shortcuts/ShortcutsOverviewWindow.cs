@@ -79,12 +79,12 @@ public sealed class ShortcutsOverviewWindow : Form
         _copyButton.Text = "复制全部";
         _copyButton.Anchor = AnchorStyles.Right;
         _copyButton.Click += (_, _) => CopyAll();
-        AppTheme.ApplyPrimaryButton(_copyButton);
+        AppTheme.ApplyPrimaryButton(_copyButton, emphasize: false);
 
         _closeButton.Text = "关闭";
         _closeButton.Anchor = AnchorStyles.Right;
         _closeButton.Click += (_, _) => Close();
-        AppTheme.ApplyPrimaryButton(_closeButton);
+        AppTheme.ApplyPrimaryButton(_closeButton, emphasize: true);
 
         var flow = new FlowLayoutPanel
         {
@@ -115,6 +115,7 @@ public sealed class ShortcutsOverviewWindow : Form
 
         Controls.Add(_listView);
         Controls.Add(topPanel);
+        topPanel.BringToFront();
     }
 
     private void ApplyTheme()

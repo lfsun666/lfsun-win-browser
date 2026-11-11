@@ -2296,6 +2296,12 @@ public sealed class MainWindow : Form
         _siteBadgeLabel.Width = compact ? 32 : 34;
         _siteBadgeLabel.Margin = compact ? new Padding(3, 1, 1, 1) : new Padding(4, 2, 1, 2);
         _siteBadgeLabel.Padding = compact ? new Padding(4, 1, 4, 1) : new Padding(6, 2, 6, 2);
+
+        _zoomPillButton.Font = AppTheme.CreateFont(compact ? 8.4F : 8.8F, FontStyle.Bold);
+        _zoomPillButton.BackColor = AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, AppTheme.IsDark ? 0.30F : 0.18F);
+        _zoomPillButton.ForeColor = AppTheme.Accent;
+        _zoomPillButton.Margin = compact ? new Padding(2, 1, 2, 1) : new Padding(3, 1, 3, 1);
+        _zoomPillButton.Padding = compact ? new Padding(5, 1, 5, 1) : new Padding(6, 2, 6, 2);
         UpdateTabQuickButtonText();
         UpdateWorkspaceButtonBadge();
 
@@ -7668,6 +7674,7 @@ public sealed class MainWindow : Form
             _settingsButton, _pluginButton, _searchEngineButton, _appearanceButton,
             _recentTabsButton, _sessionButton, _tabQuickButton, _workspaceButton,
             _commandPaletteButton, _tabSwitchButton,
+            _verticalTabsToggleButton, _splitViewButton, _readerModeButton, _zoomPillButton,
             _titleNewTabButton
         };
 

@@ -97,7 +97,8 @@ public sealed class BookmarkAddToFolderDialog : Form
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.RightToLeft,
-            AutoSize = true
+            AutoSize = true,
+            Padding = new Padding(0, 8, 0, 0)
         };
         _okButton.Text = "确定";
         _okButton.Click += (_, _) =>

@@ -99,6 +99,23 @@ public sealed class PagePerformanceCardDialog : Form
         _metricsPanel.AutoScroll = true;
         _metricsPanel.BackColor = AppTheme.Surface;
         _metricsPanel.Padding = new Padding(14);
+
+        void UpdateMetricsPanelRegion()
+        {
+            if (_metricsPanel.Width > 8 && _metricsPanel.Height > 8)
+            {
+                using var path = AppTheme.BuildRoundedRect(_metricsPanel.ClientRectangle, 8);
+                _metricsPanel.Region = new Region(path);
+            }
+        }
+        _metricsPanel.SizeChanged += (_, _) => UpdateMetricsPanelRegion();
+        _metricsPanel.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, _metricsPanel.Width - 1, _metricsPanel.Height - 1), 8);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
         mainContainer.Controls.Add(_metricsPanel, 0, 1);
 
         // 3. 底部操作栏
@@ -331,12 +348,16 @@ public sealed class PagePerformanceCardDialog : Form
             btn.BackColor = AppTheme.Accent;
             btn.ForeColor = Color.White;
             btn.FlatAppearance.BorderColor = AppTheme.Accent;
+            btn.FlatAppearance.MouseOverBackColor = AppTheme.AccentHover;
+            btn.FlatAppearance.MouseDownBackColor = AppTheme.AccentPressed;
         }
         else
         {
             btn.BackColor = AppTheme.Surface;
             btn.ForeColor = AppTheme.TextPrimary;
             btn.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+            btn.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.AccentHover, AppTheme.Surface, 0.25F);
+            btn.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.Surface, 0.40F);
         }
 
         btn.Click += (_, _) => onClick();

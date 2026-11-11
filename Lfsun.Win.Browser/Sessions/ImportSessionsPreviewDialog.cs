@@ -213,8 +213,8 @@ public sealed class ImportSessionsPreviewDialog : Form
         };
         _okButton.Text = "开始导入";
         _cancelButton.Text = "取消";
-        actionBar.Controls.Add(_cancelButton);
         actionBar.Controls.Add(_okButton);
+        actionBar.Controls.Add(_cancelButton);
 
         root.Controls.Add(header, 0, 0);
         root.Controls.Add(toolBar, 0, 1);

@@ -73,12 +73,14 @@ public sealed class BookmarkEditDialog : Form
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
         panel.Controls.Add(new Label { Text = "名称", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+        _nameTextBox.Dock = DockStyle.Fill;
         _nameTextBox.Text = defaultName;
         panel.Controls.Add(_nameTextBox, 1, 0);
 
         if (!_isFolder)
         {
             panel.Controls.Add(new Label { Text = "地址", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
+            _urlTextBox.Dock = DockStyle.Fill;
             _urlTextBox.Text = defaultUrl;
             panel.Controls.Add(_urlTextBox, 1, 1);
         }

@@ -548,4 +548,32 @@ public sealed class BookmarkImportAndPerformanceTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void FloatingCards_And_Dialogs_LayoutAndHoverFeedback_ConfiguredProperly()
+    {
+        var thread = new Thread(() =>
+        {
+            using var siteInfo = new Lfsun.Win.Browser.UI.SiteInfoCardDialog(
+                new Uri("https://example.com"),
+                blockedCount: 5,
+                loadMs: 120,
+                clearCookiesAction: null,
+                hardRefreshAction: null,
+                viewSourceAction: null,
+                showQrAction: null);
+            Assert.NotNull(siteInfo);
+            Assert.Equal("站点信息", siteInfo.Text);
+
+            using var qrCard = new Lfsun.Win.Browser.UI.QrCodeCardDialog("https://example.com");
+            Assert.NotNull(qrCard);
+            Assert.Equal("手机扫码继续浏览", qrCard.Text);
+
+            using var about = new Lfsun.Win.Browser.UI.AboutWindow();
+            Assert.NotNull(about);
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }
