@@ -1,3 +1,4 @@
+using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using Lfsun.Win.Browser.Browser;
 
@@ -125,10 +126,45 @@ public sealed class ToolboxView : UserControl
             Margin = new Padding(0, 4, 0, 10),
             Padding = new Padding(8)
         };
+
+        void UpdateQrCardRegion()
+        {
+            if (qrCard.Width > 8 && qrCard.Height > 8)
+            {
+                using var path = AppTheme.BuildRoundedRect(qrCard.ClientRectangle, 8);
+                qrCard.Region = new Region(path);
+            }
+        }
+        qrCard.SizeChanged += (_, _) => UpdateQrCardRegion();
+        qrCard.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, qrCard.Width - 1, qrCard.Height - 1), 8);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
+
         _qrBox.Size = new Size(130, 130);
         _qrBox.Location = new Point(90, 8);
         _qrBox.SizeMode = PictureBoxSizeMode.CenterImage;
         _qrBox.BackColor = AppTheme.IsDark ? Color.FromArgb(32, 38, 52) : Color.White;
+
+        void UpdateQrBoxRegion()
+        {
+            if (_qrBox.Width > 8 && _qrBox.Height > 8)
+            {
+                using var path = AppTheme.BuildRoundedRect(_qrBox.ClientRectangle, 6);
+                _qrBox.Region = new Region(path);
+            }
+        }
+        _qrBox.SizeChanged += (_, _) => UpdateQrBoxRegion();
+        _qrBox.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, _qrBox.Width - 1, _qrBox.Height - 1), 6);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
         qrCard.Controls.Add(_qrBox);
 
         _qrUrlLabel.Size = new Size(294, 20);
@@ -405,8 +441,8 @@ public sealed class ToolboxView : UserControl
             Cursor = Cursors.Hand
         };
         btn.FlatAppearance.BorderColor = AppTheme.PanelBorder;
-        btn.FlatAppearance.MouseOverBackColor = AppTheme.IsDark ? Color.FromArgb(48, 255, 255, 255) : Color.FromArgb(24, 0, 0, 0);
-        btn.FlatAppearance.MouseDownBackColor = AppTheme.IsDark ? Color.FromArgb(64, 255, 255, 255) : Color.FromArgb(36, 0, 0, 0);
+        btn.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F);
+        btn.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.SurfaceAlt, 0.45F);
         btn.Click += (_, _) => onClick();
         return btn;
     }

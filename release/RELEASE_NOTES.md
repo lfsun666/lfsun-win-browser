@@ -1,19 +1,19 @@
 ﻿# LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.11 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.12 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 3 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.11)
+## 当前最新交付清单 (v0.9.12)
 
-- **LfsunBrowser-portable-latest.zip** (63.58 MB)
+- **LfsunBrowser-portable-latest.zip** (63.59 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.10.zip** (65.55 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.11.zip** (63.58 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.9.zip** (63.57 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.12.zip** (63.59 MB)
 - **LfsunBrowser-setup-0.9.10.exe** (47.67 MB)
 - **LfsunBrowser-setup-0.9.11.exe** (47.68 MB)
-- **LfsunBrowser-setup-0.9.9.exe** (47.67 MB)
+- **LfsunBrowser-setup-0.9.12.exe** (47.68 MB)
 - **LfsunBrowser-setup-latest.exe** (47.68 MB)
 
 ## 当前版本更新亮点
@@ -25,6 +25,11 @@
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.12] - 2026-11-11
+
+### 变更内容
+- 全局UI布局与容器渲染极致精修：下载与历史管理卡片全面接入Region圆角防透底裁剪、状态栏数值芯片支持Hover与Accent边框高亮、工具栏按键激活态(Checked)圆角胶囊渲染、侧边栏工具箱圆角立体卡片重构与按键微交互统一
 
 ## [0.9.11] - 2026-11-11
 

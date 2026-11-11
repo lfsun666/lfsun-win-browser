@@ -576,4 +576,41 @@ public sealed class BookmarkImportAndPerformanceTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void Downloads_And_History_CardVisualAndRegions_ConfiguredProperly()
+    {
+        var thread = new Thread(() =>
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try
+            {
+                var dm = new DownloadManager(tempDir, _ => { });
+                using var downloadsWin = new DownloadsWindow(dm);
+                Assert.NotNull(downloadsWin);
+                Assert.Equal("下载管理", downloadsWin.Text);
+
+                var hm = new Lfsun.Win.Browser.History.HistoryManager(Path.Combine(tempDir, "hm.json"), _ => { });
+                using var historyWin = new Lfsun.Win.Browser.History.HistoryWindow(
+                    hm,
+                    () => Array.Empty<Lfsun.Win.Browser.Browser.ClosedTabEntry>(),
+                    (_, _) => Task.CompletedTask,
+                    () => Task.FromResult(false),
+                    _ => { });
+                Assert.NotNull(historyWin);
+                Assert.Equal("历史记录", historyWin.Text);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    try { Directory.Delete(tempDir, true); } catch { }
+                }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }

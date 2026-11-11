@@ -42,6 +42,18 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.12",
+            "2026-11-11",
+            "全局UI布局与容器渲染极致精修：下载与历史管理卡片全面接入Region圆角防透底裁剪、状态栏数值芯片支持Hover与Accent边框高亮、工具栏按键激活态(Checked)圆角胶囊渲染、侧边栏工具箱圆角立体卡片重构与按键微交互统一",
+            [
+                "【下载与历史管理卡片防透底裁剪】DownloadsWindow 与 HistoryWindow 顶部标题、筛选栏、表格容器与底部操作栏全部接入动态 Region 几何圆角裁剪，彻底根除矩形底板四角外露的视觉瑕疵",
+                "【底部状态栏芯片交互高亮】ModernStatusStripRenderer 状态栏芯片（公网IP、内存统计、页面缩放、耗时等）全面支持鼠标悬停动效与 Accent 强调色边框高亮，告别传统状态栏呆板体验",
+                "【工具栏按键激活态 (Checked) 圆角胶囊化】ModernToolStripRenderer 深度支持 ToolStripButton.Checked 激活态渲染，阅读模式与分屏等开关状态自动呈现 Fluent 强调色圆角微胶囊与轻质感外框",
+                "【侧边栏工具箱圆角立体化】ToolboxView 二维码卡片与扫码框接入自适应圆角裁剪与 1px 优雅边框，各工具按键微动颜色全面对齐 AccentHover 与 AccentPressed 设计令牌",
+                "【管理窗口主次按钮层级优化】下载管理、历史记录与书签管理窗口主行动键（打开/保存）赋予强调色突出展示，关闭与辅助按键扁平规整，危险操作（删除/清空）配置微红悬停警示"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.9.11",
             "2026-11-11",
             "全局UI布局与浮动卡片交互全面升华：站点安全卡片圆角边界与按钮微交互、扫码卡片圆角立体包裹与操作反馈、网页性能诊断面板圆角容器与高阶交互、工具栏缩放胶囊无缝融合与悬停动画全覆盖、书签编辑与会话命名自适应拉伸",

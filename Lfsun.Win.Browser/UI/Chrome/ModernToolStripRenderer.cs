@@ -95,7 +95,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
         using var fillBrush = new SolidBrush(AppTheme.Accent);
-        using var path = BuildRoundedRectangle(bounds, 4);
+        using var path = AppTheme.BuildRoundedRect(bounds, 4);
         e.Graphics.FillPath(fillBrush, path);
 
         using var checkPen = new Pen(Color.White, 1.8F);
@@ -136,7 +136,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
         }
 
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var path = BuildRoundedRectangle(bounds, 5);
+        using var path = AppTheme.BuildRoundedRect(bounds, 5);
         using var brush = new SolidBrush(label.BackColor);
         using var pen = new Pen(AppTheme.PanelBorder, 1F);
         e.Graphics.FillPath(brush, path);
@@ -159,7 +159,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
             var hoverFill = e.Item.Pressed
                 ? (AppTheme.IsDark ? Color.FromArgb(50, 255, 255, 255) : Color.FromArgb(30, 0, 0, 0))
                 : (AppTheme.IsDark ? Color.FromArgb(28, 255, 255, 255) : Color.FromArgb(16, 0, 0, 0));
-            using var path = BuildRoundedRectangle(bounds, 4);
+            using var path = AppTheme.BuildRoundedRect(bounds, 4);
             using var brush = new SolidBrush(hoverFill);
             e.Graphics.FillPath(brush, path);
         }
@@ -194,7 +194,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
             if (bounds.Width > 4 && bounds.Height > 4)
             {
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-                using var path = BuildRoundedRectangle(bounds, 5);
+                using var path = AppTheme.BuildRoundedRect(bounds, 5);
                 var hoverFill = e.Item.Pressed
                     ? (AppTheme.IsDark ? Color.FromArgb(56, 255, 255, 255) : Color.FromArgb(32, 0, 0, 0))
                     : (AppTheme.IsDark ? Color.FromArgb(32, 255, 255, 255) : Color.FromArgb(18, 0, 0, 0));
@@ -259,7 +259,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
 
         // 4. 普通工具栏按钮
         var isEmphasized = tag is "primary";
-        RenderToolbarButtonBackground(e.Graphics, button.Size, button.Pressed, button.Selected, isEmphasized);
+        RenderToolbarButtonBackground(e.Graphics, button.Size, button.Pressed, button.Selected, button.Checked, isEmphasized);
     }
 
     protected override void OnRenderDropDownButtonBackground(ToolStripItemRenderEventArgs e)
@@ -271,7 +271,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
         }
 
         var isEmphasized = button.Tag is "primary";
-        RenderToolbarButtonBackground(e.Graphics, button.Size, button.Pressed, button.Selected, isEmphasized);
+        RenderToolbarButtonBackground(e.Graphics, button.Size, button.Pressed, button.Selected, isChecked: false, isEmphasized);
     }
 
     protected override void OnRenderSplitButtonBackground(ToolStripItemRenderEventArgs e)
@@ -283,7 +283,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
         }
 
         var isEmphasized = button.Tag is "primary";
-        RenderToolbarButtonBackground(e.Graphics, button.Size, button.Pressed || button.ButtonPressed, button.Selected || button.ButtonSelected, isEmphasized);
+        RenderToolbarButtonBackground(e.Graphics, button.Size, button.Pressed || button.ButtonPressed, button.Selected || button.ButtonSelected, isChecked: false, isEmphasized);
     }
 
     private static void RenderWindowCloseBackground(Graphics graphics, Size size, bool isPressed, bool isSelected)
@@ -326,6 +326,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
         Size size,
         bool isPressed,
         bool isSelected,
+        bool isChecked,
         bool isEmphasized)
     {
         var bounds = new Rectangle(Point.Empty, size);
@@ -345,11 +346,27 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
                     ? AppTheme.AccentHover
                     : AppTheme.AccentMuted;
 
-            using var emphasizedPath = BuildRoundedRectangle(bounds, 6);
+            using var emphasizedPath = AppTheme.BuildRoundedRect(bounds, 6);
             using var emphasizedBrush = new SolidBrush(baseFill);
             using var emphasizedBorderPen = new Pen(AppTheme.PanelBorder);
             graphics.FillPath(emphasizedBrush, emphasizedPath);
             graphics.DrawPath(emphasizedBorderPen, emphasizedPath);
+            return;
+        }
+
+        if (isChecked)
+        {
+            var checkedFill = isPressed
+                ? (AppTheme.IsDark ? AppTheme.Mix(AppTheme.Accent, Color.Black, 0.20F) : AppTheme.Mix(AppTheme.Accent, Color.Black, 0.12F))
+                : isSelected
+                    ? AppTheme.AccentHover
+                    : (AppTheme.IsDark ? AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.35F) : AppTheme.Mix(AppTheme.Accent, Color.White, 0.20F));
+
+            using var checkedPath = AppTheme.BuildRoundedRect(bounds, 6);
+            using var checkedBrush = new SolidBrush(checkedFill);
+            using var checkedPen = new Pen(AppTheme.Accent, 1F);
+            graphics.FillPath(checkedBrush, checkedPath);
+            graphics.DrawPath(checkedPen, checkedPath);
             return;
         }
 
@@ -363,7 +380,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
             ? (AppTheme.IsDark ? Color.FromArgb(50, 255, 255, 255) : Color.FromArgb(30, 0, 0, 0))
             : (AppTheme.IsDark ? Color.FromArgb(28, 255, 255, 255) : Color.FromArgb(16, 0, 0, 0));
 
-        using var path = BuildRoundedRectangle(bounds, 6);
+        using var path = AppTheme.BuildRoundedRect(bounds, 6);
         using var brush = new SolidBrush(fillColor);
         graphics.FillPath(brush, path);
     }
@@ -389,7 +406,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
         {
             // 活动标签：纯色卡片，连接下方工具栏
             var activeCardColor = AppTheme.IsDark ? AppTheme.SurfaceAlt : Color.White;
-            using var path = BuildRoundedRectangle(bounds, 6);
+            using var path = AppTheme.BuildRoundedRect(bounds, 6);
             using var cardBrush = new SolidBrush(activeCardColor);
             using var borderPen = new Pen(AppTheme.PanelBorder, 1F);
             graphics.FillPath(cardBrush, path);
@@ -409,26 +426,9 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
                 ? (AppTheme.IsDark ? Color.FromArgb(45, 255, 255, 255) : Color.FromArgb(25, 0, 0, 0))
                 : (AppTheme.IsDark ? Color.FromArgb(28, 255, 255, 255) : Color.FromArgb(14, 0, 0, 0));
 
-            using var path = BuildRoundedRectangle(bounds, 6);
+            using var path = AppTheme.BuildRoundedRect(bounds, 6);
             using var brush = new SolidBrush(hoverColor);
             graphics.FillPath(brush, path);
         }
-    }
-
-    private static GraphicsPath BuildRoundedRectangle(Rectangle bounds, int radius)
-    {
-        var path = new GraphicsPath();
-        var diameter = radius * 2;
-        var arc = new Rectangle(bounds.Location, new Size(diameter, diameter));
-
-        path.AddArc(arc, 180, 90);
-        arc.X = bounds.Right - diameter;
-        path.AddArc(arc, 270, 90);
-        arc.Y = bounds.Bottom - diameter;
-        path.AddArc(arc, 0, 90);
-        arc.X = bounds.Left;
-        path.AddArc(arc, 90, 90);
-        path.CloseFigure();
-        return path;
     }
 }

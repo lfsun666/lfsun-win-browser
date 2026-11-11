@@ -244,8 +244,9 @@ public sealed class DownloadsWindow : Form
         StyleButton(_openFolderButton);
         StyleButton(_openFileButton);
         StyleButton(_removeSelectedButton);
+        _removeSelectedButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
         StyleButton(_clearFinishedButton);
-        StyleButton(_closeButton);
+        StyleButton(_closeButton, emphasize: true);
     }
 
     protected override void OnPaintBackground(PaintEventArgs eventArgs)
@@ -500,7 +501,27 @@ public sealed class DownloadsWindow : Form
         panel.Tag = emphasizeAccent ? "downloads-card-accent" : "downloads-card";
         panel.Paint -= DrawCardBorder;
         panel.Paint += DrawCardBorder;
+        panel.SizeChanged -= HandleCardSizeChanged;
+        panel.SizeChanged += HandleCardSizeChanged;
+        UpdateCardRegion(panel);
         panel.Invalidate();
+    }
+
+    private static void HandleCardSizeChanged(object? sender, EventArgs e)
+    {
+        if (sender is Control panel)
+        {
+            UpdateCardRegion(panel);
+        }
+    }
+
+    private static void UpdateCardRegion(Control panel)
+    {
+        if (panel.Width > 8 && panel.Height > 8)
+        {
+            using var path = AppTheme.BuildRoundedRect(panel.ClientRectangle, 10);
+            panel.Region = new Region(path);
+        }
     }
 
     private static void DrawCardBorder(object? sender, PaintEventArgs eventArgs)
@@ -528,32 +549,16 @@ public sealed class DownloadsWindow : Form
             : Color.FromArgb(AppTheme.IsDark ? 16 : 10, AppTheme.AccentMuted);
 
         eventArgs.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var path = BuildCardPath(rect, 10);
+        using var path = AppTheme.BuildRoundedRect(rect, 10);
         using var glowPen = new Pen(glowColor, 1F);
         using var borderPen = new Pen(borderColor, 1F);
         eventArgs.Graphics.DrawPath(glowPen, path);
         eventArgs.Graphics.DrawPath(borderPen, path);
     }
 
-    private static GraphicsPath BuildCardPath(Rectangle rect, int radius)
+    private static void StyleButton(Button button, bool emphasize = false)
     {
-        var path = new GraphicsPath();
-        var diameter = radius * 2;
-        var arc = new Rectangle(rect.Left, rect.Top, diameter, diameter);
-        path.AddArc(arc, 180, 90);
-        arc.X = rect.Right - diameter;
-        path.AddArc(arc, 270, 90);
-        arc.Y = rect.Bottom - diameter;
-        path.AddArc(arc, 0, 90);
-        arc.X = rect.Left;
-        path.AddArc(arc, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
-
-    private static void StyleButton(Button button)
-    {
-        AppTheme.ApplyPrimaryButton(button);
+        AppTheme.ApplyPrimaryButton(button, emphasize);
     }
 
     private static void StyleControlTree(Control root)

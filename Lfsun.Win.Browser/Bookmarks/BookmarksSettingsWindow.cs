@@ -260,6 +260,9 @@ public sealed class BookmarksSettingsWindow : Form
     {
         BackColor = AppTheme.WindowBackground;
         StyleControls(this);
+        AppTheme.ApplyPrimaryButton(_saveButton, emphasize: true);
+        AppTheme.ApplyPrimaryButton(_closeButton, emphasize: false);
+        _deleteButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
         AppTheme.ApplyContextMenu(_treeContextMenu);
     }
 
