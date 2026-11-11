@@ -145,9 +145,7 @@ public sealed class ModernTabControl : TabControl, IDisposable
 
         if (hoveredClose)
         {
-            using var closeHoverBrush = new SolidBrush(AppTheme.IsDark
-                ? AppTheme.Mix(AppTheme.Danger, AppTheme.Surface, 0.70F)
-                : AppTheme.Mix(AppTheme.Danger, Color.White, 0.85F));
+            using var closeHoverBrush = new SolidBrush(AppTheme.Danger);
             eventArgs.Graphics.FillEllipse(closeHoverBrush, closeRect);
         }
 
@@ -256,7 +254,7 @@ public sealed class ModernTabControl : TabControl, IDisposable
             titleBrush.Color,
             TextFormatFlags.EndEllipsis | TextFormatFlags.VerticalCenter | TextFormatFlags.Left);
 
-        var closeColor = hoveredClose ? AppTheme.Danger : AppTheme.TextSecondary;
+        var closeColor = hoveredClose ? Color.White : AppTheme.TextSecondary;
         using var closePen = new Pen(closeColor, 1.8F);
         eventArgs.Graphics.DrawLine(closePen, closeRect.Left + 4, closeRect.Top + 4, closeRect.Right - 4, closeRect.Bottom - 4);
         eventArgs.Graphics.DrawLine(closePen, closeRect.Right - 4, closeRect.Top + 4, closeRect.Left + 4, closeRect.Bottom - 4);
@@ -516,22 +514,8 @@ public sealed class ModernTabControl : TabControl, IDisposable
         }
     }
 
-    private static GraphicsPath BuildRoundedRect(Rectangle bounds, int radius)
-    {
-        var path = new GraphicsPath();
-        var diameter = radius * 2;
-        var arc = new Rectangle(bounds.Location, new Size(diameter, diameter));
-
-        path.AddArc(arc, 180, 90);
-        arc.X = bounds.Right - diameter;
-        path.AddArc(arc, 270, 90);
-        arc.Y = bounds.Bottom - diameter;
-        path.AddArc(arc, 0, 90);
-        arc.X = bounds.Left;
-        path.AddArc(arc, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
+    private static GraphicsPath BuildRoundedRect(Rectangle bounds, int radius) =>
+        AppTheme.BuildRoundedRect(bounds, radius);
 
     // 中文注释：释放 GDI 缓存资源（new 显式隐藏基类 Component.Dispose，由 Controls 集合自动调用）。
     public new void Dispose()

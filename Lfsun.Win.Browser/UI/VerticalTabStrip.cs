@@ -104,6 +104,8 @@ public sealed class VerticalTabStrip : Panel
         _newTabButton.FlatAppearance.BorderSize = 0;
         _newTabButton.Font = AppTheme.CreateFont(9F, FontStyle.Bold);
         _newTabButton.BackColor = AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.15F);
+        _newTabButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.28F);
+        _newTabButton.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.40F);
         _newTabButton.ForeColor = AppTheme.Accent;
         _newTabButton.Cursor = Cursors.Hand;
         _toolTip.SetToolTip(_newTabButton, "新建标签页");
@@ -375,17 +377,8 @@ public sealed class VerticalTabStrip : Panel
         }
     }
 
-    private static GraphicsPath CreateRoundedPath(Rectangle rect, int radius)
-    {
-        var path = new GraphicsPath();
-        var d = radius * 2;
-        path.AddArc(rect.X, rect.Y, d, d, 180, 90);
-        path.AddArc(rect.Right - d, rect.Y, d, d, 270, 90);
-        path.AddArc(rect.Right - d, rect.Bottom - d, d, d, 0, 90);
-        path.AddArc(rect.X, rect.Bottom - d, d, d, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
+    private static GraphicsPath CreateRoundedPath(Rectangle rect, int radius) =>
+        AppTheme.BuildRoundedRect(rect, radius);
 
     public void ApplyTheme()
     {
@@ -394,6 +387,8 @@ public sealed class VerticalTabStrip : Panel
         _tabsScrollContainer.BackColor = AppTheme.Surface;
         _toggleCollapseButton.ForeColor = AppTheme.TextSecondary;
         _newTabButton.BackColor = AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.15F);
+        _newTabButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.28F);
+        _newTabButton.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.40F);
         _newTabButton.ForeColor = AppTheme.Accent;
         _tabsScrollContainer.Invalidate();
     }

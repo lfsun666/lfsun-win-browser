@@ -41,6 +41,8 @@ public sealed class FindBar : Panel
         _searchTextBox.Width = 160;
         _searchTextBox.Font = AppTheme.CreateFont(9.5F);
         _searchTextBox.TextChanged += (_, _) => RaiseSearch();
+        _searchTextBox.GotFocus += (_, _) => Invalidate();
+        _searchTextBox.LostFocus += (_, _) => Invalidate();
         _searchTextBox.KeyDown += (_, eventArgs) =>
         {
             switch (eventArgs.KeyData)
@@ -108,7 +110,7 @@ public sealed class FindBar : Panel
     {
         if (Width <= 0 || Height <= 0) return;
         var oldRegion = Region;
-        using var path = BuildRoundedRectangle(new Rectangle(0, 0, Width, Height), 10);
+        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, Width, Height), 10);
         Region = new Region(path);
         oldRegion?.Dispose();
     }
@@ -193,36 +195,19 @@ public sealed class FindBar : Panel
         e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
         var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
-        using var cardPath = BuildRoundedRectangle(bounds, 10);
+        using var cardPath = AppTheme.BuildRoundedRect(bounds, 10);
         using var bgBrush = new SolidBrush(AppTheme.SurfaceAlt);
         using var borderPen = new Pen(AppTheme.PanelBorder, 1F);
         e.Graphics.FillPath(bgBrush, cardPath);
         e.Graphics.DrawPath(borderPen, cardPath);
 
-        // 输入框背后的内嵌圆角胶囊
+        // 输入框背后的内嵌圆角胶囊（获得焦点时显示强调主色边框）
         var inputRect = new Rectangle(8, 7, 168, 28);
-        using var inputPath = BuildRoundedRectangle(inputRect, 6);
+        using var inputPath = AppTheme.BuildRoundedRect(inputRect, 6);
         using var inputBrush = new SolidBrush(AppTheme.InputBackground);
-        using var inputBorder = new Pen(AppTheme.PanelBorder, 1F);
+        using var inputBorder = new Pen(_searchTextBox.Focused ? AppTheme.Accent : AppTheme.PanelBorder, _searchTextBox.Focused ? 1.5F : 1F);
         e.Graphics.FillPath(inputBrush, inputPath);
         e.Graphics.DrawPath(inputBorder, inputPath);
-    }
-
-    private static GraphicsPath BuildRoundedRectangle(Rectangle bounds, int radius)
-    {
-        var path = new GraphicsPath();
-        var diameter = radius * 2;
-        var arc = new Rectangle(bounds.Location, new Size(diameter, diameter));
-
-        path.AddArc(arc, 180, 90);
-        arc.X = bounds.Right - diameter;
-        path.AddArc(arc, 270, 90);
-        arc.Y = bounds.Bottom - diameter;
-        path.AddArc(arc, 0, 90);
-        arc.X = bounds.Left;
-        path.AddArc(arc, 90, 90);
-        path.CloseFigure();
-        return path;
     }
 
     private void ConfigureIconButton(Button button, string glyph, string fallbackText, string toolTip, Point location)

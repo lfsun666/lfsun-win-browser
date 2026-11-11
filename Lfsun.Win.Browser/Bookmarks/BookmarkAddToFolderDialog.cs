@@ -7,6 +7,7 @@ public sealed class BookmarkAddToFolderDialog : Form
 {
     private readonly BookmarkManager _bookmarkManager;
     private readonly TreeView _folderTree = new();
+    private readonly Panel _treeCardPanel = new();
     private readonly TextBox _searchTextBox = new();
     private readonly Label _summaryLabel = new();
     private readonly TextBox _nameTextBox = new();
@@ -62,6 +63,7 @@ public sealed class BookmarkAddToFolderDialog : Form
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
@@ -89,9 +91,16 @@ public sealed class BookmarkAddToFolderDialog : Form
         _summaryLabel.Margin = new Padding(0, 8, 0, 6);
         root.Controls.Add(_summaryLabel, 0, 4);
 
+        _treeCardPanel.Dock = DockStyle.Fill;
+        _treeCardPanel.Padding = new Padding(3);
+        _treeCardPanel.BackColor = AppTheme.Surface;
+        ApplyCardVisual(_treeCardPanel);
+
         _folderTree.Dock = DockStyle.Fill;
+        _folderTree.BorderStyle = BorderStyle.None;
         _folderTree.HideSelection = false;
-        root.Controls.Add(_folderTree, 0, 5);
+        _treeCardPanel.Controls.Add(_folderTree);
+        root.Controls.Add(_treeCardPanel, 0, 5);
 
         var footer = new FlowLayoutPanel
         {
@@ -137,6 +146,7 @@ public sealed class BookmarkAddToFolderDialog : Form
     private void ApplyTheme()
     {
         BackColor = AppTheme.WindowBackground;
+        _treeCardPanel.BackColor = AppTheme.Surface;
         AppTheme.ApplyTreeView(_folderTree);
         AppTheme.ApplyTextInput(_nameTextBox);
         AppTheme.ApplyTextInput(_searchTextBox);
@@ -144,6 +154,49 @@ public sealed class BookmarkAddToFolderDialog : Form
         AppTheme.ApplyPrimaryButton(_okButton, emphasize: true);
         AppTheme.ApplyPrimaryButton(_cancelButton);
         StyleControlTree(this);
+        UpdateCardRegion(_treeCardPanel);
+    }
+
+    private static void ApplyCardVisual(Panel panel)
+    {
+        panel.Paint -= HandleCardPaint;
+        panel.Paint += HandleCardPaint;
+        panel.SizeChanged -= HandleCardSizeChanged;
+        panel.SizeChanged += HandleCardSizeChanged;
+        UpdateCardRegion(panel);
+    }
+
+    private static void HandleCardSizeChanged(object? sender, EventArgs e)
+    {
+        if (sender is Panel panel)
+        {
+            UpdateCardRegion(panel);
+            panel.Invalidate();
+        }
+    }
+
+    private static void UpdateCardRegion(Panel panel)
+    {
+        if (panel.Width <= 0 || panel.Height <= 0)
+        {
+            return;
+        }
+
+        var old = panel.Region;
+        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, panel.Width, panel.Height), 8);
+        panel.Region = new Region(path);
+        old?.Dispose();
+    }
+
+    private static void HandleCardPaint(object? sender, PaintEventArgs e)
+    {
+        if (sender is not Panel panel) return;
+        var rect = new Rectangle(0, 0, panel.Width - 1, panel.Height - 1);
+        if (rect.Width <= 0 || rect.Height <= 0) return;
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var borderPen = new Pen(AppTheme.PanelBorder, 1F);
+        using var path = AppTheme.BuildRoundedRect(rect, 8);
+        e.Graphics.DrawPath(borderPen, path);
     }
 
     protected override void OnPaintBackground(PaintEventArgs eventArgs)

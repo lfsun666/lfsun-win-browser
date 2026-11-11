@@ -1,9 +1,11 @@
 using Lfsun.Win.Browser.Bookmarks;
 using Lfsun.Win.Browser.Core;
 using Lfsun.Win.Browser.Downloads;
+using Lfsun.Win.Browser.History;
 using Lfsun.Win.Browser.Plugins;
 using Lfsun.Win.Browser.Security;
 using Lfsun.Win.Browser.Settings;
+using Lfsun.Win.Browser.UI;
 using Xunit;
 
 namespace Lfsun.Win.Browser.Tests;
@@ -608,6 +610,53 @@ public sealed class BookmarkImportAndPerformanceTests
                     try { Directory.Delete(tempDir, true); } catch { }
                 }
             }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
+
+    [Fact]
+    public void FindBar_And_VerticalTabStrip_And_NewTabPage_VisualConfiguredProperly()
+    {
+        var thread = new Thread(() =>
+        {
+            // 1. New Tab Page HTML Builder
+            var config = new BrowserConfig();
+            var html = NewTabPageBuilder.Build(config, Array.Empty<HistoryEntry>(), Array.Empty<BookmarkNode>());
+            Assert.Contains("search-box", html);
+            Assert.Contains("backdrop-filter", html);
+            Assert.Contains("quick-chip", html);
+            Assert.Contains("常访站点", html);
+
+            // 2. FindBar
+            using var findBar = new FindBar();
+            Assert.False(findBar.Visible);
+            findBar.UpdateMatches(1, 10);
+            findBar.ResetSearch();
+            Assert.Equal(string.Empty, findBar.SearchTerm);
+            Assert.False(findBar.MatchCase);
+            findBar.ApplyTheme();
+
+            // 3. VerticalTabStrip
+            var collapseNotified = false;
+            using var vStrip = new VerticalTabStrip(
+                () => Array.Empty<Lfsun.Win.Browser.Browser.BrowserTab>(),
+                () => null,
+                _ => { },
+                _ => { },
+                () => { },
+                (_, _) => { });
+            vStrip.CollapseChanged += collapsed => collapseNotified = collapsed;
+            Assert.False(vStrip.IsCollapsed);
+            Assert.Equal(220, vStrip.Width);
+
+            vStrip.IsCollapsed = true;
+            Assert.True(collapseNotified);
+            Assert.Equal(48, vStrip.Width);
+
+            vStrip.ApplyTheme();
+            vStrip.RebuildTabs();
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();

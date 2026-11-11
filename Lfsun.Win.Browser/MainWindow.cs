@@ -4594,7 +4594,6 @@ public sealed class MainWindow : Form
 
         var iconLeft = eventArgs.Bounds.Left + 12;
         var iconTop = eventArgs.Bounds.Top + (eventArgs.Bounds.Height - 16) / 2;
-        var hasIcon = false;
 
         var urlCandidate = !string.IsNullOrWhiteSpace(entry.Value) && (entry.Value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || entry.Value.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             ? entry.Value
@@ -4604,17 +4603,45 @@ public sealed class MainWindow : Form
         {
             var fav = FaviconService.GetIcon(urlCandidate, entry.PrimaryText);
             eventArgs.Graphics.DrawImage(fav, new Rectangle(iconLeft, iconTop, 16, 16));
-            hasIcon = true;
         }
         else if (!string.IsNullOrWhiteSpace(entry.CommandId) || entry.Value.StartsWith(":"))
         {
             using var cmdFont = AppTheme.CreateFont(8.5F, FontStyle.Bold);
             using var cmdBrush = new SolidBrush(AppTheme.Accent);
             eventArgs.Graphics.DrawString("⚡", cmdFont, cmdBrush, new Rectangle(iconLeft - 1, iconTop - 1, 18, 18));
-            hasIcon = true;
+        }
+        else if (entry.TargetTabId.HasValue || entry.Category.Contains("标签") || entry.Category.Contains("切换"))
+        {
+            using var iconFont = AppTheme.CreateFont(8.5F);
+            using var iconBrush = new SolidBrush(AppTheme.Accent);
+            eventArgs.Graphics.DrawString("📑", iconFont, iconBrush, new Rectangle(iconLeft - 1, iconTop - 1, 18, 18));
+        }
+        else if (entry.Category.Contains("书签"))
+        {
+            using var iconFont = AppTheme.CreateFont(8.5F);
+            using var iconBrush = new SolidBrush(AppTheme.Accent);
+            eventArgs.Graphics.DrawString("🔖", iconFont, iconBrush, new Rectangle(iconLeft - 1, iconTop - 1, 18, 18));
+        }
+        else if (entry.Category.Contains("历史"))
+        {
+            using var iconFont = AppTheme.CreateFont(8.5F);
+            using var iconBrush = new SolidBrush(AppTheme.TextSecondary);
+            eventArgs.Graphics.DrawString("🕒", iconFont, iconBrush, new Rectangle(iconLeft - 1, iconTop - 1, 18, 18));
+        }
+        else if (entry.Category.Contains("搜索") || string.Equals(entry.Category, "搜索引擎", StringComparison.Ordinal))
+        {
+            using var iconFont = AppTheme.CreateFont(8.5F);
+            using var iconBrush = new SolidBrush(AppTheme.Accent);
+            eventArgs.Graphics.DrawString("🔍", iconFont, iconBrush, new Rectangle(iconLeft - 1, iconTop - 1, 18, 18));
+        }
+        else
+        {
+            using var iconFont = AppTheme.CreateFont(8.5F);
+            using var iconBrush = new SolidBrush(AppTheme.TextSecondary);
+            eventArgs.Graphics.DrawString("🌐", iconFont, iconBrush, new Rectangle(iconLeft - 1, iconTop - 1, 18, 18));
         }
 
-        var offset = hasIcon ? 24 : 0;
+        const int offset = 24;
         var primaryBounds = new Rectangle(eventArgs.Bounds.Left + 10 + offset, eventArgs.Bounds.Top + 5, eventArgs.Bounds.Width - 20 - offset, 18);
         var secondaryBounds = new Rectangle(eventArgs.Bounds.Left + 10 + offset, eventArgs.Bounds.Top + 21, eventArgs.Bounds.Width - 20 - offset, 16);
         if (!string.IsNullOrWhiteSpace(entry.BadgeText))
@@ -11892,34 +11919,8 @@ public sealed class MainWindow : Form
         DeleteObject(regionHandle);
     }
 
-    private static GraphicsPath BuildRoundedRectanglePath(Rectangle bounds, int radius)
-    {
-        var path = new GraphicsPath();
-        if (bounds.Width <= 0 || bounds.Height <= 0)
-        {
-            return path;
-        }
-
-        radius = Math.Max(1, radius);
-        var diameter = radius * 2;
-        if (bounds.Width <= diameter || bounds.Height <= diameter)
-        {
-            path.AddRectangle(bounds);
-            path.CloseFigure();
-            return path;
-        }
-
-        var arc = new Rectangle(bounds.Location, new Size(diameter, diameter));
-        path.AddArc(arc, 180, 90);
-        arc.X = bounds.Right - diameter;
-        path.AddArc(arc, 270, 90);
-        arc.Y = bounds.Bottom - diameter;
-        path.AddArc(arc, 0, 90);
-        arc.X = bounds.Left;
-        path.AddArc(arc, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
+    private static GraphicsPath BuildRoundedRectanglePath(Rectangle bounds, int radius) =>
+        AppTheme.BuildRoundedRect(bounds, radius);
 
     private static IntPtr SetClassLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong)
     {

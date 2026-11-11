@@ -42,6 +42,19 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.13",
+            "2026-11-11",
+            "全局UI布局与交互细节全面升级：地址栏下拉建议统一图标槽对齐防跳动、新标签页Fluent磨砂亚克力微质感与卡片动效、标签关闭按钮高对比度圆形药丸悬停、垂直标签栏操作按键平滑过渡、页内查找条动态聚焦边框高亮、收藏夹选择树圆角卡片化与自适应撑满布局",
+            [
+                "【地址栏下拉建议规整对齐】DrawAddressSuggestionItem 全品类项统一 24px 优雅图标槽（网页Favicon/命令/标签/书签/历史/搜索），彻底终结多类型混排时因图标缺失造成的标题与次级信息左右抖动错位",
+                "【新标签页 Fluent 质感与微动】NewTabPageBuilder 融入 backdrop-filter 磨砂背景模糊、搜索框聚焦光环（Accent Ring）、灵感寄语胶囊底板及常访站点卡片上浮悬停交互，兼顾视觉优雅与极速响应",
+                "【标签关闭按钮现代药丸悬停】ModernTabControl 标签页关闭按键在 Hover 态呈现纯正危险红圆形微胶囊底板与纯白“✕”，极大增强目标可辨识度与触控安全性",
+                "【页内查找条动态聚焦边框】FindBar 查找输入框捕获焦点时呈现平滑高亮强调色外框（Accent），并接入公共 AppTheme.BuildRoundedRect 几何路径",
+                "【收藏夹选择树自适应与卡片化】BookmarkAddToFolderDialog 修复 TableLayoutPanel 行比例分配让目录树充满竖向空间，并将 TreeView 封入动态 Region 圆角卡片容器中，防漏底且与背景渐变完美交融",
+                "【垂直标签栏操作动效打磨】VerticalTabStrip 新建标签按钮与折叠控制全线接入微交互悬停/按压状态，统一底层抗锯齿圆角路径"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.9.12",
             "2026-11-11",
             "全局UI布局与容器渲染极致精修：下载与历史管理卡片全面接入Region圆角防透底裁剪、状态栏数值芯片支持Hover与Accent边框高亮、工具栏按键激活态(Checked)圆角胶囊渲染、侧边栏工具箱圆角立体卡片重构与按键微交互统一",

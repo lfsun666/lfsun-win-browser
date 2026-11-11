@@ -92,7 +92,11 @@ public static class NewTabPageBuilder
                 -webkit-background-clip: text; -webkit-text-fill-color: transparent;
               }
               .greeting { margin-top: 6px; font-size: 15px; color: var(--text-2); font-weight: 500; }
-              .quote { margin-top: 8px; font-size: 12.5px; color: var(--text-2); opacity: 0.85; font-style: italic; }
+              .quote {
+                margin-top: 10px; font-size: 12px; color: var(--text-2); opacity: 0.9;
+                font-style: italic; padding: 4px 14px; border-radius: 12px;
+                background: var(--surface-alt); border: 1px solid var(--border);
+              }
               
               .search-container {
                 margin-top: 28px; width: min(740px, 92vw); display: flex; flex-direction: column; align-items: center; gap: 16px;
@@ -101,11 +105,12 @@ public static class NewTabPageBuilder
                 width: 100%; display: flex; align-items: center;
                 background: var(--input-bg); border: 1.5px solid var(--border); border-radius: 28px;
                 overflow: hidden; transition: all .2s cubic-bezier(0.16, 1, 0.3, 1);
-                box-shadow: 0 4px 16px rgba(0,0,0,.04);
+                box-shadow: 0 4px 16px rgba(0,0,0,.05);
+                backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
               }
               .search-box:focus-within {
                 border-color: var(--accent);
-                box-shadow: 0 6px 26px rgba(0,0,0,.14), 0 0 0 3px rgba(33, 115, 243, .18);
+                box-shadow: 0 8px 30px rgba(0,0,0,.14), 0 0 0 3.5px rgba(33, 115, 243, .22);
               }
               .engine-select {
                 border: 0; outline: 0; background: transparent; color: var(--text);
@@ -131,14 +136,16 @@ public static class NewTabPageBuilder
               }
               .quick-chip {
                 display: inline-flex; align-items: center; gap: 5px;
-                padding: 6px 13px; border-radius: 16px;
-                font-size: 12px; color: var(--text-2); text-decoration: none;
+                padding: 6px 14px; border-radius: 18px;
+                font-size: 12px; font-weight: 500; color: var(--text-2); text-decoration: none;
                 background: var(--surface-alt); border: 1px solid var(--border);
-                transition: all .16s ease;
+                transition: all .2s cubic-bezier(0.16, 1, 0.3, 1);
+                backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
               }
               .quick-chip:hover {
-                color: var(--accent); border-color: var(--accent); transform: translateY(-1.5px);
-                box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+                color: var(--accent); border-color: var(--accent); transform: translateY(-2px);
+                background: var(--surface);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
               }
               .chip-icon { font-size: 13px; }
 
@@ -159,13 +166,14 @@ public static class NewTabPageBuilder
                 display: flex; flex-direction: column; align-items: center; gap: 8px;
                 background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
                 padding: 16px 12px 14px; text-decoration: none; color: var(--text);
-                transition: transform .2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow .2s ease, border-color .2s ease, background-color .2s ease;
+                transition: transform .22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow .22s ease, border-color .22s ease, background-color .22s ease;
                 box-shadow: 0 2px 8px rgba(0,0,0,.04);
+                backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
               }
               .card:hover {
-                transform: translateY(-4px); border-color: var(--accent);
+                transform: translateY(-5px); border-color: var(--accent);
                 background: var(--surface-alt);
-                box-shadow: 0 10px 24px rgba(0,0,0,.12);
+                box-shadow: 0 12px 28px rgba(0,0,0,.14);
               }
               .badge {
                 width: 48px; height: 48px; border-radius: 14px; display: flex;

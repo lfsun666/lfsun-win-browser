@@ -1,19 +1,19 @@
-﻿# LfsunBrowser 全版本发布与交付说明
+# LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.12 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.13 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 3 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.12)
+## 当前最新交付清单 (v0.9.13)
 
-- **LfsunBrowser-portable-latest.zip** (63.59 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.10.zip** (65.55 MB)
+- **LfsunBrowser-portable-latest.zip** (65.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.11.zip** (63.58 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.12.zip** (63.59 MB)
-- **LfsunBrowser-setup-0.9.10.exe** (47.67 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.13.zip** (65.57 MB)
 - **LfsunBrowser-setup-0.9.11.exe** (47.68 MB)
 - **LfsunBrowser-setup-0.9.12.exe** (47.68 MB)
+- **LfsunBrowser-setup-0.9.13.exe** (47.68 MB)
 - **LfsunBrowser-setup-latest.exe** (47.68 MB)
 
 ## 当前版本更新亮点
@@ -25,6 +25,11 @@
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.13] - 2026-11-11
+
+### 变更内容
+- 全局UI布局与交互细节全面升级：地址栏下拉建议统一图标槽对齐防跳动、新标签页Fluent磨砂亚克力微质感与卡片动效、标签关闭按钮高对比度圆形药丸悬停、垂直标签栏操作按键平滑过渡、页内查找条动态聚焦边框高亮、收藏夹选择树圆角卡片化与自适应撑满布局
 
 ## [0.9.12] - 2026-11-11
 
