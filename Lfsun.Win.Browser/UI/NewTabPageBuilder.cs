@@ -14,7 +14,7 @@ namespace Lfsun.Win.Browser.UI;
 /// </summary>
 public static class NewTabPageBuilder
 {
-    private const int MaxTopSites = 8;
+    private const int MaxTopSites = 12;
 
     public static string Build(
         BrowserConfig config,
@@ -95,7 +95,7 @@ public static class NewTabPageBuilder
               .quote { margin-top: 8px; font-size: 12.5px; color: var(--text-2); opacity: 0.85; font-style: italic; }
               
               .search-container {
-                margin-top: 28px; width: min(680px, 92vw); display: flex; flex-direction: column; align-items: center; gap: 14px;
+                margin-top: 28px; width: min(740px, 92vw); display: flex; flex-direction: column; align-items: center; gap: 16px;
               }
               .search-box {
                 width: 100%; display: flex; align-items: center;
@@ -127,7 +127,7 @@ public static class NewTabPageBuilder
               .search-box button:hover { opacity: .92; filter: brightness(1.05); }
               
               .quick-nav {
-                display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 680px;
+                display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; max-width: 740px;
               }
               .quick-chip {
                 display: inline-flex; align-items: center; gap: 5px;
@@ -147,26 +147,34 @@ public static class NewTabPageBuilder
                 align-self: center; font-weight: 600; letter-spacing: 1px; text-transform: uppercase;
               }
               .grid {
-                display: grid; grid-template-columns: repeat(4, 138px); gap: 16px;
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(136px, 156px));
+                justify-content: center;
+                gap: 16px;
+                width: 100%;
+                max-width: 880px;
               }
-              @media (max-width: 640px) { .grid { grid-template-columns: repeat(2, 138px); } }
+              @media (max-width: 640px) { .grid { grid-template-columns: repeat(2, 1fr); gap: 12px; } }
               .card {
                 display: flex; flex-direction: column; align-items: center; gap: 8px;
                 background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-                padding: 18px 12px 14px; text-decoration: none; color: var(--text);
-                transition: transform .18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow .18s ease, border-color .18s ease;
-                box-shadow: 0 2px 8px rgba(0,0,0,.03);
+                padding: 16px 12px 14px; text-decoration: none; color: var(--text);
+                transition: transform .2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow .2s ease, border-color .2s ease, background-color .2s ease;
+                box-shadow: 0 2px 8px rgba(0,0,0,.04);
               }
               .card:hover {
                 transform: translateY(-4px); border-color: var(--accent);
+                background: var(--surface-alt);
                 box-shadow: 0 10px 24px rgba(0,0,0,.12);
               }
               .badge {
-                width: 46px; height: 46px; border-radius: 13px; display: flex;
-                align-items: center; justify-content: center; font-size: 19px; font-weight: 700;
+                width: 48px; height: 48px; border-radius: 14px; display: flex;
+                align-items: center; justify-content: center; font-size: 20px; font-weight: 700;
                 color: #fff; background: var(--accent);
                 box-shadow: 0 4px 12px rgba(0,0,0,.15);
+                transition: transform .2s ease;
               }
+              .card:hover .badge { transform: scale(1.06); }
               .icon-badge {
                 background: var(--surface-alt) !important;
                 border: 1px solid var(--border);
@@ -176,12 +184,12 @@ public static class NewTabPageBuilder
                 width: 28px; height: 28px; object-fit: contain; border-radius: 6px;
               }
               .card-title {
-                max-width: 116px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
-                overflow: hidden; text-overflow: ellipsis;
+                max-width: 130px; font-size: 12.5px; font-weight: 600; white-space: nowrap;
+                overflow: hidden; text-overflow: ellipsis; text-align: center;
               }
               .card-host {
-                max-width: 116px; font-size: 11px; color: var(--text-2); white-space: nowrap;
-                overflow: hidden; text-overflow: ellipsis;
+                max-width: 130px; font-size: 11px; color: var(--text-2); white-space: nowrap;
+                overflow: hidden; text-overflow: ellipsis; text-align: center;
               }
               .empty { margin-top: 12px; font-size: 13px; color: var(--text-2); }
               .footer-version {

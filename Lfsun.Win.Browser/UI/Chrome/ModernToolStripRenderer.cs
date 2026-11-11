@@ -278,7 +278,7 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
             // 底部强调指示条
             using var activeIndicatorPen = new Pen(AppTheme.Accent, 2.5F);
             var y = bounds.Bottom - 1;
-            graphics.DrawLine(activeIndicatorPen, bounds.Left + 10, y, bounds.Right - 10, y);
+            graphics.DrawLine(activeIndicatorPen, bounds.Left + 8, y, bounds.Right - 8, y);
         }
         else if (isPressed || isSelected)
         {

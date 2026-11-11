@@ -1329,30 +1329,20 @@ public sealed class MainWindow : Form
             }
 
             var title = string.IsNullOrWhiteSpace(tab.DisplayTitle) ? "新标签页" : tab.DisplayTitle.Trim();
-            var maxTitleLength = dynamicVisibleTabs >= 7 ? 10 : dynamicVisibleTabs >= 5 ? 14 : 19;
+            var maxTitleLength = dynamicVisibleTabs >= 7 ? 10 : dynamicVisibleTabs >= 5 ? 14 : 20;
             var shortTitle = title.Length > maxTitleLength ? $"{title[..maxTitleLength]}..." : title;
-            var siteBadge = ResolveTitleTabSiteBadge(tab.CurrentUri);
-            var colorBadge = ResolveTitleTabColorBadge(tab.ColorTagKey);
-            var stateBadge = ResolveTitleTabStateBadge(tab, isActive);
             var targetTabId = tab.Id;
             var canQuickClose = !tab.IsPinned;
             var suspendedTag = tab.IsSuspended ? "⏾ " : string.Empty;
-            var pinPrefix = tab.IsPinned ? "▣ " : string.Empty;
-            var activePrefix = isActive ? "◆ " : string.Empty;
-            var coreTitle = compactTabVisual
-                ? $"{pinPrefix}{suspendedTag}{shortTitle}"
-                : string.IsNullOrWhiteSpace(colorBadge)
-                    ? $"{pinPrefix}{suspendedTag}{siteBadge} {shortTitle}"
-                    : $"{pinPrefix}{colorBadge}{suspendedTag}{siteBadge} {shortTitle}";
+            var pinPrefix = tab.IsPinned ? "📌 " : string.Empty;
             var audioTag = tab.IsMuted ? " 🔇" : (tab.IsPlayingAudio ? " 🔊" : string.Empty);
-            var coreText = $"{activePrefix}{coreTitle}{audioTag}".Trim();
-            var displayText = compactTabVisual
-                ? (canQuickClose ? $"{coreText} ×" : coreText)
-                : (canQuickClose ? $"{stateBadge}{coreText} ×" : $"{stateBadge}{coreText}");
+            var closeSuffix = canQuickClose ? " ×" : string.Empty;
+            var displayText = $"{pinPrefix}{suspendedTag}{shortTitle}{audioTag}{closeSuffix}";
+
             var maxTabButtonWidth = Math.Clamp(
-                (tabAreaBudget / Math.Max(1, dynamicVisibleTabs)) - 12,
-                compactTabVisual ? 96 : 116,
-                compactTabVisual ? 188 : 248);
+                (tabAreaBudget / Math.Max(1, dynamicVisibleTabs)) - 10,
+                compactTabVisual ? 100 : 120,
+                compactTabVisual ? 190 : 250);
             var siteDetailText = tab.CurrentUri is null
                 ? "站点: about:blank"
                 : $"站点: {tab.CurrentUri.Host}";
@@ -1363,34 +1353,44 @@ public sealed class MainWindow : Form
                     : tab.HasCustomTitle
                         ? "状态: 自定义标题"
                         : "状态: 普通标签";
+
+            var icon = FaviconService.GetIcon(tab.CurrentUri?.AbsoluteUri, tab.DisplayTitle);
+            var textWidth = TextRenderer.MeasureText(displayText, _titleBar.Font).Width;
+            var desiredWidth = Math.Clamp(textWidth + 28 + (canQuickClose ? 16 : 8), compactTabVisual ? 100 : 120, maxTabButtonWidth);
+
             var tabButton = new ToolStripButton(displayText)
             {
+                Image = icon,
+                DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                ImageScaling = ToolStripItemImageScaling.None,
                 AutoSize = false,
-                Width = Math.Clamp(TextRenderer.MeasureText(displayText, _titleBar.Font).Width + (isActive ? (compactTabVisual ? 40 : 58) : (compactTabVisual ? 18 : 28)), compactTabVisual ? 102 : 118, maxTabButtonWidth),
-                Height = AppTheme.IsCompact ? 25 : 28,
-                Margin = isActive ? new Padding(2, 0, 2, 0) : new Padding(2, 1, 2, 2),
+                Width = desiredWidth,
+                Height = AppTheme.IsCompact ? 26 : 29,
+                Margin = isActive ? new Padding(2, 1, 2, 0) : new Padding(2, 2, 2, 2),
+                Padding = new Padding(4, 1, 4, 1),
                 BackColor = isActive
-                    ? (AppTheme.IsDark ? AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.38F) : AppTheme.Mix(AppTheme.Accent, Color.White, 0.30F))
-                    : (AppTheme.IsDark ? Color.FromArgb(52, 66, 88) : Color.FromArgb(196, 211, 233)),
+                    ? (AppTheme.IsDark ? AppTheme.SurfaceAlt : Color.White)
+                    : Color.Transparent,
                 ForeColor = isActive
-                    ? (AppTheme.IsDark ? Color.FromArgb(252, 255, 255) : Color.FromArgb(8, 30, 64))
-                    : AppTheme.IsDark
-                        ? Color.FromArgb(206, 218, 237)
-                        : Color.FromArgb(26, 55, 96),
+                    ? (AppTheme.IsDark ? Color.FromArgb(252, 255, 255) : Color.FromArgb(15, 23, 42))
+                    : (AppTheme.IsDark ? Color.FromArgb(200, 210, 225) : Color.FromArgb(51, 65, 85)),
                 ToolTipText = canQuickClose
                     ? $"{(isActive ? "当前标签" : "点击切换标签")} #{i + 1}/{tabs.Count}\n{title}\n{siteDetailText}\n{stateDetailText}\n{(tab.CurrentUri?.AbsoluteUri ?? "about:blank")}\n点击右侧 × 或中键可关闭，Ctrl+点击可复制标签，Shift+点击可只保留当前标签，Ctrl+Shift+PgUp/PgDn 或 Ctrl+Shift+←/→ 可调整顺序"
                     : $"{(isActive ? "当前标签(固定)" : "固定标签")} #{i + 1}/{tabs.Count}\n{title}\n{siteDetailText}\n{stateDetailText}\n{(tab.CurrentUri?.AbsoluteUri ?? "about:blank")}\n固定标签不会在标题栏被误关，Ctrl+点击可复制标签，Shift+点击可只保留当前标签，Ctrl+Shift+PgUp/PgDn 或 Ctrl+Shift+←/→ 可调整顺序",
-                DisplayStyle = ToolStripItemDisplayStyle.Text,
                 Font = AppTheme.CreateFont(AppTheme.IsCompact ? 8.9F : 9.2F, isActive ? FontStyle.Bold : FontStyle.Regular),
                 Checked = isActive,
                 Tag = isActive ? "title-tab-active" : "title-tab"
             };
-            var defaultBackColor = tabButton.BackColor;
-            var hoverBackColor = isActive
-                ? (AppTheme.IsDark ? AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.30F) : AppTheme.Mix(AppTheme.Accent, Color.White, 0.22F))
-                : (AppTheme.IsDark ? AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.58F) : AppTheme.Mix(AppTheme.Accent, Color.White, 0.86F));
-            tabButton.MouseEnter += (_, _) => ToolStripItemColorAnimator.AnimateBackColor(tabButton, hoverBackColor);
-            tabButton.MouseLeave += (_, _) => ToolStripItemColorAnimator.AnimateBackColor(tabButton, defaultBackColor, 180);
+
+            if (!isActive)
+            {
+                var hoverColor = AppTheme.IsDark
+                    ? Color.FromArgb(36, 255, 255, 255)
+                    : Color.FromArgb(22, 0, 0, 0);
+                tabButton.MouseEnter += (_, _) => ToolStripItemColorAnimator.AnimateBackColor(tabButton, hoverColor, 100);
+                tabButton.MouseLeave += (_, _) => ToolStripItemColorAnimator.AnimateBackColor(tabButton, Color.Transparent, 150);
+            }
             tabButton.MouseDown += (_, eventArgs) =>
             {
                 if (eventArgs.Button != MouseButtons.Left)
@@ -2669,6 +2669,9 @@ public sealed class MainWindow : Form
                             }
                         }
                     }
+
+                    RequestTitleBarRebuild();
+                    _verticalTabStrip?.Invalidate();
                 });
             }
             catch
@@ -7712,23 +7715,15 @@ public sealed class MainWindow : Form
     {
         item.MouseEnter += (_, _) =>
         {
-            if (!_hoverBaseColors.ContainsKey(item))
-            {
-                _hoverBaseColors[item] = item.BackColor;
-            }
-
             var hoverColor = AppTheme.IsDark
-                ? AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.46F)
-                : AppTheme.Mix(AppTheme.Accent, Color.White, 0.62F);
-            ToolStripItemColorAnimator.AnimateBackColor(item, hoverColor);
+                ? Color.FromArgb(38, 255, 255, 255)
+                : Color.FromArgb(20, 0, 0, 0);
+            ToolStripItemColorAnimator.AnimateBackColor(item, hoverColor, 100);
         };
 
         item.MouseLeave += (_, _) =>
         {
-            if (_hoverBaseColors.TryGetValue(item, out var baseColor))
-            {
-                ToolStripItemColorAnimator.AnimateBackColor(item, baseColor, 180);
-            }
+            ToolStripItemColorAnimator.AnimateBackColor(item, Color.Transparent, 160);
         };
     }
 
@@ -8872,12 +8867,11 @@ public sealed class MainWindow : Form
         var zenText = _isZenMode ? "沉浸" : "常规";
         var activeTabColor = ResolveTabColorText(_tabManager.ActiveTab?.ColorTagKey);
         var hasCustomTabTitle = _tabManager.ActiveTab?.HasCustomTitle == true;
-        // 中文注释：状态栏主文本保持紧凑，把细节放到 Tooltip，避免底栏过长影响可读性。
-        _statusBarPanel.ModeLabel.Text = $"窗口:{_launchOptions.WindowModeText} | 外观:{themeText}/{densityText}/{accentText}/{strengthText} | 视图:{zenText}";
-        _statusBarPanel.ModeLabel.ToolTipText = $"当前外观: 主题={themeText}, 密度={densityText}, 强调色={accentText}, 强度={strengthText}, 状态栏={metricsMode}, 视图={zenText}" +
-                                 (string.IsNullOrWhiteSpace(activeTabColor) ? string.Empty : $", 标签色={activeTabColor}") +
-                                 (hasCustomTabTitle ? ", 标签名=自定义" : string.Empty) +
-                                 "\n点击可展开外观菜单";
+        _statusBarPanel.ModeLabel.Text = $"🎨 {themeText} · {accentText}";
+        _statusBarPanel.ModeLabel.ToolTipText = $"外观主题: {themeText} | 强调色: {accentText} ({strengthText}) | 密度: {densityText} | 视图: {zenText} | 窗口: {_launchOptions.WindowModeText}" +
+                                 (string.IsNullOrWhiteSpace(activeTabColor) ? string.Empty : $" | 标签色: {activeTabColor}") +
+                                 (hasCustomTabTitle ? " | 标签名: 自定义" : string.Empty) +
+                                 "\n点击可展开外观与个性化设置菜单";
     }
 
     private void UpdateAppTitleLabel()
@@ -8998,16 +8992,7 @@ public sealed class MainWindow : Form
         _pluginButton.Visible = !isUltraNarrow;
 
         _siteBadgeLabel.Visible = !isCompactMode;
-        _siteBadgeLabel.Width = isUltraNarrow
-            ? (AppTheme.IsCompact ? 64 : 72)
-            : isNarrow
-                ? (AppTheme.IsCompact ? 108 : 124)
-                : (AppTheme.IsCompact ? 146 : 170);
-        _siteBadgeLabel.Margin = isUltraNarrow
-            ? new Padding(3, 1, 3, 1)
-            : isNarrow
-                ? new Padding(4, 1, 4, 1)
-                : (AppTheme.IsCompact ? new Padding(5, 1, 5, 1) : new Padding(6, 1, 6, 1));
+        _siteBadgeLabel.Margin = new Padding(2, 2, 4, 2);
 
         UpdateTabQuickButtonText();
         UpdateWorkspaceButtonBadge();
@@ -9017,30 +9002,77 @@ public sealed class MainWindow : Form
 
     private void ApplyAdaptiveTopToolbarLabels(bool isNarrow, bool isUltraNarrow)
     {
-        var verboseMode = ClientSize.Width >= 1380;
-        var compactMode = isNarrow && !isUltraNarrow;
-        ApplyAdaptiveToolbarButton(_backButton, "←", "后退", "退", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
-        ApplyAdaptiveToolbarButton(_forwardButton, "→", "前进", "进", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
-        ApplyAdaptiveToolbarButton(_refreshButton, "↻", "刷新", "刷", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
-        ApplyAdaptiveToolbarButton(_downloadButton, "↓", "下载管理", "下载", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
-        ApplyAdaptiveToolbarButton(_historyButton, "⧖", "历史", "历史", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
-        ApplyAdaptiveToolbarButton(_addBookmarkButton, "★", "收藏当前页", "收藏", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
-        ApplyAdaptiveToolbarButton(_settingsButton, "⚙", "设置", "设置", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
-        ApplyAdaptiveToolbarButton(_newTabButton, "+", "新建标签", "新建", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
-        ApplyAdaptiveToolbarButton(_closeTabButton, "×", "关闭标签", "关闭", verboseMode, compactMode, isUltraNarrow, minWidth: 44);
+        var compact = AppTheme.IsCompact;
+        var iconWidth = compact ? 32 : 36;
+        var iconHeight = compact ? 26 : 30;
 
-        _pluginButton.Text = ComposeIconButtonText(_pluginButton, "✇", verboseMode ? "插件" : compactMode ? "插件" : null);
-        SetToolbarButtonWidth(_pluginButton, isUltraNarrow ? 44 : 70);
+        void FormatIconButton(ToolStripButton button, string icon, string tooltip, string? shortcut = null)
+        {
+            button.Text = icon;
+            button.AutoSize = false;
+            button.Width = iconWidth;
+            button.Height = iconHeight;
+            button.Margin = new Padding(2, 1, 2, 1);
+            button.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            button.ToolTipText = BuildToolbarToolTip(tooltip, shortcut);
+        }
 
-        _recentTabsButton.Text = ComposeIconButtonText(_recentTabsButton, "⟲", verboseMode ? "最近关闭" : compactMode ? "最近" : null);
-        _sessionButton.Text = ComposeIconButtonText(_sessionButton, "☰", verboseMode ? "会话中心" : compactMode ? "会话" : null);
-        SetToolbarButtonWidth(_recentTabsButton, isUltraNarrow ? 44 : 70);
-        SetToolbarButtonWidth(_sessionButton, isUltraNarrow ? 44 : 70);
+        FormatIconButton(_backButton, "←", "后退", "Alt+←");
+        FormatIconButton(_forwardButton, "→", "前进", "Alt+→");
+        FormatIconButton(_refreshButton, "↻", "刷新", "F5 / Ctrl+R");
+        FormatIconButton(_newTabButton, "+", "新建空白标签", "Ctrl+T");
+        FormatIconButton(_closeTabButton, "×", "关闭当前标签", "Ctrl+W");
+        FormatIconButton(_downloadButton, "↓", "下载管理", "Ctrl+J");
+        FormatIconButton(_historyButton, "⏱", "历史记录", "Ctrl+H");
+        FormatIconButton(_addBookmarkButton, "★", "收藏当前页", "Ctrl+D");
+        FormatIconButton(_settingsButton, "⚙", "设置", "Ctrl+,");
 
-        _commandPaletteButton.Text = ComposeIconButtonText(_commandPaletteButton, "⌘");
+        _multiWindowButton.Text = "❐ 多开";
+        _multiWindowButton.AutoSize = false;
+        _multiWindowButton.Width = compact ? 64 : 72;
+        _multiWindowButton.Height = iconHeight;
+        _multiWindowButton.Margin = new Padding(2, 1, 2, 1);
+        _multiWindowButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+
+        _pluginButton.Text = "✇ 插件";
+        _pluginButton.AutoSize = false;
+        _pluginButton.Width = compact ? 64 : 72;
+        _pluginButton.Height = iconHeight;
+        _pluginButton.Margin = new Padding(2, 1, 2, 1);
+        _pluginButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+
+        _recentTabsButton.Text = "⟲";
+        _recentTabsButton.AutoSize = false;
+        _recentTabsButton.Width = compact ? 30 : 34;
+        _recentTabsButton.Height = iconHeight;
+        _recentTabsButton.Margin = new Padding(1, 1, 1, 1);
+        _recentTabsButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+
+        _sessionButton.Text = "☰";
+        _sessionButton.AutoSize = false;
+        _sessionButton.Width = compact ? 30 : 34;
+        _sessionButton.Height = iconHeight;
+        _sessionButton.Margin = new Padding(1, 1, 1, 1);
+        _sessionButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+
+        _tabQuickButton.Text = "❖";
+        _tabQuickButton.AutoSize = false;
+        _tabQuickButton.Width = compact ? 30 : 34;
+        _tabQuickButton.Height = iconHeight;
+        _tabQuickButton.Margin = new Padding(1, 1, 1, 1);
+        _tabQuickButton.DisplayStyle = ToolStripItemDisplayStyle.Text;
+
+        _commandPaletteButton.Text = "⌘";
+        _commandPaletteButton.AutoSize = false;
+        _commandPaletteButton.Width = compact ? 28 : 32;
+        _commandPaletteButton.Height = iconHeight;
+        _commandPaletteButton.Margin = new Padding(1, 1, 1, 1);
+
         _tabSwitchButton.Text = "@";
-        _commandPaletteButton.Width = isUltraNarrow ? (AppTheme.IsCompact ? 26 : 30) : (AppTheme.IsCompact ? 30 : 34);
-        _tabSwitchButton.Width = isUltraNarrow ? (AppTheme.IsCompact ? 26 : 30) : (AppTheme.IsCompact ? 30 : 34);
+        _tabSwitchButton.AutoSize = false;
+        _tabSwitchButton.Width = compact ? 28 : 32;
+        _tabSwitchButton.Height = iconHeight;
+        _tabSwitchButton.Margin = new Padding(1, 1, 1, 1);
     }
 
     private void ApplyAdaptiveToolbarButton(
@@ -9914,20 +9946,25 @@ public sealed class MainWindow : Form
     {
         var memoryMb = Process.GetCurrentProcess().PrivateMemorySize64 / 1024d / 1024d;
         var colorMetrics = BuildTabColorMetricsSuffix();
-        var isNarrow = ClientSize.Width < 1280;
-        var isUltraNarrow = ClientSize.Width < 1020;
+        var tabCount = _tabManager.Tabs.Count;
+        var liveCount = _tabManager.LiveTabCount;
+        var downloadCount = _downloadManager.Items.Count;
+        var pluginCount = _pluginManager.PluginCount;
+        var historyCount = _historyManager.Entries.Count;
+
         _statusBarPanel.MemoryLabel.Text = _config.DetailedStatusBar
-            ? isUltraNarrow
-                ? $"T:{_tabManager.Tabs.Count} L:{_tabManager.LiveTabCount} M:{memoryMb:F0}MB"
-                : isNarrow
-                    ? $"标签:{_tabManager.Tabs.Count} 活跃:{_tabManager.LiveTabCount} 内存:{memoryMb:F0}MB 下载:{_downloadManager.Items.Count}{colorMetrics}"
-                    : $"标签:{_tabManager.Tabs.Count} 活跃:{_tabManager.LiveTabCount} 内存:{memoryMb:F0}MB 插件:{_pluginManager.PluginCount} 下载:{_downloadManager.Items.Count} 历史:{_historyManager.Entries.Count}{colorMetrics}"
-            : isUltraNarrow
-                ? $"T:{_tabManager.Tabs.Count} M:{memoryMb:F0}MB"
-                : $"标签:{_tabManager.Tabs.Count} 内存:{memoryMb:F0}MB 下载:{_downloadManager.Items.Count}{colorMetrics}";
+            ? $"⚡ {memoryMb:F0} MB · {tabCount} 标签 (活跃 {liveCount})"
+            : $"⚡ {memoryMb:F0} MB · {tabCount} 标签";
         _statusBarPanel.SetMemoryUsageLevel(memoryMb);
 
-        _statusBarPanel.MemoryLabel.ToolTipText = "内存趋势提示: <1200MB 正常，1200-1800MB 关注，>=1800MB 建议关闭部分标签\n点击可查看标签统计详情";
+        _statusBarPanel.MemoryLabel.ToolTipText =
+            $"系统资源与运行统计:\n" +
+            $"• 内存占用: {memoryMb:F1} MB (健康阈值: <1200MB 正常, 1200-1800MB 关注, >=1800MB 预警)\n" +
+            $"• 标签页总数: {tabCount} (活跃就绪: {liveCount}, 休眠节省: {tabCount - liveCount})\n" +
+            $"• 已安装插件: {pluginCount} 个\n" +
+            $"• 下载任务: {downloadCount} 项\n" +
+            $"• 浏览历史: {historyCount} 条{colorMetrics}\n" +
+            $"点击可查看标签统计详情与资源诊断卡片";
         UpdateResponsiveStatusBarVisuals();
         UpdateAppTitleLabel();
     }
@@ -9943,9 +9980,8 @@ public sealed class MainWindow : Form
         _statusBarPanel.ApplyResponsiveLayout(ClientSize.Width);
         if (isNarrow && _statusBarPanel.ModeLabel.Visible)
         {
-            var shortTheme = string.Equals(_config.UiTheme, "Dark", StringComparison.OrdinalIgnoreCase) ? "深" : "浅";
-            var shortDensity = string.Equals(_config.UiDensity, "Compact", StringComparison.OrdinalIgnoreCase) ? "紧" : "标";
-            _statusBarPanel.ModeLabel.Text = $"外观:{shortTheme}/{shortDensity} 视图:{(_isZenMode ? "沉浸" : "常规")}";
+            var shortTheme = string.Equals(_config.UiTheme, "Dark", StringComparison.OrdinalIgnoreCase) ? "深色" : "浅色";
+            _statusBarPanel.ModeLabel.Text = $"🎨 {shortTheme}";
         }
         else
         {
@@ -10114,47 +10150,40 @@ public sealed class MainWindow : Form
 
     private void UpdateSiteBadge()
     {
-        if (!TryGetActiveUri(out var uri))
+        if (!TryGetActiveUri(out var uri) || uri is null || string.IsNullOrWhiteSpace(uri.Host) || uri.AbsoluteUri == "about:blank")
         {
-            _siteBadgeLabel.Text = "站点: 空白";
-            _siteBadgeLabel.ToolTipText = "about:blank\n点击可复制当前地址";
-            _siteBadgeLabel.BackColor = AppTheme.IsDark ? Color.FromArgb(62, 79, 102) : Color.FromArgb(219, 234, 253);
-            _siteBadgeLabel.ForeColor = AppTheme.TextPrimary;
+            _siteBadgeLabel.Text = "🌐 空白";
+            _siteBadgeLabel.Width = 54;
+            _siteBadgeLabel.ToolTipText = "空白页 (about:blank)\n点击可复制当前地址";
+            _siteBadgeLabel.BackColor = AppTheme.IsDark ? Color.FromArgb(50, 65, 85) : Color.FromArgb(226, 232, 240);
+            _siteBadgeLabel.ForeColor = AppTheme.TextSecondary;
             return;
         }
 
-        var host = string.IsNullOrWhiteSpace(uri.Host) ? uri.AbsoluteUri : uri.Host;
-        var prefix = uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-            ? "锁"
-            : uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
-                ? "普"
-                : "本";
-        var isNarrow = ClientSize.Width < 1160;
-        var isUltraNarrow = ClientSize.Width < 980;
-        if (isUltraNarrow)
+        var isHttps = string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase);
+        var isHttp = string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase);
+        if (isHttps)
         {
-            _siteBadgeLabel.Text = prefix;
+            _siteBadgeLabel.Text = "🔒";
+            _siteBadgeLabel.Width = 34;
+            _siteBadgeLabel.ToolTipText = $"安全连接 (HTTPS)\n{uri.AbsoluteUri}\n已通过安全加密传输，点击查看站点属性与证书详情";
+            _siteBadgeLabel.BackColor = AppTheme.IsDark ? Color.FromArgb(32, 74, 58) : Color.FromArgb(220, 245, 235);
+            _siteBadgeLabel.ForeColor = AppTheme.IsDark ? Color.FromArgb(140, 225, 195) : Color.FromArgb(16, 120, 85);
+        }
+        else if (isHttp)
+        {
+            _siteBadgeLabel.Text = "⚠ 不安全";
+            _siteBadgeLabel.Width = 72;
+            _siteBadgeLabel.ToolTipText = $"不安全连接 (HTTP)\n{uri.AbsoluteUri}\n此网站未使用加密传输，请勿输入密码等敏感信息";
+            _siteBadgeLabel.BackColor = AppTheme.IsDark ? Color.FromArgb(88, 65, 25) : Color.FromArgb(254, 238, 215);
+            _siteBadgeLabel.ForeColor = AppTheme.IsDark ? Color.FromArgb(245, 195, 130) : Color.FromArgb(155, 80, 5);
         }
         else
         {
-            var maxHostLength = isNarrow ? 9 : 15;
-            var shortHost = host.Length > maxHostLength ? $"{host[..maxHostLength]}..." : host;
-            _siteBadgeLabel.Text = $"{prefix} {shortHost}";
-        }
-        _siteBadgeLabel.ToolTipText = $"{uri.AbsoluteUri}\n点击可复制当前地址";
-        if (uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
-        {
-            _siteBadgeLabel.BackColor = AppTheme.IsDark ? Color.FromArgb(41, 95, 78) : Color.FromArgb(210, 240, 231);
-            _siteBadgeLabel.ForeColor = AppTheme.IsDark ? Color.FromArgb(164, 233, 210) : Color.FromArgb(17, 103, 77);
-        }
-        else if (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase))
-        {
-            _siteBadgeLabel.BackColor = AppTheme.IsDark ? Color.FromArgb(95, 73, 34) : Color.FromArgb(253, 236, 209);
-            _siteBadgeLabel.ForeColor = AppTheme.IsDark ? Color.FromArgb(245, 205, 145) : Color.FromArgb(145, 88, 9);
-        }
-        else
-        {
-            _siteBadgeLabel.BackColor = AppTheme.IsDark ? Color.FromArgb(62, 79, 102) : Color.FromArgb(219, 234, 253);
+            _siteBadgeLabel.Text = "ℹ 专有";
+            _siteBadgeLabel.Width = 54;
+            _siteBadgeLabel.ToolTipText = $"内部专有协议 ({uri.Scheme})\n{uri.AbsoluteUri}";
+            _siteBadgeLabel.BackColor = AppTheme.IsDark ? Color.FromArgb(50, 65, 85) : Color.FromArgb(226, 232, 240);
             _siteBadgeLabel.ForeColor = AppTheme.TextPrimary;
         }
     }
@@ -10425,11 +10454,13 @@ public sealed class MainWindow : Form
     {
         try
         {
-            _statusBarPanel.IpLabel.Text = await _publicIpInfoService.GetDisplayTextAsync();
+            var ipText = await _publicIpInfoService.GetDisplayTextAsync();
+            _statusBarPanel.IpLabel.Text = ipText.StartsWith("🌐") ? ipText : $"🌐 {ipText}";
+            _statusBarPanel.IpLabel.ToolTipText = $"{ipText}\n点击可复制IP信息，右键可刷新";
         }
         catch
         {
-            _statusBarPanel.IpLabel.Text = "IP: 获取失败";
+            _statusBarPanel.IpLabel.Text = "🌐 IP: 获取失败";
         }
     }
 
@@ -10775,21 +10806,18 @@ public sealed class MainWindow : Form
 
     private ToolStripButton CreateBookmarkBarTitleButton()
     {
-        var chipBack = AppTheme.IsDark
-            ? AppTheme.Mix(AppTheme.SurfaceAlt, AppTheme.Accent, 0.28F)
-            : AppTheme.Mix(AppTheme.SurfaceAlt, AppTheme.Accent, 0.16F);
-        var button = new ToolStripButton($"{(_config.ShowBookmarksBar ? "▾" : "▸")} 书签")
+        var button = new ToolStripButton("★ 书签")
         {
             ForeColor = AppTheme.TextSecondary,
-            BackColor = chipBack,
+            BackColor = Color.Transparent,
             Font = AppTheme.CreateFont(8.9F, FontStyle.Bold),
             Padding = AppTheme.IsCompact ? new Padding(4, 2, 4, 2) : new Padding(5, 2, 5, 2),
-            Margin = new Padding(0, 1, 3, 1),
+            Margin = new Padding(0, 1, 2, 1),
             DisplayStyle = ToolStripItemDisplayStyle.Text,
             AutoSize = true,
-            ToolTipText = _config.ShowBookmarksBar ? "点击收起书签栏（右键空白区域可新增书签）" : "点击展开书签栏"
+            ToolTipText = "书签栏 (Ctrl+Shift+B) | 点击管理书签"
         };
-        button.Click += (_, _) => ToggleBookmarksBarVisibility();
+        button.Click += (_, _) => ShowBookmarksSettingsWindow();
         return button;
     }
 
@@ -10805,18 +10833,11 @@ public sealed class MainWindow : Form
 
     private static void StyleBookmarkBarItem(ToolStripItem item, bool isFolder)
     {
-        var backColor = isFolder
-            ? (AppTheme.IsDark
-                ? AppTheme.Mix(AppTheme.Accent, AppTheme.SurfaceAlt, 0.48F)
-                : AppTheme.Mix(AppTheme.Accent, Color.White, 0.70F))
-            : (AppTheme.IsDark
-                ? AppTheme.Mix(AppTheme.AccentMuted, AppTheme.SurfaceAlt, 0.22F)
-                : AppTheme.Mix(AppTheme.AccentMuted, Color.White, 0.34F));
         item.ForeColor = AppTheme.TextPrimary;
-        item.BackColor = backColor;
-        item.Padding = AppTheme.IsCompact ? new Padding(3, 2, 4, 2) : new Padding(4, 2, 5, 2);
-        item.Margin = new Padding(1, 1, 1, 1);
-        item.Font = AppTheme.CreateFont(8.8F, isFolder ? FontStyle.Bold : FontStyle.Regular);
+        item.BackColor = Color.Transparent;
+        item.Padding = AppTheme.IsCompact ? new Padding(4, 2, 5, 2) : new Padding(5, 2, 6, 2);
+        item.Margin = new Padding(1, 1, 2, 1);
+        item.Font = AppTheme.CreateFont(8.9F, isFolder ? FontStyle.Bold : FontStyle.Regular);
         item.AutoSize = true;
     }
 
