@@ -12,6 +12,7 @@ public sealed class ScratchpadView : UserControl
     private readonly Action<string> _toastCallback;
     private readonly string _notesFilePath;
 
+    private readonly Panel _textBoxCardPanel = new();
     private readonly TextBox _textBox = new();
     private readonly Button _insertLinkButton = new();
     private readonly Button _copyAllButton = new();
@@ -77,9 +78,11 @@ public sealed class ScratchpadView : UserControl
         _insertLinkButton.Size = new Size(100, 28);
         _insertLinkButton.Font = AppTheme.CreateFont(8.5F);
         _insertLinkButton.FlatStyle = FlatStyle.Flat;
-        _insertLinkButton.BackColor = AppTheme.SurfaceAlt;
-        _insertLinkButton.ForeColor = AppTheme.TextPrimary;
-        _insertLinkButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+        _insertLinkButton.FlatAppearance.BorderSize = 0;
+        _insertLinkButton.BackColor = AppTheme.Accent;
+        _insertLinkButton.ForeColor = Color.White;
+        _insertLinkButton.Cursor = Cursors.Hand;
+        AppTheme.ApplyControlRegion(_insertLinkButton, 6);
         _insertLinkButton.Click += (_, _) => InsertCurrentPageLink();
 
         _copyAllButton.Text = "📋 复制";
@@ -87,8 +90,10 @@ public sealed class ScratchpadView : UserControl
         _copyAllButton.Font = AppTheme.CreateFont(8.5F);
         _copyAllButton.FlatStyle = FlatStyle.Flat;
         _copyAllButton.BackColor = AppTheme.SurfaceAlt;
-        _copyAllButton.ForeColor = AppTheme.TextSecondary;
+        _copyAllButton.ForeColor = AppTheme.TextPrimary;
         _copyAllButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+        _copyAllButton.Cursor = Cursors.Hand;
+        AppTheme.ApplyControlRegion(_copyAllButton, 6);
         _copyAllButton.Click += (_, _) =>
         {
             if (!string.IsNullOrEmpty(_textBox.Text))
@@ -105,6 +110,8 @@ public sealed class ScratchpadView : UserControl
         _clearButton.BackColor = AppTheme.SurfaceAlt;
         _clearButton.ForeColor = AppTheme.TextSecondary;
         _clearButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+        _clearButton.Cursor = Cursors.Hand;
+        AppTheme.ApplyControlRegion(_clearButton, 6);
         _clearButton.Click += (_, _) =>
         {
             if (_textBox.TextLength > 0 &&
@@ -121,10 +128,23 @@ public sealed class ScratchpadView : UserControl
         toolBar.Controls.Add(_clearButton);
         mainLayout.Controls.Add(toolBar, 0, 0);
 
+        _textBoxCardPanel.Dock = DockStyle.Fill;
+        _textBoxCardPanel.BackColor = AppTheme.SurfaceAlt;
+        _textBoxCardPanel.Padding = new Padding(8);
+        _textBoxCardPanel.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, _textBoxCardPanel.Width - 1, _textBoxCardPanel.Height - 1), 8);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
+        AppTheme.ApplyControlRegion(_textBoxCardPanel, 8);
+
         _textBox.Dock = DockStyle.Fill;
         _textBox.Multiline = true;
         _textBox.ScrollBars = ScrollBars.Vertical;
-        _textBox.BorderStyle = BorderStyle.FixedSingle;
+        _textBox.BorderStyle = BorderStyle.None;
+        _textBox.BackColor = AppTheme.SurfaceAlt;
         _textBox.Font = AppTheme.CreateFont(9.5F);
         _textBox.PlaceholderText = "在此记录灵感、待读清单、摘录或网页笔记...\n(自动即时保存到本地)";
         _textBox.TextChanged += (_, _) =>
@@ -133,7 +153,8 @@ public sealed class ScratchpadView : UserControl
             _autoSaveTimer.Stop();
             _autoSaveTimer.Start();
         };
-        mainLayout.Controls.Add(_textBox, 0, 1);
+        _textBoxCardPanel.Controls.Add(_textBox);
+        mainLayout.Controls.Add(_textBoxCardPanel, 0, 1);
 
         _statsLabel.Dock = DockStyle.Fill;
         _statsLabel.TextAlign = ContentAlignment.MiddleRight;
@@ -198,26 +219,32 @@ public sealed class ScratchpadView : UserControl
     public void ApplyTheme()
     {
         BackColor = AppTheme.Surface;
-        _textBox.BackColor = AppTheme.Surface;
+        _textBoxCardPanel.BackColor = AppTheme.SurfaceAlt;
+        _textBox.BackColor = AppTheme.SurfaceAlt;
         _textBox.ForeColor = AppTheme.TextPrimary;
-        _insertLinkButton.BackColor = AppTheme.SurfaceAlt;
-        _insertLinkButton.ForeColor = AppTheme.TextPrimary;
-        _insertLinkButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+
+        _insertLinkButton.BackColor = AppTheme.Accent;
+        _insertLinkButton.ForeColor = Color.White;
+        _insertLinkButton.FlatAppearance.MouseOverBackColor = AppTheme.AccentHover;
+        _insertLinkButton.FlatAppearance.MouseDownBackColor = AppTheme.AccentPressed;
+        AppTheme.ApplyControlRegion(_insertLinkButton, 6);
+
         _copyAllButton.BackColor = AppTheme.SurfaceAlt;
-        _copyAllButton.ForeColor = AppTheme.TextSecondary;
+        _copyAllButton.ForeColor = AppTheme.TextPrimary;
         _copyAllButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+        _copyAllButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F);
+        _copyAllButton.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.SurfaceAlt, 0.45F);
+        AppTheme.ApplyControlRegion(_copyAllButton, 6);
+
         _clearButton.BackColor = AppTheme.SurfaceAlt;
         _clearButton.ForeColor = AppTheme.TextSecondary;
         _clearButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
-
-        var hoverBg = AppTheme.IsDark ? Color.FromArgb(40, 255, 255, 255) : Color.FromArgb(20, 0, 0, 0);
-        var pressBg = AppTheme.IsDark ? Color.FromArgb(60, 255, 255, 255) : Color.FromArgb(36, 0, 0, 0);
-        _insertLinkButton.FlatAppearance.MouseOverBackColor = hoverBg;
-        _insertLinkButton.FlatAppearance.MouseDownBackColor = pressBg;
-        _copyAllButton.FlatAppearance.MouseOverBackColor = hoverBg;
-        _copyAllButton.FlatAppearance.MouseDownBackColor = pressBg;
         _clearButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(232, 17, 35);
         _clearButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(199, 15, 29);
+        AppTheme.ApplyControlRegion(_clearButton, 6);
+
+        AppTheme.ApplyControlRegion(_textBoxCardPanel, 8);
+        _textBoxCardPanel.Invalidate();
 
         _statsLabel.ForeColor = AppTheme.TextSecondary;
     }

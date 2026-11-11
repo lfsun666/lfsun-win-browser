@@ -11837,19 +11837,33 @@ public sealed class MainWindow : Form
             return;
         }
 
-        var progressBounds = new Rectangle(cardRect.Left + 4, cardRect.Bottom - 5, Math.Max(0, cardRect.Width - 8), 3);
+        var progressBounds = new Rectangle(cardRect.Left + 12, cardRect.Bottom - 6, Math.Max(0, cardRect.Width - 24), 3);
         var width = (int)Math.Round(progressBounds.Width * progress);
         if (width <= 0)
         {
             return;
         }
 
+        // 绘制半透明跑道胶囊槽
+        using var trackBrush = new SolidBrush(Color.FromArgb(AppTheme.IsDark ? 45 : 35, Color.White));
+        using var trackPath = BuildRoundedRectanglePath(progressBounds, radius: 2);
+        graphics.FillPath(trackBrush, trackPath);
+
+        // 绘制高亮剩余时间进度药丸
         var progressRect = new Rectangle(progressBounds.Left, progressBounds.Top, width, progressBounds.Height);
         var progressColor = AppTheme.IsDark
             ? AppTheme.Mix(AppTheme.Success, AppTheme.Accent, 0.25F)
             : AppTheme.Mix(AppTheme.Success, AppTheme.Accent, 0.35F);
         using var progressBrush = new SolidBrush(progressColor);
-        graphics.FillRectangle(progressBrush, progressRect);
+        if (progressRect.Width >= 4)
+        {
+            using var activePillPath = BuildRoundedRectanglePath(progressRect, radius: 2);
+            graphics.FillPath(progressBrush, activePillPath);
+        }
+        else
+        {
+            graphics.FillRectangle(progressBrush, progressRect);
+        }
     }
 
     protected override void Dispose(bool disposing)

@@ -9,6 +9,7 @@ public sealed class BookmarksSettingsWindow : Form
     private readonly Action _onBookmarksChanged;
     private readonly Action<string> _log;
     private readonly TreeView _tree = new();
+    private readonly Panel _treeCardPanel = new();
     private readonly TextBox _searchTextBox = new();
     private readonly Label _treeSummaryLabel = new();
     private readonly TextBox _nameTextBox = new();
@@ -102,11 +103,24 @@ public sealed class BookmarksSettingsWindow : Form
         _treeSummaryLabel.Margin = new Padding(0, 8, 0, 6);
         left.Controls.Add(_treeSummaryLabel, 0, 2);
 
+        _treeCardPanel.Dock = DockStyle.Fill;
+        _treeCardPanel.BackColor = AppTheme.Surface;
+        _treeCardPanel.Padding = new Padding(4);
+        _treeCardPanel.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, _treeCardPanel.Width - 1, _treeCardPanel.Height - 1), 8);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
+        AppTheme.ApplyControlRegion(_treeCardPanel, 8);
+
         _tree.Dock = DockStyle.Fill;
         _tree.HideSelection = false;
-        _tree.BorderStyle = BorderStyle.FixedSingle;
+        _tree.BorderStyle = BorderStyle.None;
         _tree.ImageList = _treeImageList;
-        left.Controls.Add(_tree, 0, 3);
+        _treeCardPanel.Controls.Add(_tree);
+        left.Controls.Add(_treeCardPanel, 0, 3);
         _splitContainer.Panel1.Controls.Add(left);
 
         var right = new TableLayoutPanel
@@ -263,6 +277,10 @@ public sealed class BookmarksSettingsWindow : Form
         AppTheme.ApplyPrimaryButton(_saveButton, emphasize: true);
         AppTheme.ApplyPrimaryButton(_closeButton, emphasize: false);
         _deleteButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
+        _deleteButton.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.40F);
+        _treeCardPanel.BackColor = AppTheme.Surface;
+        AppTheme.ApplyControlRegion(_treeCardPanel, 8);
+        _treeCardPanel.Invalidate();
         AppTheme.ApplyContextMenu(_treeContextMenu);
     }
 
@@ -291,6 +309,7 @@ public sealed class BookmarksSettingsWindow : Form
             if (control is Button button)
             {
                 AppTheme.ApplyPrimaryButton(button);
+                AppTheme.ApplyControlRegion(button, 6);
             }
             else if (control is TextBox textBox)
             {

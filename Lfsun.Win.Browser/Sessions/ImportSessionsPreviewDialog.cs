@@ -35,6 +35,10 @@ public sealed class ImportSessionsPreviewDialog : Form
     private readonly Button _cancelButton = new();
     private readonly BindingList<ImportSessionPreviewItem> _rows = [];
     private readonly HashSet<string> _existingNames;
+    private TableLayoutPanel? _headerCardPanel;
+    private TableLayoutPanel? _toolBarCardPanel;
+    private Panel? _gridCardPanel;
+    private FlowLayoutPanel? _footerCardPanel;
 
     private ImportSessionsPreviewDialog(IEnumerable<ImportSessionPreviewItem> items, IEnumerable<string> existingSessionNames)
     {
@@ -100,27 +104,45 @@ public sealed class ImportSessionsPreviewDialog : Form
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 4,
-            Padding = new Padding(12)
+            Padding = new Padding(12, 10, 12, 12)
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
 
-        var header = new Label
+        var header = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            AutoSize = true,
+            Margin = new Padding(0, 0, 0, 8),
+            Padding = new Padding(10, 8, 10, 8)
+        };
+        _headerCardPanel = header;
+        header.Controls.Add(new Label
         {
             AutoSize = true,
-            Text = "请选择要导入的会话，并设置重名冲突处理方式。",
-            Margin = new Padding(0, 0, 0, 8)
-        };
+            Text = "导入会话预览",
+            Font = AppTheme.CreateFont(10.6F, FontStyle.Bold),
+            Margin = new Padding(0, 0, 0, 4)
+        }, 0, 0);
+        header.Controls.Add(new Label
+        {
+            AutoSize = true,
+            Text = "请勾选要导入的会话，并指定重名冲突处理策略（自动重命名 / 覆盖同名 / 跳过重名）。",
+            ForeColor = AppTheme.TextSecondary
+        }, 0, 1);
 
         var toolBar = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 9,
             AutoSize = true,
-            Margin = new Padding(0, 0, 0, 8)
+            Margin = new Padding(0, 0, 0, 8),
+            Padding = new Padding(10, 8, 10, 8)
         };
+        _toolBarCardPanel = toolBar;
         toolBar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         toolBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 130));
         toolBar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 20));
@@ -172,6 +194,7 @@ public sealed class ImportSessionsPreviewDialog : Form
         _grid.RowHeadersVisible = false;
         _grid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         _grid.MultiSelect = false;
+        _grid.BorderStyle = BorderStyle.None;
         _grid.DataSource = _rows;
         _grid.Columns.Add(new DataGridViewCheckBoxColumn
         {
@@ -204,13 +227,22 @@ public sealed class ImportSessionsPreviewDialog : Form
             AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
         });
 
+        _gridCardPanel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Padding = new Padding(8),
+            Margin = new Padding(0, 0, 0, 8)
+        };
+        _gridCardPanel.Controls.Add(_grid);
+
         var actionBar = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.RightToLeft,
             AutoSize = true,
-            Padding = new Padding(0, 8, 0, 0)
+            Padding = new Padding(10, 8, 10, 8)
         };
+        _footerCardPanel = actionBar;
         _okButton.Text = "开始导入";
         _cancelButton.Text = "取消";
         actionBar.Controls.Add(_okButton);
@@ -218,7 +250,7 @@ public sealed class ImportSessionsPreviewDialog : Form
 
         root.Controls.Add(header, 0, 0);
         root.Controls.Add(toolBar, 0, 1);
-        root.Controls.Add(_grid, 0, 2);
+        root.Controls.Add(_gridCardPanel, 0, 2);
         root.Controls.Add(actionBar, 0, 3);
         Controls.Add(root);
     }
@@ -230,6 +262,10 @@ public sealed class ImportSessionsPreviewDialog : Form
         AppTheme.ApplyComboBox(_strategyComboBox);
         _summaryLabel.ForeColor = AppTheme.TextSecondary;
         StyleControlTree(this);
+        ApplyCardVisual(_headerCardPanel, emphasizeAccent: true);
+        ApplyCardVisual(_toolBarCardPanel, emphasizeAccent: false);
+        ApplyCardVisual(_gridCardPanel, emphasizeAccent: false);
+        ApplyCardVisual(_footerCardPanel, emphasizeAccent: false);
 
         StyleButton(_selectAllButton, 84, emphasize: false);
         StyleButton(_selectConflictButton, 96, emphasize: false);
@@ -396,11 +432,56 @@ public sealed class ImportSessionsPreviewDialog : Form
         }
     }
 
+    private static void ApplyCardVisual(Control? panel, bool emphasizeAccent)
+    {
+        if (panel is null) return;
+        panel.BackColor = AppTheme.Surface;
+        panel.Tag = emphasizeAccent ? "import-card-accent" : "import-card-normal";
+        panel.SizeChanged += (_, _) => UpdateCardRegion(panel);
+        panel.Paint += DrawCardBorder;
+        UpdateCardRegion(panel);
+    }
+
+    private static void UpdateCardRegion(Control panel)
+    {
+        if (panel.Width > 8 && panel.Height > 8)
+        {
+            using var path = AppTheme.BuildRoundedRect(panel.ClientRectangle, 8);
+            panel.Region = new Region(path);
+        }
+    }
+
+    private static void DrawCardBorder(object? sender, PaintEventArgs eventArgs)
+    {
+        if (sender is not Control panel) return;
+        var rect = panel.ClientRectangle;
+        rect.Inflate(-1, -1);
+        if (rect.Width <= 4 || rect.Height <= 4) return;
+
+        var emphasize = string.Equals(panel.Tag as string, "import-card-accent", StringComparison.Ordinal);
+        var borderColor = emphasize
+            ? (AppTheme.IsDark
+                ? AppTheme.Mix(AppTheme.Accent, AppTheme.PanelBorder, 0.42F)
+                : AppTheme.Mix(AppTheme.Accent, AppTheme.PanelBorder, 0.22F))
+            : AppTheme.PanelBorder;
+        var glowColor = emphasize
+            ? Color.FromArgb(AppTheme.IsDark ? 30 : 20, AppTheme.Accent)
+            : Color.FromArgb(AppTheme.IsDark ? 16 : 10, AppTheme.AccentMuted);
+
+        eventArgs.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var path = AppTheme.BuildRoundedRect(rect, 8);
+        using var glowPen = new Pen(glowColor, 1F);
+        using var borderPen = new Pen(borderColor, 1F);
+        eventArgs.Graphics.DrawPath(glowPen, path);
+        eventArgs.Graphics.DrawPath(borderPen, path);
+    }
+
     private static void StyleButton(Button button, int width, bool emphasize)
     {
         AppTheme.ApplyPrimaryButton(button, emphasize);
         button.Width = width;
         button.MinimumSize = new Size(width, 38);
+        AppTheme.ApplyControlRegion(button, 6);
     }
 
     private static void StyleControlTree(Control root)

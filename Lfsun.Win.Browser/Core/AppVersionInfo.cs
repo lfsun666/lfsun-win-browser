@@ -42,6 +42,18 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.15",
+            "2026-11-11",
+            "全局UI布局与容器体验全域优化：设置中心三级卡片防漏底圆角裁剪与状态提示胶囊化、侧边栏便签与生产力工具箱六大功能卡片容器化、导入会话预览全量卡片流与冲突策略微交互、书签与凭据编辑弹窗卡片包裹、全局主次按钮胶囊药丸化与Toast动态倒计时跑道",
+            [
+                "【设置中心卡片全量防透底裁剪】SettingsWindow 侧边栏卡片、内容主卡片与标签页容器全面接入 Region 动态几何圆角裁剪，消除渐变背景与微光下直角透底瑕疵；未保存更改状态栏升级为圆角胶囊药丸",
+                "【侧边栏便签与工具箱卡片化重构】ScratchpadView 便签文本域由防漏底圆角卡片包裹，去 Win32 矩形边框，按键胶囊化；ToolboxView 网页截图/沉浸阅读/护眼滤镜/缩放/链接复制/标签批量六大模块全部升华为独立圆角 Fluent 卡片容器，按钮统一圆角胶囊",
+                "【导入会话预览全量卡片重构】ImportSessionsPreviewDialog 顶部指引栏、策略操作栏、会话预览表格与底部动作栏全量包裹在抗锯齿圆角卡片中，消除 DataGridView 边缘生硬切角，按钮全量药丸化",
+                "【书签与凭据编辑弹窗卡片化】BookmarkEditDialog 与 CredentialEditDialog 输入表单由现代圆角卡片承载，确认与取消键赋予圆角 Region 裁剪与高对比度交互",
+                "【Toast 动态倒计时跑道与全局按键圆角】MainWindow 提示通知底部进度条重构为半透明底槽与圆角微药丸动态跑道，告别生硬矩形；AppTheme 开放 ApplyControlRegion 通用接口，全应用按钮圆角体系无缝贯通"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.9.14",
             "2026-11-11",
             "全局UI布局与侧边栏/分屏/会话容器全面升华：会话管理卡片全量防透底裁剪与主次按钮层级强化、快捷键一览卡片化重构与全局渐变流光底板、侧边栏导航胶囊药丸化与高对比度红关闭键、快速书签/下载/历史自适应卡片包裹与选中胶囊圆角平滑过渡、双屏分屏控制胶囊微交互全覆盖",

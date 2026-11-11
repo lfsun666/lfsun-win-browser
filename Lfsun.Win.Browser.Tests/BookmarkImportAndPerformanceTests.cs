@@ -707,4 +707,33 @@ public sealed class BookmarkImportAndPerformanceTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void ScratchpadView_And_ToolboxView_And_AppThemeRegion_ConfiguredProperly()
+    {
+        var thread = new Thread(() =>
+        {
+            // 1. AppTheme ApplyControlRegion
+            using var btn = new Button { Size = new Size(120, 36) };
+            AppTheme.ApplyControlRegion(btn, 6);
+            Assert.NotNull(btn.Region);
+
+            // 2. ScratchpadView
+            using var scratchpad = new Lfsun.Win.Browser.UI.SidePanel.ScratchpadView(() => "https://example.com", _ => { });
+            Assert.NotNull(scratchpad);
+            scratchpad.ApplyTheme();
+
+            // 3. ToolboxView
+            using var toolbox = new Lfsun.Win.Browser.UI.SidePanel.ToolboxView(
+                () => null,
+                _ => { },
+                toggleSplitCallback: () => { },
+                getAllTabs: () => Array.Empty<Lfsun.Win.Browser.Browser.BrowserTab>());
+            Assert.NotNull(toolbox);
+            toolbox.ApplyTheme();
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }

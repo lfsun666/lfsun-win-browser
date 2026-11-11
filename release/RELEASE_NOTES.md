@@ -1,19 +1,19 @@
 # LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.14 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.15 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 3 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.14)
+## 当前最新交付清单 (v0.9.15)
 
 - **LfsunBrowser-portable-latest.zip** (65.57 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.12.zip** (63.59 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.13.zip** (65.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.14.zip** (65.57 MB)
-- **LfsunBrowser-setup-0.9.12.exe** (47.68 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.15.zip** (65.57 MB)
 - **LfsunBrowser-setup-0.9.13.exe** (47.68 MB)
 - **LfsunBrowser-setup-0.9.14.exe** (47.68 MB)
+- **LfsunBrowser-setup-0.9.15.exe** (47.68 MB)
 - **LfsunBrowser-setup-latest.exe** (47.68 MB)
 
 ## 当前版本更新亮点
@@ -25,6 +25,11 @@
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.15] - 2026-11-11
+
+### 变更内容
+- 全局UI布局与容器体验全域优化：设置中心三级卡片防漏底圆角裁剪与状态提示胶囊化、侧边栏便签与生产力工具箱六大功能卡片容器化、导入会话预览全量卡片流与冲突策略微交互、书签与凭据编辑弹窗卡片包裹、全局主次按钮胶囊药丸化与Toast动态倒计时跑道
 
 ## [0.9.14] - 2026-11-11
 

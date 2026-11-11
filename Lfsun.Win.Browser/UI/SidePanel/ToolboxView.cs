@@ -74,7 +74,7 @@ public sealed class ToolboxView : UserControl
 
         // 1. 网页截图卡片
         mainLayout.Controls.Add(CreateSectionHeader("📸 网页截图与快照"));
-        var capturePanel = new FlowLayoutPanel { Width = 310, AutoSize = true, Margin = new Padding(0, 4, 0, 10) };
+        var capturePanel = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0) };
         var copyShotBtn = CreateButton("📷 截图到剪贴板", 140, async () =>
         {
             var tab = _getActiveTab();
@@ -114,7 +114,7 @@ public sealed class ToolboxView : UserControl
         });
         capturePanel.Controls.Add(copyShotBtn);
         capturePanel.Controls.Add(saveShotBtn);
-        mainLayout.Controls.Add(capturePanel);
+        mainLayout.Controls.Add(CreateSectionCard(capturePanel));
 
         // 2. 手机跨端扫码 (二维码)
         mainLayout.Controls.Add(CreateSectionHeader("📱 手机扫码继续浏览"));
@@ -201,7 +201,7 @@ public sealed class ToolboxView : UserControl
 
                 // 2.5 沉浸阅读、视频画中画与分屏
         mainLayout.Controls.Add(CreateSectionHeader("📖 沉浸阅读与实用扩展"));
-        var readerPipPanel = new FlowLayoutPanel { Width = 310, AutoSize = true, Margin = new Padding(0, 4, 0, 10) };
+        var readerPipPanel = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0) };
         readerPipPanel.Controls.Add(CreateButton("📖 阅读模式", 90, async () =>
         {
             var tab = _getActiveTab();
@@ -242,31 +242,31 @@ public sealed class ToolboxView : UserControl
                 _toastCallback("可通过状态栏耗时药丸或输入 :perf 查看性能卡片");
             }
         }));
-        mainLayout.Controls.Add(readerPipPanel);
+        mainLayout.Controls.Add(CreateSectionCard(readerPipPanel));
 
         // 3. 阅读护眼滤镜
         mainLayout.Controls.Add(CreateSectionHeader("🌓 页面阅读与护眼滤镜"));
-        var filterPanel = new FlowLayoutPanel { Width = 310, AutoSize = true, Margin = new Padding(0, 4, 0, 10) };
+        var filterPanel = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0) };
         filterPanel.Controls.Add(CreateButton("原样默认", 70, async () => await ApplyFilterAsync(string.Empty)));
         filterPanel.Controls.Add(CreateButton("柔和暖色", 70, async () => await ApplyFilterAsync("sepia(0.35) contrast(0.95) brightness(0.95)")));
         filterPanel.Controls.Add(CreateButton("夜间反色", 70, async () => await ApplyFilterAsync("invert(0.9) hue-rotate(180deg)")));
         filterPanel.Controls.Add(CreateButton("高对比度", 70, async () => await ApplyFilterAsync("contrast(1.3)")));
-        mainLayout.Controls.Add(filterPanel);
+        mainLayout.Controls.Add(CreateSectionCard(filterPanel));
 
         // 4. 页面缩放快捷控制
         mainLayout.Controls.Add(CreateSectionHeader("🔍 页面缩放快捷控制"));
-        var zoomPanel = new FlowLayoutPanel { Width = 310, AutoSize = true, Margin = new Padding(0, 4, 0, 10) };
+        var zoomPanel = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0) };
         var zoomOutBtn = CreateButton("— 缩小 10%", 90, () => ChangeZoom(-0.1));
         var zoomResetBtn = CreateButton("100% 重置", 90, () => SetZoom(1.0));
         var zoomInBtn = CreateButton("+ 放大 10%", 90, () => ChangeZoom(0.1));
         zoomPanel.Controls.Add(zoomOutBtn);
         zoomPanel.Controls.Add(zoomResetBtn);
         zoomPanel.Controls.Add(zoomInBtn);
-        mainLayout.Controls.Add(zoomPanel);
+        mainLayout.Controls.Add(CreateSectionCard(zoomPanel));
 
         // 5. 格式化链接复制
         mainLayout.Controls.Add(CreateSectionHeader("📋 快捷格式化链接复制"));
-        var linkPanel = new FlowLayoutPanel { Width = 310, AutoSize = true, Margin = new Padding(0, 4, 0, 10) };
+        var linkPanel = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0) };
         linkPanel.Controls.Add(CreateButton("仅复制网址", 90, () =>
         {
             var tab = _getActiveTab();
@@ -294,11 +294,11 @@ public sealed class ToolboxView : UserControl
                 _toastCallback("已复制 Markdown 格式链接");
             }
         }));
-        mainLayout.Controls.Add(linkPanel);
+        mainLayout.Controls.Add(CreateSectionCard(linkPanel));
 
         // 6. 标签页批量生产力管理
         mainLayout.Controls.Add(CreateSectionHeader("📑 标签页批量管理与快捷生产力"));
-        var tabManagePanel = new FlowLayoutPanel { Width = 310, AutoSize = true, Margin = new Padding(0, 4, 0, 10) };
+        var tabManagePanel = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0) };
         tabManagePanel.Controls.Add(CreateButton("🧹 释放后台内存", 140, async () =>
         {
             if (_suspendBackgroundTabsCallback is not null)
@@ -360,7 +360,7 @@ public sealed class ToolboxView : UserControl
             Clipboard.SetText(sb.ToString().TrimEnd());
             _toastCallback($"已复制 {tabs.Count} 个标签的纯网址！");
         }));
-        mainLayout.Controls.Add(tabManagePanel);
+        mainLayout.Controls.Add(CreateSectionCard(tabManagePanel));
 
         Controls.Add(mainLayout);
     }
@@ -427,6 +427,40 @@ public sealed class ToolboxView : UserControl
         };
     }
 
+    private static Panel CreateSectionCard(Control innerControl)
+    {
+        var card = new Panel
+        {
+            Width = 310,
+            AutoSize = true,
+            BackColor = AppTheme.SurfaceAlt,
+            Margin = new Padding(0, 4, 0, 10),
+            Padding = new Padding(6)
+        };
+
+        void UpdateCardRegion()
+        {
+            if (card.Width > 8 && card.Height > 8)
+            {
+                using var path = AppTheme.BuildRoundedRect(card.ClientRectangle, 8);
+                card.Region = new Region(path);
+            }
+        }
+        card.SizeChanged += (_, _) => UpdateCardRegion();
+        card.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, card.Width - 1, card.Height - 1), 8);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
+
+        innerControl.Dock = DockStyle.Fill;
+        card.Controls.Add(innerControl);
+        UpdateCardRegion();
+        return card;
+    }
+
     private Button CreateButton(string text, int width, Action onClick)
     {
         var btn = new Button
@@ -435,14 +469,15 @@ public sealed class ToolboxView : UserControl
             Size = new Size(width, 30),
             Font = AppTheme.CreateFont(8.5F),
             FlatStyle = FlatStyle.Flat,
-            BackColor = AppTheme.SurfaceAlt,
+            BackColor = AppTheme.Surface,
             ForeColor = AppTheme.TextPrimary,
             Margin = new Padding(3),
             Cursor = Cursors.Hand
         };
         btn.FlatAppearance.BorderColor = AppTheme.PanelBorder;
-        btn.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F);
-        btn.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.SurfaceAlt, 0.45F);
+        btn.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.AccentHover, AppTheme.Surface, 0.35F);
+        btn.FlatAppearance.MouseDownBackColor = AppTheme.Mix(AppTheme.AccentPressed, AppTheme.Surface, 0.45F);
+        AppTheme.ApplyControlRegion(btn, 6);
         btn.Click += (_, _) => onClick();
         return btn;
     }

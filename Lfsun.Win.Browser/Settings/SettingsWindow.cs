@@ -1257,6 +1257,13 @@ public sealed class SettingsWindow : Form
         StyleControls(this);
         AppTheme.ApplyPrimaryButton(_saveButton, emphasize: true);
         AppTheme.ApplyPrimaryButton(_cancelButton);
+        _customSearchEngineDeleteButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
+        _credentialDeleteButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
+        _pluginUninstallButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
+        _shortcutResetDefaultsButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Warning, AppTheme.SurfaceAlt, 0.25F);
+        _toolbarResetButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Warning, AppTheme.SurfaceAlt, 0.25F);
+        _addressCommandResetButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Warning, AppTheme.SurfaceAlt, 0.25F);
+        AppTheme.ApplyControlRegion(_changeHintPanel, 6);
         _contentHeaderTitleLabel.ForeColor = AppTheme.TextPrimary;
         _contentHeaderSubtitleLabel.ForeColor = AppTheme.TextSecondary;
         _sidebarSummaryLabel.ForeColor = AppTheme.TextSecondary;
@@ -1272,6 +1279,7 @@ public sealed class SettingsWindow : Form
             if (control is Button button)
             {
                 AppTheme.ApplyPrimaryButton(button);
+                AppTheme.ApplyControlRegion(button, 6);
             }
             else if (control is TextBox textBox)
             {
@@ -1844,9 +1852,29 @@ public sealed class SettingsWindow : Form
     private static void ApplyCardVisual(Control panel)
     {
         panel.BackColor = AppTheme.Surface;
+        panel.SizeChanged -= OnCardPanelSizeChanged;
+        panel.SizeChanged += OnCardPanelSizeChanged;
         panel.Paint -= DrawCardFrame;
         panel.Paint += DrawCardFrame;
+        UpdateCardRegion(panel, 10);
         panel.Invalidate();
+    }
+
+    private static void OnCardPanelSizeChanged(object? sender, EventArgs e)
+    {
+        if (sender is Control panel)
+        {
+            UpdateCardRegion(panel, 10);
+        }
+    }
+
+    private static void UpdateCardRegion(Control panel, int radius)
+    {
+        if (panel.Width > radius * 2 && panel.Height > radius * 2)
+        {
+            using var path = AppTheme.BuildRoundedRect(panel.ClientRectangle, radius);
+            panel.Region = new Region(path);
+        }
     }
 
     private static void DrawCardFrame(object? sender, PaintEventArgs eventArgs)
@@ -1875,20 +1903,7 @@ public sealed class SettingsWindow : Form
     }
 
     private static GraphicsPath BuildRoundRectPath(Rectangle rect, int radius)
-    {
-        var path = new GraphicsPath();
-        var diameter = radius * 2;
-        var arc = new Rectangle(rect.Left, rect.Top, diameter, diameter);
-        path.AddArc(arc, 180, 90);
-        arc.X = rect.Right - diameter;
-        path.AddArc(arc, 270, 90);
-        arc.Y = rect.Bottom - diameter;
-        path.AddArc(arc, 0, 90);
-        arc.X = rect.Left;
-        path.AddArc(arc, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
+        => AppTheme.BuildRoundedRect(rect, radius);
 
     private static void DrawSidebarListItem(ListBox listBox, DrawItemEventArgs eventArgs, bool isSearchResult)
     {
@@ -2780,16 +2795,20 @@ public sealed class SettingsWindow : Form
                 ? Color.FromArgb(255, 237, 189)
                 : Color.FromArgb(102, 72, 18);
             _changeHintLabel.Text = string.IsNullOrWhiteSpace(detail) ? "有更改尚未保存" : $"{detail} · 请点击“保存”";
+            AppTheme.ApplyControlRegion(_changeHintPanel, 6);
+            _changeHintPanel.Invalidate();
             return;
         }
 
         _changeHintPanel.BackColor = AppTheme.IsDark
-            ? AppTheme.Mix(AppTheme.Success, AppTheme.SurfaceAlt, 0.76F)
-            : AppTheme.Mix(AppTheme.Success, Color.White, 0.90F);
+                ? AppTheme.Mix(AppTheme.Success, AppTheme.SurfaceAlt, 0.76F)
+                : AppTheme.Mix(AppTheme.Success, Color.White, 0.90F);
         _changeHintLabel.ForeColor = AppTheme.IsDark
             ? Color.FromArgb(191, 244, 208)
             : Color.FromArgb(25, 90, 54);
         _changeHintLabel.Text = string.IsNullOrWhiteSpace(detail) ? "当前配置已同步" : detail;
+        AppTheme.ApplyControlRegion(_changeHintPanel, 6);
+        _changeHintPanel.Invalidate();
     }
 
     private void ShowBookmarkManager()

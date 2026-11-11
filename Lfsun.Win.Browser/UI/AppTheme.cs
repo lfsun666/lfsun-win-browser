@@ -350,6 +350,28 @@ public static class AppTheme
         button.Margin = new Padding(5, 4, 5, 4);
     }
 
+    /// <summary>
+    /// 为控件应用圆角裁剪 Region，并监听 SizeChanged 自动维持圆角比例，消除 Win32 矩形毛刺与边角溢出。
+    /// </summary>
+    public static void ApplyControlRegion(Control control, int radius = 6)
+    {
+        void UpdateRegion()
+        {
+            if (control.Width > radius * 2 && control.Height > radius * 2)
+            {
+                using var path = BuildRoundedRect(control.ClientRectangle, radius);
+                control.Region = new Region(path);
+            }
+        }
+
+        UpdateRegion();
+        if (control.Tag is not string tag || !tag.Contains("has-rounded-region", StringComparison.Ordinal))
+        {
+            control.SizeChanged += (_, _) => UpdateRegion();
+            control.Tag = control.Tag is null ? "has-rounded-region" : $"{control.Tag};has-rounded-region";
+        }
+    }
+
     public static void ApplyTextInput(TextBox textBox)
     {
         textBox.BorderStyle = BorderStyle.FixedSingle;

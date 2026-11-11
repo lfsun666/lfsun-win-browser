@@ -8,6 +8,7 @@ public sealed class CredentialEditDialog : Form
     private readonly TextBox _siteTextBox = new();
     private readonly TextBox _usernameTextBox = new();
     private readonly TextBox _passwordTextBox = new();
+    private readonly Panel _cardPanel = new();
     private readonly Button _okButton = new();
     private readonly Button _cancelButton = new();
 
@@ -23,44 +24,67 @@ public sealed class CredentialEditDialog : Form
         DoubleBuffered = true;
         Font = AppTheme.CreateFont(9F);
 
-        var root = new TableLayoutPanel
+        _cardPanel.Dock = DockStyle.Fill;
+        _cardPanel.BackColor = AppTheme.SurfaceAlt;
+        _cardPanel.Padding = new Padding(12);
+        _cardPanel.Margin = new Padding(0, 0, 0, 6);
+        _cardPanel.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, _cardPanel.Width - 1, _cardPanel.Height - 1), 8);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
+        AppTheme.ApplyControlRegion(_cardPanel, 8);
+
+        var formTable = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 2,
-            RowCount = 4,
-            Padding = new Padding(14)
+            RowCount = 3,
+            BackColor = Color.Transparent
         };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 90));
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        formTable.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+        formTable.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
 
-        root.Controls.Add(new Label { Text = "站点", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
+        formTable.Controls.Add(new Label { Text = "站点", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 0);
         _siteTextBox.Dock = DockStyle.Fill;
         _siteTextBox.Text = site;
         _siteTextBox.BorderStyle = BorderStyle.FixedSingle;
-        root.Controls.Add(_siteTextBox, 1, 0);
+        formTable.Controls.Add(_siteTextBox, 1, 0);
 
-        root.Controls.Add(new Label { Text = "用户名", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
+        formTable.Controls.Add(new Label { Text = "用户名", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 1);
         _usernameTextBox.Dock = DockStyle.Fill;
         _usernameTextBox.Text = username;
         _usernameTextBox.BorderStyle = BorderStyle.FixedSingle;
-        root.Controls.Add(_usernameTextBox, 1, 1);
+        formTable.Controls.Add(_usernameTextBox, 1, 1);
 
-        root.Controls.Add(new Label { Text = "密码", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 2);
+        formTable.Controls.Add(new Label { Text = "密码", AutoSize = true, Anchor = AnchorStyles.Left }, 0, 2);
         _passwordTextBox.Dock = DockStyle.Fill;
         _passwordTextBox.UseSystemPasswordChar = true;
         _passwordTextBox.Text = password;
         _passwordTextBox.BorderStyle = BorderStyle.FixedSingle;
-        root.Controls.Add(_passwordTextBox, 1, 2);
+        formTable.Controls.Add(_passwordTextBox, 1, 2);
+
+        _cardPanel.Controls.Add(formTable);
+
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            Padding = new Padding(12, 10, 12, 12)
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.Controls.Add(_cardPanel, 0, 0);
 
         var buttons = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.RightToLeft,
-            AutoSize = true
+            AutoSize = true,
+            Padding = new Padding(0, 8, 0, 0)
         };
         _okButton.Text = "确定";
         _okButton.DialogResult = DialogResult.OK;
@@ -68,7 +92,7 @@ public sealed class CredentialEditDialog : Form
         _cancelButton.DialogResult = DialogResult.Cancel;
         buttons.Controls.Add(_okButton);
         buttons.Controls.Add(_cancelButton);
-        root.Controls.Add(buttons, 1, 3);
+        root.Controls.Add(buttons, 0, 1);
 
         _okButton.Click += (_, _) =>
         {
@@ -90,11 +114,16 @@ public sealed class CredentialEditDialog : Form
     private void ApplyTheme()
     {
         BackColor = AppTheme.WindowBackground;
+        _cardPanel.BackColor = AppTheme.SurfaceAlt;
+        AppTheme.ApplyControlRegion(_cardPanel, 8);
+        _cardPanel.Invalidate();
         AppTheme.ApplyTextInput(_siteTextBox);
         AppTheme.ApplyTextInput(_usernameTextBox);
         AppTheme.ApplyTextInput(_passwordTextBox);
         AppTheme.ApplyPrimaryButton(_okButton, emphasize: true);
         AppTheme.ApplyPrimaryButton(_cancelButton);
+        AppTheme.ApplyControlRegion(_okButton, 6);
+        AppTheme.ApplyControlRegion(_cancelButton, 6);
         StyleControlTree(this);
     }
 
