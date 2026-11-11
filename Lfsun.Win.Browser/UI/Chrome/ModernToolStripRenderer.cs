@@ -70,6 +70,66 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
         e.Graphics.DrawLine(pen, center, top, center, bottom);
     }
 
+    protected override void OnRenderLabelBackground(ToolStripItemRenderEventArgs e)
+    {
+        if (e.Item is not ToolStripLabel label ||
+            label.BackColor.IsEmpty ||
+            label.BackColor == Color.Transparent ||
+            label.BackColor == AppTheme.Surface)
+        {
+            base.OnRenderLabelBackground(e);
+            return;
+        }
+
+        var bounds = new Rectangle(Point.Empty, label.Size);
+        bounds.Inflate(-1, -1);
+        if (bounds.Width <= 4 || bounds.Height <= 4)
+        {
+            return;
+        }
+
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var path = BuildRoundedRectangle(bounds, 5);
+        using var brush = new SolidBrush(label.BackColor);
+        using var pen = new Pen(AppTheme.PanelBorder, 1F);
+        e.Graphics.FillPath(brush, path);
+        e.Graphics.DrawPath(pen, path);
+    }
+
+    protected override void OnRenderOverflowButtonBackground(ToolStripItemRenderEventArgs e)
+    {
+        var bounds = new Rectangle(Point.Empty, e.Item.Size);
+        bounds.Inflate(-2, -2);
+        if (bounds.Width < 4 || bounds.Height < 4)
+        {
+            return;
+        }
+
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        var isHovered = e.Item.Selected || e.Item.Pressed;
+        if (isHovered)
+        {
+            var hoverFill = e.Item.Pressed
+                ? (AppTheme.IsDark ? Color.FromArgb(50, 255, 255, 255) : Color.FromArgb(30, 0, 0, 0))
+                : (AppTheme.IsDark ? Color.FromArgb(28, 255, 255, 255) : Color.FromArgb(16, 0, 0, 0));
+            using var path = BuildRoundedRectangle(bounds, 4);
+            using var brush = new SolidBrush(hoverFill);
+            e.Graphics.FillPath(brush, path);
+        }
+
+        using var arrowPen = new Pen(AppTheme.TextSecondary, 1.6F);
+        var cx = bounds.Left + bounds.Width / 2;
+        var cy = bounds.Top + bounds.Height / 2;
+        e.Graphics.DrawLine(arrowPen, cx - 4, cy - 2, cx, cy + 2);
+        e.Graphics.DrawLine(arrowPen, cx, cy + 2, cx + 4, cy - 2);
+    }
+
+    protected override void OnRenderArrow(ToolStripArrowRenderEventArgs e)
+    {
+        e.ArrowColor = AppTheme.TextSecondary;
+        base.OnRenderArrow(e);
+    }
+
     protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
     {
         if (!e.Item.Enabled)

@@ -42,6 +42,18 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.6",
+            "2026-11-11",
+            "全局UI布局全域精细化规范：导航工具栏与标题栏全量图标药丸化、多开/扩展/外观/引擎统一32px规整、圆角安全芯片与折叠Chevron渲染重绘、书签栏紧凑微间距、Splitter临界尺寸防御加固",
+            [
+                "【导航工具栏全域图标胶囊化】全面统一多开窗口(❐)、插件与扩展(✇)、搜索引擎切换(🔍)、外观主题(🎨)、会话中心(☰)、最近标签(⟲)与便捷中心(❖)为 30~34px 标准图标药丸，无论何种屏幕分辨率与主题模式均告别杂乱文字块",
+                "【Fluent 圆角安全芯片与渲染重绘】ModernToolStripRenderer 全新重绘 ToolStripLabel 芯片底色与 ToolStrip 溢出 Chevron 下拉箭头，站点安全状态(🔒 / ⚠)与各种状态标签具备平滑 5px 圆角和中性边框",
+                "【标题栏标签与辅助控件去噪】移除标签栏固定标签与普通标签之间粗重的「· 标签 ·」文字分隔符，替换为微妙的 1px 细线分隔；垂直标签切换按钮(▤)与扩展按钮(✇)胶囊化规范",
+                "【书签栏紧凑高密度排版】书签栏左侧首个按键优化为标准「书签」胶囊，书签项外边距收窄至 1px，内边距按 3~4px 紧致对齐，同屏可容纳更多书签",
+                "【全窗体 Splitter 边界安全防御加固】加固 SessionsWindow、BookmarksSettingsWindow、SettingsWindow 及 SplitBrowserPanel 的 SplitterDistance 设置逻辑，捕获所有尺寸临界与 DPI 缩放异常，杜绝崩溃弹窗"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.9.5",
             "2026-11-11",
             "全局UI布局深度优化重构：标题栏真实Favicon与Fluent卡片微动、工具栏核心导航图标化规范、站点安全微胶囊、书签栏通透无感布局、新标签页弹性响应式速拨与状态栏信息降噪",
