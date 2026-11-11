@@ -704,8 +704,8 @@ public sealed class MainWindow : Form
 
         _bookmarksBar.GripStyle = ToolStripGripStyle.Hidden;
         _bookmarksBar.AutoSize = false;
-        _bookmarksBar.Height = AppTheme.IsCompact ? 28 : 34;
-        _bookmarksBar.Padding = new Padding(8, 2, 8, 2);
+        _bookmarksBar.Height = AppTheme.IsCompact ? 28 : 30;
+        _bookmarksBar.Padding = AppTheme.IsCompact ? new Padding(6, 1, 6, 1) : new Padding(8, 1, 8, 1);
         _bookmarksBar.Dock = DockStyle.Top;
         _bookmarksBar.ImageScalingSize = new Size(16, 16);
         _bookmarksBar.LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow;
@@ -2017,8 +2017,8 @@ public sealed class MainWindow : Form
         _topBar.Padding = compact ? new Padding(8, 3, 8, 3) : new Padding(10, 4, 10, 4);
         _addressBar.Height = compact ? 34 : 38;
         _addressBar.Padding = compact ? new Padding(8, 3, 8, 3) : new Padding(10, 4, 10, 4);
-        _bookmarksBar.Height = compact ? 32 : 34;
-        _bookmarksBar.Padding = compact ? new Padding(10, 2, 10, 2) : new Padding(10, 3, 10, 3);
+        _bookmarksBar.Height = compact ? 28 : 30;
+        _bookmarksBar.Padding = compact ? new Padding(6, 1, 6, 1) : new Padding(8, 1, 8, 1);
         _addressTextBox.Size = new Size(compact ? 480 : 620, compact ? 24 : 28);
         _addressTextBox.Margin = compact ? new Padding(6, 2, 6, 2) : new Padding(6, 3, 6, 3);
         _addressSuggestionListBox.ItemHeight = compact ? 34 : 40;
@@ -7099,8 +7099,7 @@ public sealed class MainWindow : Form
         _bookmarksBar.Items.Add(titleButton);
         var isNarrow = ClientSize.Width < 1160;
         var isUltraNarrow = ClientSize.Width < 980;
-        var showFolderCounts = ClientSize.Width >= 1260;
-        var topNameLength = isUltraNarrow ? 6 : isNarrow ? 10 : 14;
+        var topNameLength = isUltraNarrow ? 8 : isNarrow ? 12 : 16;
         var menuNameLength = isUltraNarrow ? 18 : 26;
 
         if (_bookmarkManager.TopLevelItems.Count == 0)
@@ -7116,13 +7115,13 @@ public sealed class MainWindow : Form
             {
                 var childCount = CountBookmarkNodes(node.Children);
                 var folderDisplayName = BuildBookmarkDisplayText(node.Name, topNameLength);
-                var folderSuffix = showFolderCounts ? $" ·{childCount}" : string.Empty;
-                var folderButton = new ToolStripDropDownButton($"{folderDisplayName}{folderSuffix}")
+                var folderButton = new ToolStripDropDownButton(folderDisplayName)
                 {
                     Image = FaviconService.GetFolderIcon(),
                     DisplayStyle = ToolStripItemDisplayStyle.ImageAndText,
                     TextImageRelation = TextImageRelation.ImageBeforeText,
                     ImageScaling = ToolStripItemImageScaling.None,
+                    ShowDropDownArrow = false,
                     ToolTipText = $"{node.Name}\n文件夹（{childCount} 项）",
                     Tag = new BookmarkBarTag(node.Id, ParentFolderId: null)
                 };
@@ -10765,8 +10764,8 @@ public sealed class MainWindow : Form
             ForeColor = AppTheme.TextSecondary,
             BackColor = chipBack,
             Font = AppTheme.CreateFont(8.9F, FontStyle.Bold),
-            Padding = AppTheme.IsCompact ? new Padding(8, 3, 8, 3) : new Padding(10, 3, 10, 3),
-            Margin = new Padding(0, 1, 7, 1),
+            Padding = AppTheme.IsCompact ? new Padding(4, 2, 4, 2) : new Padding(5, 2, 5, 2),
+            Margin = new Padding(0, 1, 3, 1),
             DisplayStyle = ToolStripItemDisplayStyle.Text,
             AutoSize = true,
             ToolTipText = _config.ShowBookmarksBar ? "点击收起书签栏（右键空白区域可新增书签）" : "点击展开书签栏"
@@ -10796,8 +10795,8 @@ public sealed class MainWindow : Form
                 : AppTheme.Mix(AppTheme.AccentMuted, Color.White, 0.34F));
         item.ForeColor = AppTheme.TextPrimary;
         item.BackColor = backColor;
-        item.Padding = AppTheme.IsCompact ? new Padding(8, 3, 8, 3) : new Padding(10, 4, 10, 4);
-        item.Margin = AppTheme.IsCompact ? new Padding(2, 1, 4, 1) : new Padding(3, 1, 6, 1);
+        item.Padding = AppTheme.IsCompact ? new Padding(3, 2, 4, 2) : new Padding(4, 2, 5, 2);
+        item.Margin = new Padding(1, 1, 1, 1);
         item.Font = AppTheme.CreateFont(8.8F, isFolder ? FontStyle.Bold : FontStyle.Regular);
         item.AutoSize = true;
     }

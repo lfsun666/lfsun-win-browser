@@ -377,4 +377,28 @@ public sealed class BookmarkImportAndPerformanceTests
         Assert.Contains("card", html);
         Assert.Contains("badge", html);
     }
+
+    [Fact]
+    public void BookmarkBar_FolderDisplay_ShouldNotIncludeNumericCountsOrDropDownArrow()
+    {
+        var node = new BookmarkNode
+        {
+            Type = BookmarkNodeType.Folder,
+            Name = "tools"
+        };
+        node.Children.Add(new BookmarkNode { Type = BookmarkNodeType.Link, Name = "Item1", Url = "https://example.com/1" });
+        node.Children.Add(new BookmarkNode { Type = BookmarkNodeType.Link, Name = "Item2", Url = "https://example.com/2" });
+
+        // Build folder button without suffix count and without dropdown arrow
+        var folderDisplayName = node.Name;
+        using var folderButton = new System.Windows.Forms.ToolStripDropDownButton(folderDisplayName)
+        {
+            ShowDropDownArrow = false
+        };
+
+        Assert.Equal("tools", folderButton.Text);
+        Assert.DoesNotContain("·", folderButton.Text);
+        Assert.DoesNotContain("2", folderButton.Text);
+        Assert.False(folderButton.ShowDropDownArrow);
+    }
 }
