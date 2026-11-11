@@ -92,6 +92,8 @@ public sealed class FindBar : Panel
 
         ConfigureIconButton(_closeButton, "\uE711", "×", "关闭查找 (Esc)", new Point(352, 7));
         _closeButton.Click += (_, _) => CloseRequested?.Invoke();
+        _closeButton.MouseEnter += (_, _) => _closeButton.ForeColor = Color.White;
+        _closeButton.MouseLeave += (_, _) => _closeButton.ForeColor = AppTheme.TextPrimary;
 
         Controls.Add(_searchTextBox);
         Controls.Add(_matchCountLabel);

@@ -1,30 +1,36 @@
 # LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.17 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.18 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 3 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.17)
+## 当前最新交付清单 (v0.9.18)
 
 - **LfsunBrowser-portable-latest.zip** (65.57 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.15.zip** (65.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.16.zip** (65.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.17.zip** (65.57 MB)
-- **LfsunBrowser-setup-0.9.15.exe** (47.68 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.18.zip** (65.57 MB)
 - **LfsunBrowser-setup-0.9.16.exe** (47.68 MB)
 - **LfsunBrowser-setup-0.9.17.exe** (47.69 MB)
+- **LfsunBrowser-setup-0.9.18.exe** (47.69 MB)
 - **LfsunBrowser-setup-latest.exe** (47.69 MB)
 
 ## 当前版本更新亮点
 
-- 全局UI布局与主窗口标签栏/侧边栏/分屏核心容器极致打磨：现代标签栏选中项与悬浮项边框引入Fluent微质感轮廓与平滑过渡，标签关闭按钮呼吸式高亮光圈反馈；侧边栏5大导航按钮宽度精细化（54px）与边距微调彻底根除340px窄屏第5按键（便签）右侧裁剪遮挡隐患；分屏控制栏按钮标准化6px胶囊倒角并补全底部分割线；工具栏悬浮项引入1px抗锯齿边框与窗口控制键圆角优化；地址栏下拉建议容器实施12px防漏底圆角裁剪与书签设置窗口按钮圆角胶囊化
+- 全局UI布局与标签资源诊断/状态栏芯片/书签编辑卡片全域优化：新增全新Fluent标签与内存诊断卡片（TabStatsCardDialog）彻底替代传统原生MessageBox弹窗，直观呈现标签生命周期6大指标芯片、实时内存评级胶囊、站点Top域名分布芯片与一键运维动作（去重、休眠、关其他）；书签设置（BookmarksSettingsWindow）右侧表单全量引入8px悬浮Surface圆角卡片包裹与抗锯齿边框，与左侧结构卡片完美平衡对齐；状态栏芯片（ModernStatusStripRenderer）非激活态边框接入AppTheme.PanelBorder语义色，彻底消除硬编码RGB色彩；查找栏关闭按钮鼠标悬浮反色为高对比度白字并微调贴边
 
 ---
 
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.18] - 2026-11-11
+
+### 变更内容
+- 全局UI布局与标签资源诊断/状态栏芯片/书签编辑卡片全域优化：新增全新Fluent标签与内存诊断卡片（TabStatsCardDialog）彻底替代传统原生MessageBox弹窗，直观呈现标签生命周期6大指标芯片、实时内存评级胶囊、站点Top域名分布芯片与一键运维动作（去重、休眠、关其他）；书签设置（BookmarksSettingsWindow）右侧表单全量引入8px悬浮Surface圆角卡片包裹与抗锯齿边框，与左侧结构卡片完美平衡对齐；状态栏芯片（ModernStatusStripRenderer）非激活态边框接入AppTheme.PanelBorder语义色，彻底消除硬编码RGB色彩；查找栏关闭按钮鼠标悬浮反色为高对比度白字并微调贴边
+
 
 ## [0.9.17] - 2026-11-11
 

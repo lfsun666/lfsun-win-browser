@@ -125,7 +125,7 @@ public sealed class ModernStatusStripRenderer : ToolStripProfessionalRenderer
         using var brush = new SolidBrush(backColor);
         var borderColor = statusLabel.Selected
             ? AppTheme.Accent
-            : (AppTheme.IsDark ? Color.FromArgb(58, 64, 74) : Color.FromArgb(218, 223, 230));
+            : AppTheme.PanelBorder;
         using var pen = new Pen(borderColor, 1F);
         e.Graphics.FillPath(brush, path);
         e.Graphics.DrawPath(pen, path);

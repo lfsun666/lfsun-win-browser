@@ -10,6 +10,7 @@ public sealed class BookmarksSettingsWindow : Form
     private readonly Action<string> _log;
     private readonly TreeView _tree = new();
     private readonly Panel _treeCardPanel = new();
+    private readonly Panel _editCardPanel = new();
     private readonly TextBox _searchTextBox = new();
     private readonly Label _treeSummaryLabel = new();
     private readonly TextBox _nameTextBox = new();
@@ -127,15 +128,10 @@ public sealed class BookmarksSettingsWindow : Form
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 8,
-            Padding = new Padding(12)
+            RowCount = 3,
+            Padding = new Padding(8, 12, 12, 12)
         };
         right.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         right.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         right.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -152,8 +148,35 @@ public sealed class BookmarksSettingsWindow : Form
             AutoSize = true,
             Text = "选中左侧节点后，可直接修改名称、地址，或执行新增、删除、导入、导出。",
             ForeColor = AppTheme.TextSecondary,
-            Margin = new Padding(0, 0, 0, 10)
+            Margin = new Padding(0, 0, 0, 8)
         }, 0, 1);
+
+        _editCardPanel.Dock = DockStyle.Fill;
+        _editCardPanel.BackColor = AppTheme.Surface;
+        _editCardPanel.Padding = new Padding(12);
+        _editCardPanel.Paint += (_, e) =>
+        {
+            e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, _editCardPanel.Width - 1, _editCardPanel.Height - 1), 8);
+            using var pen = new Pen(AppTheme.PanelBorder, 1F);
+            e.Graphics.DrawPath(pen, path);
+        };
+        AppTheme.ApplyControlRegion(_editCardPanel, 8);
+
+        var editCardLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 6,
+            BackColor = Color.Transparent
+        };
+        editCardLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        editCardLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editCardLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editCardLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editCardLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editCardLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        editCardLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         _typeLabel.AutoSize = true;
         _typeLabel.Text = "类型: -";
@@ -220,24 +243,28 @@ public sealed class BookmarksSettingsWindow : Form
         importExportPanel.Controls.Add(_unwrapToolbarButton);
         importExportPanel.Controls.Add(_closeButton);
 
-        right.Controls.Add(typeFlow, 0, 2);
-        right.Controls.Add(nameLabel, 0, 3);
-        right.Controls.Add(_nameTextBox, 0, 4);
-        right.Controls.Add(urlLabel, 0, 5);
-        right.Controls.Add(_urlTextBox, 0, 6);
+        editCardLayout.Controls.Add(typeFlow, 0, 0);
+        editCardLayout.Controls.Add(nameLabel, 0, 1);
+        editCardLayout.Controls.Add(_nameTextBox, 0, 2);
+        editCardLayout.Controls.Add(urlLabel, 0, 3);
+        editCardLayout.Controls.Add(_urlTextBox, 0, 4);
 
         var groupPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
-            AutoSize = true
+            AutoSize = true,
+            Margin = new Padding(0, 12, 0, 0)
         };
         groupPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         groupPanel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         groupPanel.Controls.Add(editPanel, 0, 0);
         groupPanel.Controls.Add(importExportPanel, 0, 1);
-        right.Controls.Add(groupPanel, 0, 7);
+        editCardLayout.Controls.Add(groupPanel, 0, 5);
+
+        _editCardPanel.Controls.Add(editCardLayout);
+        right.Controls.Add(_editCardPanel, 0, 2);
 
         _splitContainer.Panel2.Controls.Add(right);
         Controls.Add(_splitContainer);
@@ -283,6 +310,9 @@ public sealed class BookmarksSettingsWindow : Form
         _treeCardPanel.BackColor = AppTheme.Surface;
         AppTheme.ApplyControlRegion(_treeCardPanel, 8);
         _treeCardPanel.Invalidate();
+        _editCardPanel.BackColor = AppTheme.Surface;
+        AppTheme.ApplyControlRegion(_editCardPanel, 8);
+        _editCardPanel.Invalidate();
         AppTheme.ApplyContextMenu(_treeContextMenu);
     }
 

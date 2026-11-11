@@ -837,4 +837,55 @@ public sealed class BookmarkImportAndPerformanceTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void TabStatsCardDialog_And_BookmarksSettingsWindow_InitializeCorrectly()
+    {
+        var thread = new Thread(() =>
+        {
+            var hostStats = new List<(string Host, int Count)>
+            {
+                ("github.com", 3),
+                ("microsoft.com", 2)
+            };
+
+            using var dialog = new Lfsun.Win.Browser.UI.TabStatsCardDialog(
+                totalTabs: 5,
+                activeTabs: 3,
+                pinnedTabs: 1,
+                suspendedTabs: 2,
+                customNamedTabs: 1,
+                coloredTabs: 1,
+                duplicateTabs: 0,
+                memoryMb: 248.5,
+                hostDistributions: hostStats,
+                cleanDuplicatesAction: () => Task.CompletedTask,
+                suspendOthersAction: () => Task.CompletedTask,
+                closeOthersAction: () => Task.CompletedTask);
+
+            Assert.NotNull(dialog);
+            Assert.Equal("标签与资源诊断", dialog.Text);
+            Assert.Equal(530, dialog.ClientSize.Width);
+
+            var tempDir = Path.Combine(Path.GetTempPath(), "bmsw_test_" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try
+            {
+                var bm = new BookmarkManager(Path.Combine(tempDir, "b.json"), _ => { });
+                using var bmsw = new BookmarksSettingsWindow(bm, () => { }, _ => { });
+                Assert.NotNull(bmsw);
+                Assert.Equal("设置 - 书签管理", bmsw.Text);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    try { Directory.Delete(tempDir, true); } catch { }
+                }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }

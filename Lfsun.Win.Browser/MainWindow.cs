@@ -7779,15 +7779,47 @@ public sealed class MainWindow : Form
 
     private void ShowTabStatsDialog()
     {
-        var summary = BuildTabOpsSummary();
-        var hostSummary = BuildHostDistributionSummary(maxCount: 6);
-        MessageBox.Show(
-            this,
-            $"标签统计\n\n{summary}\n\n站点分布\n{hostSummary}",
-            "标签统计",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information);
-        Log("已打开标签统计详情");
+        var total = _tabManager.Tabs.Count;
+        var pinned = _tabManager.Tabs.Count(tab => tab.IsPinned);
+        var suspended = _tabManager.Tabs.Count(tab => tab.IsSuspended);
+        var active = total - suspended;
+        var renamed = _tabManager.Tabs.Count(tab => tab.HasCustomTitle);
+        var colored = _tabManager.Tabs.Count(tab => !string.IsNullOrWhiteSpace(BrowserTab.NormalizeColorTagKey(tab.ColorTagKey)));
+        var duplicateUrls = _tabManager.Tabs
+            .Select(BuildTabIdentityKey)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .GroupBy(key => key, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Sum(group => group.Count() - 1);
+
+        var hostDistributions = _tabManager.Tabs
+            .Select(BuildTabHostKey)
+            .Where(host => !string.IsNullOrWhiteSpace(host))
+            .GroupBy(host => host, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(group => group.Count())
+            .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .Take(6)
+            .Select(group => (group.Key, group.Count()))
+            .ToList();
+
+        var memoryMb = Process.GetCurrentProcess().WorkingSet64 / 1024.0 / 1024.0;
+
+        using var dialog = new TabStatsCardDialog(
+            totalTabs: total,
+            activeTabs: active,
+            pinnedTabs: pinned,
+            suspendedTabs: suspended,
+            customNamedTabs: renamed,
+            coloredTabs: colored,
+            duplicateTabs: duplicateUrls,
+            memoryMb: memoryMb,
+            hostDistributions: hostDistributions,
+            cleanDuplicatesAction: duplicateUrls > 0 ? async () => await ApplyTabOpsByCommandAsync(["dedupe"]) : null,
+            suspendOthersAction: active > 1 ? async () => await ApplyTabOpsByCommandAsync(["suspendothers"]) : null,
+            closeOthersAction: total > 1 ? async () => await ApplyTabOpsByCommandAsync(["closeothers"]) : null);
+
+        dialog.ShowDialog(this);
+        Log("已打开标签统计诊断卡片");
     }
 
     private void ShowStatusBarContextMenu(Point location)

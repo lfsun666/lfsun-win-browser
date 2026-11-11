@@ -8,8 +8,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
         <AssemblyName>LfsunBrowser</AssemblyName>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>0.9.17</Version>
-    <FileVersion>0.9.17</FileVersion>
+    <Version>0.9.18</Version>
+    <FileVersion>0.9.18</FileVersion>
     <Product>LfsunBrowser</Product>
     <Title>LfsunBrowser</Title>
     <Company>LfsunBrowser</Company>

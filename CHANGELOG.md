@@ -1,5 +1,11 @@
 # 更新日志 (Changelog)
 
+## [0.9.18] - 2026-11-11
+
+### 变更内容
+- 全局UI布局与标签资源诊断/状态栏芯片/书签编辑卡片全域优化：新增全新Fluent标签与内存诊断卡片（TabStatsCardDialog）彻底替代传统原生MessageBox弹窗，直观呈现标签生命周期6大指标芯片、实时内存评级胶囊、站点Top域名分布芯片与一键运维动作（去重、休眠、关其他）；书签设置（BookmarksSettingsWindow）右侧表单全量引入8px悬浮Surface圆角卡片包裹与抗锯齿边框，与左侧结构卡片完美平衡对齐；状态栏芯片（ModernStatusStripRenderer）非激活态边框接入AppTheme.PanelBorder语义色，彻底消除硬编码RGB色彩；查找栏关闭按钮鼠标悬浮反色为高对比度白字并微调贴边
+
+
 ## [0.9.17] - 2026-11-11
 
 ### 变更内容

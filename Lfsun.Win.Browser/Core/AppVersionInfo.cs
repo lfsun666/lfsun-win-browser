@@ -42,6 +42,16 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.18",
+            "2026-11-11",
+            "全局UI布局与标签资源诊断/状态栏芯片/书签编辑卡片全域优化",
+            [
+                "【全新 Fluent 标签与内存诊断卡片】TabStatsCardDialog 彻底替代传统原生 MessageBox 弹窗，直观呈现生命周期指标（总数、活跃、休眠、固定、色标、重复）、实时内存评级胶囊、站点 Top 域名分布芯片与一键运维动作（去重、休眠、关其他）",
+                "【书签设置双卡片仪表盘】BookmarksSettingsWindow 右侧表单全量引入 8px 悬浮 Surface 圆角卡片包裹与抗锯齿边框，与左侧结构卡片完美平衡对齐，告别右侧表单散落感",
+                "【状态栏芯片主题自适应微边框】ModernStatusStripRenderer 状态栏芯片非激活态边框接入 AppTheme.PanelBorder 语义色，彻底消除硬编码 RGB 色彩，与主题色调完美融为一体",
+                "【查找栏关闭按钮反色交互优化】FindBar 鼠标滑入红色关闭按钮时符号自动转为高对比度白字，并微调宽度紧凑贴合，消除尾部冗余间距"
+            ]),
+        new VersionReleaseEntry(
             "0.9.17",
             "2026-11-11",
             "全局UI布局与主窗口/标签栏/侧边栏/分屏核心容器极致打磨：水平标签页悬浮微卡片边框与关闭按钮呼吸圆圈、工具栏普通按钮与窗口控制键抗锯齿圆角微动反馈、侧边抽屉栏五大导航按键匀称排布彻底消除窄边溢出截断、双屏分屏控制条圆角药丸升级与副屏分割线细腻分离、地址搜索浮动建议面板Region防漏底几何裁剪",
