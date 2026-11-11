@@ -1,5 +1,9 @@
 using Lfsun.Win.Browser.Bookmarks;
 using Lfsun.Win.Browser.Core;
+using Lfsun.Win.Browser.Downloads;
+using Lfsun.Win.Browser.Plugins;
+using Lfsun.Win.Browser.Security;
+using Lfsun.Win.Browser.Settings;
 using Xunit;
 
 namespace Lfsun.Win.Browser.Tests;
@@ -400,5 +404,45 @@ public sealed class BookmarkImportAndPerformanceTests
         Assert.DoesNotContain("·", folderButton.Text);
         Assert.DoesNotContain("2", folderButton.Text);
         Assert.False(folderButton.ShowDropDownArrow);
+    }
+
+    [Fact]
+    public void SettingsWindow_InitialState_ShouldNotHavePendingChanges()
+    {
+        var thread = new Thread(() =>
+        {
+            var config = new BrowserConfig();
+            var tempDir = Path.Combine(Path.GetTempPath(), $"settings_test_{Guid.NewGuid():N}");
+            Directory.CreateDirectory(tempDir);
+            try
+            {
+                var downloadManager = new DownloadManager(tempDir, _ => { });
+                var pluginManager = new PluginManager(tempDir, config, _ => { });
+                var credentialStore = new CredentialStore(Path.Combine(tempDir, "creds.dat"), _ => { });
+                var bookmarkManager = new BookmarkManager(Path.Combine(tempDir, "bookmarks.json"), _ => { });
+
+                using var settingsWindow = new SettingsWindow(
+                    config,
+                    downloadManager,
+                    pluginManager,
+                    credentialStore,
+                    bookmarkManager,
+                    () => { },
+                    () => { },
+                    _ => { });
+
+                Assert.False(settingsWindow.HasPendingChanges);
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    try { Directory.Delete(tempDir, true); } catch { }
+                }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
     }
 }

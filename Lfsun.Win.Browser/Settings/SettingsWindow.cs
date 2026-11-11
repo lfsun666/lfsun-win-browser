@@ -129,6 +129,7 @@ public sealed class SettingsWindow : Form
     private bool _isSyncingTabSelection;
     private bool _didSaveChanges;
     private bool _hasPendingChanges;
+    public bool HasPendingChanges => _hasPendingChanges;
     private bool _suppressPendingChangeTracking = true;
     private Image? _taskbarIconPreviewImage;
 
@@ -164,17 +165,17 @@ public sealed class SettingsWindow : Form
         Font = AppTheme.CreateFont(9F);
         AutoScaleMode = AutoScaleMode.Dpi;
         AutoScaleDimensions = new SizeF(96F, 96F);
+        CancelButton = _cancelButton;
 
         BuildLayout();
         InitializeCategorySidebar();
         BuildSettingSearchIndex();
         ApplyVisualStyle();
         LoadFromConfig();
-        _suppressPendingChangeTracking = false;
+        RefreshPluginGrid();
+        WireEvents();
         WirePendingChangeTracking(this);
         SetPendingChangeState(false, "当前配置已加载");
-        WireEvents();
-        RefreshPluginGrid();
     }
 
     private void BuildLayout()
@@ -744,6 +745,7 @@ public sealed class SettingsWindow : Form
                 currentRow.DataBoundItem is CustomSearchEngineRow row)
             {
                 _customSearchEngineRows.Remove(row);
+                MarkPendingChange("已删除搜索引擎配置");
             }
         };
         customEngineButtons.Controls.Add(_customSearchEngineDeleteButton);
@@ -1443,19 +1445,28 @@ public sealed class SettingsWindow : Form
 
     private void RefreshToolbarGrid()
     {
-        _toolbarRows.Clear();
-        foreach (var item in _config.ToolbarButtons.OrderBy(button => button.Order))
+        var prevSuppress = _suppressPendingChangeTracking;
+        _suppressPendingChangeTracking = true;
+        try
         {
-            _toolbarRows.Add(new ToolbarButtonRow
+            _toolbarRows.Clear();
+            foreach (var item in _config.ToolbarButtons.OrderBy(button => button.Order))
             {
-                Id = item.Id,
-                DisplayName = item.DisplayName,
-                Visible = item.Visible,
-                Order = item.Order
-            });
-        }
+                _toolbarRows.Add(new ToolbarButtonRow
+                {
+                    Id = item.Id,
+                    DisplayName = item.DisplayName,
+                    Visible = item.Visible,
+                    Order = item.Order
+                });
+            }
 
-        RefreshToolbarRowOrderDisplay();
+            RefreshToolbarRowOrderDisplay();
+        }
+        finally
+        {
+            _suppressPendingChangeTracking = prevSuppress;
+        }
     }
 
     private void RefreshToolbarRowOrderDisplay()
@@ -1471,20 +1482,29 @@ public sealed class SettingsWindow : Form
 
     private void RefreshAddressCommandGrid()
     {
-        _addressCommandRows.Clear();
-        foreach (var item in _config.AddressCommands.OrderBy(command => command.Order))
+        var prevSuppress = _suppressPendingChangeTracking;
+        _suppressPendingChangeTracking = true;
+        try
         {
-            _addressCommandRows.Add(new AddressCommandRow
+            _addressCommandRows.Clear();
+            foreach (var item in _config.AddressCommands.OrderBy(command => command.Order))
             {
-                Id = item.Id,
-                DisplayName = item.DisplayName,
-                Enabled = item.Enabled,
-                Command = item.Command,
-                Order = item.Order
-            });
-        }
+                _addressCommandRows.Add(new AddressCommandRow
+                {
+                    Id = item.Id,
+                    DisplayName = item.DisplayName,
+                    Enabled = item.Enabled,
+                    Command = item.Command,
+                    Order = item.Order
+                });
+            }
 
-        RefreshAddressCommandRowOrderDisplay();
+            RefreshAddressCommandRowOrderDisplay();
+        }
+        finally
+        {
+            _suppressPendingChangeTracking = prevSuppress;
+        }
     }
 
     private void RefreshAddressCommandRowOrderDisplay()
@@ -1577,7 +1597,15 @@ public sealed class SettingsWindow : Form
 
     private void WireEvents()
     {
-        Shown += (_, _) => UpdateBodySplitterDistance();
+        Shown += (_, _) =>
+        {
+            UpdateBodySplitterDistance();
+            BeginInvoke(() =>
+            {
+                _suppressPendingChangeTracking = false;
+                SetPendingChangeState(false, "当前配置已加载");
+            });
+        };
         Resize += (_, _) => UpdateBodySplitterDistance();
         FormClosed += (_, _) =>
         {
@@ -1754,24 +1782,27 @@ public sealed class SettingsWindow : Form
         _bookmarkExportButton.Click += (_, _) => ExportBookmarks();
         _shortcutResetDefaultsButton.Click += (_, _) => ResetShortcutsToDefaults();
         _saveButton.Click += (_, _) => SaveAll();
-        _cancelButton.Click += (_, _) =>
-        {
-            if (_hasPendingChanges)
-            {
-                var result = MessageBox.Show(
-                    "当前有未保存的更改，确定直接关闭吗？",
-                    "确认关闭",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Question);
-                if (result != DialogResult.Yes)
-                {
-                    return;
-                }
-            }
-
-            Close();
-        };
+        _cancelButton.Click += (_, _) => Close();
         SyncSessionRestoreOptions();
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        base.OnFormClosing(e);
+        if (_didSaveChanges || !_hasPendingChanges)
+        {
+            return;
+        }
+
+        var result = MessageBox.Show(
+            "当前有未保存的更改，确定直接关闭吗？",
+            "确认关闭",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question);
+        if (result != DialogResult.Yes)
+        {
+            e.Cancel = true;
+        }
     }
 
     private void UpdateSidebarSummary()
@@ -2147,18 +2178,27 @@ public sealed class SettingsWindow : Form
 
     private void RefreshCredentialGrid()
     {
-        _credentialRows.Clear();
-        foreach (var entry in _credentialStore.ListEntries())
+        var prevSuppress = _suppressPendingChangeTracking;
+        _suppressPendingChangeTracking = true;
+        try
         {
-            _credentialRows.Add(new CredentialRow
+            _credentialRows.Clear();
+            foreach (var entry in _credentialStore.ListEntries())
             {
-                Id = entry.Id,
-                Site = entry.Site,
-                Username = entry.Username,
-                PasswordMasked = string.IsNullOrWhiteSpace(entry.Password) ? "(空)" : new string('*', Math.Min(12, Math.Max(6, entry.Password.Length))),
-                PasswordPlain = entry.Password,
-                UpdatedAt = entry.UpdatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
-            });
+                _credentialRows.Add(new CredentialRow
+                {
+                    Id = entry.Id,
+                    Site = entry.Site,
+                    Username = entry.Username,
+                    PasswordMasked = string.IsNullOrWhiteSpace(entry.Password) ? "(空)" : new string('*', Math.Min(12, Math.Max(6, entry.Password.Length))),
+                    PasswordPlain = entry.Password,
+                    UpdatedAt = entry.UpdatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+                });
+            }
+        }
+        finally
+        {
+            _suppressPendingChangeTracking = prevSuppress;
         }
     }
 
@@ -2283,17 +2323,26 @@ public sealed class SettingsWindow : Form
 
     private void RefreshPluginGrid()
     {
-        _pluginRows.Clear();
-        foreach (var info in _pluginManager.DiscoverPackages())
+        var prevSuppress = _suppressPendingChangeTracking;
+        _suppressPendingChangeTracking = true;
+        try
         {
-            _pluginRows.Add(new PluginRow
+            _pluginRows.Clear();
+            foreach (var info in _pluginManager.DiscoverPackages())
             {
-                Id = info.Id,
-                Name = info.Name,
-                Enabled = info.Enabled,
-                Status = info.LoadStatus,
-                DirectoryPath = info.DirectoryPath
-            });
+                _pluginRows.Add(new PluginRow
+                {
+                    Id = info.Id,
+                    Name = info.Name,
+                    Enabled = info.Enabled,
+                    Status = info.LoadStatus,
+                    DirectoryPath = info.DirectoryPath
+                });
+            }
+        }
+        finally
+        {
+            _suppressPendingChangeTracking = prevSuppress;
         }
     }
 
@@ -2663,6 +2712,11 @@ public sealed class SettingsWindow : Form
     {
         foreach (Control control in root.Controls)
         {
+            if (control == _settingSearchTextBox)
+            {
+                continue;
+            }
+
             switch (control)
             {
                 case TextBox textBox:
@@ -2678,9 +2732,16 @@ public sealed class SettingsWindow : Form
                     numericUpDown.ValueChanged += (_, _) => MarkPendingChange("已修改数值配置");
                     break;
                 case DataGridView grid:
+                    grid.CurrentCellDirtyStateChanged += (_, _) =>
+                    {
+                        if (grid.IsCurrentCellDirty)
+                        {
+                            grid.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                        }
+                    };
                     grid.CellValueChanged += (_, _) => MarkPendingChange("已修改表格配置");
-                    grid.RowsAdded += (_, _) => MarkPendingChange("已新增表格项");
-                    grid.RowsRemoved += (_, _) => MarkPendingChange("已删除表格项");
+                    grid.UserAddedRow += (_, _) => MarkPendingChange("已新增表格项");
+                    grid.UserDeletedRow += (_, _) => MarkPendingChange("已删除表格项");
                     break;
             }
 

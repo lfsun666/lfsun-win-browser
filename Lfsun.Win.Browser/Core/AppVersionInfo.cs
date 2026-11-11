@@ -42,6 +42,16 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.3",
+            "2026-11-11",
+            "设置未修改误提示弹窗彻底消除、脏检查与表格生命周期精准解耦、Esc与关闭链路统一规范",
+            [
+                "【未修改关闭误报彻底消除】修复打开设置窗口时因初始化加载及插件扫描误触 DataGridView.RowsAdded 导致被错误判定为存在未保存修改的缺陷，无修改时直接秒关且不弹出任何确认提示",
+                "【脏检查与表格生命周期精准解耦】将表格跟踪改为用户真实交互级别（UserAddedRow/UserDeletedRow/CellValueChanged），排除所有后台代码刷新、清空与扫描对变更状态的污染",
+                "【搜索框变更排除与统一关闭拦截】在变更监听树中智能排除侧边栏“设置搜索框”，关闭拦截统一收口至 OnFormClosing 生命周期（兼容取消按钮、Esc 键与右上角关闭红叉）"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.9.2",
             "2026-11-11",
             "书签栏紧凑化设计：移除数字角标、隐藏多余下拉箭头、缩减间距与内边距、更契合主流浏览器视觉体验",
