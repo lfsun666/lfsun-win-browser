@@ -655,7 +655,7 @@ public sealed class MainWindow : Form
         _titleBar.GripStyle = ToolStripGripStyle.Hidden;
         _titleBar.AutoSize = false;
         _titleBar.Height = AppTheme.IsCompact ? 32 : 36;
-        _titleBar.Padding = new Padding(8, 2, 8, 2);
+        _titleBar.Padding = new Padding(8, 0, 0, 0);
         _titleBar.Dock = DockStyle.Top;
         _titleBar.ImageScalingSize = new Size(16, 16);
         _titleBar.LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow;
@@ -681,13 +681,13 @@ public sealed class MainWindow : Form
 
         _addressTextBox.AutoSize = false;
         _addressTextBox.Size = new Size(520, 30);
-        _addressTextBox.Margin = new Padding(6, 3, 6, 3);
+        _addressTextBox.Margin = new Padding(1, 2, 4, 2);
         _addressTextBox.BorderStyle = BorderStyle.FixedSingle;
         UpdateAddressCommandTooltip();
         _addressTextBox.Overflow = ToolStripItemOverflow.Never;
         _siteBadgeLabel.AutoSize = false;
-        _siteBadgeLabel.Width = 128;
-        _siteBadgeLabel.Margin = new Padding(4, 3, 6, 3);
+        _siteBadgeLabel.Width = 34;
+        _siteBadgeLabel.Margin = new Padding(4, 2, 1, 2);
         _siteBadgeLabel.TextAlign = ContentAlignment.MiddleCenter;
         _siteBadgeLabel.Overflow = ToolStripItemOverflow.AsNeeded;
         _tabQuickButton.Overflow = ToolStripItemOverflow.AsNeeded;
@@ -1993,7 +1993,7 @@ public sealed class MainWindow : Form
         _bookmarksBar.Height = compact ? 28 : 30;
         _bookmarksBar.Padding = compact ? new Padding(6, 1, 6, 1) : new Padding(8, 1, 8, 1);
         _addressTextBox.Size = new Size(compact ? 480 : 620, compact ? 24 : 28);
-        _addressTextBox.Margin = compact ? new Padding(6, 2, 6, 2) : new Padding(6, 3, 6, 3);
+        _addressTextBox.Margin = compact ? new Padding(1, 1, 3, 1) : new Padding(1, 2, 4, 2);
         _addressSuggestionListBox.ItemHeight = compact ? 34 : 40;
         _addressSuggestionHintLabel.Height = compact ? 22 : 24;
         _addressSuggestionHintLabel.Padding = compact ? new Padding(8, 0, 8, 0) : new Padding(10, 0, 10, 0);
@@ -2225,9 +2225,9 @@ public sealed class MainWindow : Form
 
         _titleWindowMinButton.Tag = "window-min";
         _titleWindowMinButton.AutoSize = false;
-        _titleWindowMinButton.Width = compact ? 34 : 40;
-        _titleWindowMinButton.Height = compact ? 24 : 26;
-        _titleWindowMinButton.Margin = compact ? new Padding(1, 1, 1, 1) : new Padding(2, 1, 2, 1);
+        _titleWindowMinButton.Width = compact ? 38 : 46;
+        _titleWindowMinButton.Height = _titleBar.Height;
+        _titleWindowMinButton.Margin = new Padding(0, 0, 0, 0);
         _titleWindowMinButton.BackColor = Color.Transparent;
         _titleWindowMinButton.ForeColor = AppTheme.TextPrimary;
         _titleWindowMinButton.Font = AppTheme.CreateFont(compact ? 10F : 10.6F, FontStyle.Bold);
@@ -2237,9 +2237,9 @@ public sealed class MainWindow : Form
 
         _titleWindowMaxButton.Tag = "window-max";
         _titleWindowMaxButton.AutoSize = false;
-        _titleWindowMaxButton.Width = compact ? 34 : 40;
-        _titleWindowMaxButton.Height = compact ? 24 : 26;
-        _titleWindowMaxButton.Margin = compact ? new Padding(1, 1, 1, 1) : new Padding(2, 1, 2, 1);
+        _titleWindowMaxButton.Width = compact ? 38 : 46;
+        _titleWindowMaxButton.Height = _titleBar.Height;
+        _titleWindowMaxButton.Margin = new Padding(0, 0, 0, 0);
         _titleWindowMaxButton.BackColor = Color.Transparent;
         _titleWindowMaxButton.ForeColor = AppTheme.TextPrimary;
         _titleWindowMaxButton.Font = AppTheme.CreateFont(compact ? 9.4F : 9.8F, FontStyle.Bold);
@@ -2253,9 +2253,9 @@ public sealed class MainWindow : Form
 
         _titleWindowCloseButton.Tag = "window-close";
         _titleWindowCloseButton.AutoSize = false;
-        _titleWindowCloseButton.Width = compact ? 34 : 40;
-        _titleWindowCloseButton.Height = compact ? 24 : 26;
-        _titleWindowCloseButton.Margin = compact ? new Padding(1, 1, 1, 1) : new Padding(2, 1, 2, 1);
+        _titleWindowCloseButton.Width = compact ? 38 : 46;
+        _titleWindowCloseButton.Height = _titleBar.Height;
+        _titleWindowCloseButton.Margin = new Padding(0, 0, 0, 0);
         _titleWindowCloseButton.BackColor = Color.Transparent;
         _titleWindowCloseButton.ForeColor = AppTheme.TextPrimary;
         _titleWindowCloseButton.Font = AppTheme.CreateFont(compact ? 10F : 10.6F, FontStyle.Bold);
@@ -2294,9 +2294,9 @@ public sealed class MainWindow : Form
         _siteBadgeLabel.BackColor = AppTheme.IsDark ? Color.FromArgb(62, 79, 102) : Color.FromArgb(219, 234, 253);
         _siteBadgeLabel.ForeColor = AppTheme.TextPrimary;
         _siteBadgeLabel.Font = AppTheme.CreateFont(8.6F, FontStyle.Bold);
-        _siteBadgeLabel.Width = compact ? 146 : 170;
-        _siteBadgeLabel.Margin = compact ? new Padding(5, 1, 5, 1) : new Padding(6, 1, 6, 1);
-        _siteBadgeLabel.Padding = compact ? new Padding(6, 2, 6, 2) : new Padding(8, 3, 8, 3);
+        _siteBadgeLabel.Width = compact ? 32 : 34;
+        _siteBadgeLabel.Margin = compact ? new Padding(3, 1, 1, 1) : new Padding(4, 2, 1, 2);
+        _siteBadgeLabel.Padding = compact ? new Padding(4, 1, 4, 1) : new Padding(6, 2, 6, 2);
         UpdateTabQuickButtonText();
         UpdateWorkspaceButtonBadge();
 
@@ -7667,7 +7667,7 @@ public sealed class MainWindow : Form
             _settingsButton, _pluginButton, _searchEngineButton, _appearanceButton,
             _recentTabsButton, _sessionButton, _tabQuickButton, _workspaceButton,
             _commandPaletteButton, _tabSwitchButton,
-            _titleNewTabButton, _titleWindowMinButton, _titleWindowMaxButton, _titleWindowCloseButton
+            _titleNewTabButton
         };
 
         foreach (var item in interactiveItems)
@@ -8973,7 +8973,7 @@ public sealed class MainWindow : Form
         _pluginButton.Visible = !isUltraNarrow;
 
         _siteBadgeLabel.Visible = !isCompactMode;
-        _siteBadgeLabel.Margin = new Padding(2, 2, 4, 2);
+        _siteBadgeLabel.Margin = AppTheme.IsCompact ? new Padding(3, 1, 1, 1) : new Padding(4, 2, 1, 2);
 
         UpdateTabQuickButtonText();
         UpdateWorkspaceButtonBadge();
@@ -10135,9 +10135,9 @@ public sealed class MainWindow : Form
     {
         if (!TryGetActiveUri(out var uri) || uri is null || string.IsNullOrWhiteSpace(uri.Host) || uri.AbsoluteUri == "about:blank")
         {
-            _siteBadgeLabel.Text = "🌐 空白";
-            _siteBadgeLabel.Width = 54;
-            _siteBadgeLabel.ToolTipText = "空白页 (about:blank)\n点击可复制当前地址";
+            _siteBadgeLabel.Text = "🌐";
+            _siteBadgeLabel.Width = 34;
+            _siteBadgeLabel.ToolTipText = "新标签页 / 空白页\n输入网址或搜索内容后按回车访问";
             _siteBadgeLabel.BackColor = AppTheme.IsDark ? Color.FromArgb(50, 65, 85) : Color.FromArgb(226, 232, 240);
             _siteBadgeLabel.ForeColor = AppTheme.TextSecondary;
             return;
@@ -10163,8 +10163,8 @@ public sealed class MainWindow : Form
         }
         else
         {
-            _siteBadgeLabel.Text = "ℹ 专有";
-            _siteBadgeLabel.Width = 54;
+            _siteBadgeLabel.Text = "ℹ";
+            _siteBadgeLabel.Width = 34;
             _siteBadgeLabel.ToolTipText = $"内部专有协议 ({uri.Scheme})\n{uri.AbsoluteUri}";
             _siteBadgeLabel.BackColor = AppTheme.IsDark ? Color.FromArgb(50, 65, 85) : Color.FromArgb(226, 232, 240);
             _siteBadgeLabel.ForeColor = AppTheme.TextPrimary;

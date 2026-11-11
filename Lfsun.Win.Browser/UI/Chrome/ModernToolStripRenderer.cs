@@ -247,21 +247,19 @@ public sealed class ModernToolStripRenderer : ToolStripProfessionalRenderer
             return;
         }
 
-        var bounds = new Rectangle(Point.Empty, size);
-        bounds.Inflate(-1, -1);
-        if (bounds.Width < 4 || bounds.Height < 4)
+        if (size.Width <= 0 || size.Height <= 0)
         {
             return;
         }
+
+        var bounds = new Rectangle(Point.Empty, size);
 
         var color = isPressed
             ? (AppTheme.IsDark ? Color.FromArgb(60, 255, 255, 255) : Color.FromArgb(35, 0, 0, 0))
             : (AppTheme.IsDark ? Color.FromArgb(32, 255, 255, 255) : Color.FromArgb(18, 0, 0, 0));
 
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
-        using var path = BuildRoundedRectangle(bounds, 4);
         using var brush = new SolidBrush(color);
-        graphics.FillPath(brush, path);
+        graphics.FillRectangle(brush, bounds);
     }
 
     private static void RenderToolbarButtonBackground(

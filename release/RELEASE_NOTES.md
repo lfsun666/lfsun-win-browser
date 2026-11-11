@@ -1,19 +1,19 @@
 ﻿# LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.7 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.8 | **发布日期**: 2026-11-11 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 3 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.7)
+## 当前最新交付清单 (v0.9.8)
 
 - **LfsunBrowser-portable-latest.zip** (63.57 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.5.zip** (65.54 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.6.zip** (65.54 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.7.zip** (63.57 MB)
-- **LfsunBrowser-setup-0.9.5.exe** (47.67 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.8.zip** (63.57 MB)
 - **LfsunBrowser-setup-0.9.6.exe** (47.67 MB)
 - **LfsunBrowser-setup-0.9.7.exe** (47.68 MB)
+- **LfsunBrowser-setup-0.9.8.exe** (47.68 MB)
 - **LfsunBrowser-setup-latest.exe** (47.68 MB)
 
 ## 当前版本更新亮点
@@ -25,6 +25,11 @@
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.8] - 2026-11-11
+
+### 变更内容
+- 全局UI布局极致精修：标题栏窗口控制键极点无缝贴边（严谨契合菲茨定律与Win11 Fluent全高直角悬停反馈）、地址栏与站点安全芯片一体化胶囊紧致对接、弹簧布局Margin精准扣减防溢出抖动、底部状态栏左侧清爽文本化与右侧微胶囊层级分明
 
 ## [0.9.7] - 2026-11-11
 

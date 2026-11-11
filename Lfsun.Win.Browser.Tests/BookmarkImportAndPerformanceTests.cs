@@ -445,4 +445,43 @@ public sealed class BookmarkImportAndPerformanceTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void ToolStripSpringTextBox_DeductsOwnMarginProperly()
+    {
+        var thread = new Thread(() =>
+        {
+            using var strip = new ToolStrip { Width = 600 };
+            var fixedButton = new ToolStripButton { Width = 100, Margin = new Padding(0) };
+            var springBox = new Lfsun.Win.Browser.UI.Chrome.ToolStripSpringTextBox
+            {
+                Margin = new Padding(6, 2, 6, 2)
+            };
+            strip.Items.Add(fixedButton);
+            strip.Items.Add(springBox);
+
+            var size = springBox.GetPreferredSize(new Size(600, 30));
+            // Available width was 600 - 100 = 500, minus Margin.Horizontal (12) => 488
+            var expectedWidth = strip.DisplayRectangle.Width - (fixedButton.Width + fixedButton.Margin.Horizontal) - springBox.Margin.Horizontal;
+            Assert.Equal(expectedWidth, size.Width);
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
+
+    [Fact]
+    public void StatusBarPanel_StatusLabel_TransparentBack_ForCleanSpringDisplay()
+    {
+        var thread = new Thread(() =>
+        {
+            var panel = new Lfsun.Win.Browser.UI.Chrome.StatusBarPanel();
+            panel.ApplyTheme(compact: false);
+            Assert.Equal(Color.Transparent, panel.StatusLabel.BackColor);
+            Assert.NotEqual(Color.Transparent, panel.MemoryLabel.BackColor);
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }

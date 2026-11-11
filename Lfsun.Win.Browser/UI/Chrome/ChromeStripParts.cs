@@ -171,6 +171,8 @@ public sealed class ToolStripSpringLabel : ToolStripLabel
             width -= item.Width + item.Margin.Horizontal;
         }
 
+        width -= Margin.Horizontal;
+
         var preferred = base.GetPreferredSize(constrainingSize);
         preferred.Width = Math.Max(AppTheme.IsCompact ? 36 : 48, width);
         return preferred;
@@ -204,6 +206,8 @@ public sealed class ToolStripSpringTextBox : ToolStripTextBox
 
             width -= item.Width + item.Margin.Horizontal;
         }
+
+        width -= Margin.Horizontal;
 
         var minWidth = AppTheme.IsCompact ? 160 : 200;
         if (width < minWidth)

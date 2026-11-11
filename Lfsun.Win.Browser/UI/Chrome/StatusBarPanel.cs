@@ -124,7 +124,7 @@ public sealed class StatusBarPanel
         // 中文注释：窄屏时让状态栏优先展示运行状态和内存，弱化次级信息，避免信息挤压。
         StatusLabel.Spring = true;
         StatusLabel.TextAlign = ContentAlignment.MiddleLeft;
-        StatusLabel.Padding = isUltraNarrow ? new Padding(2, 1, 2, 1) : new Padding(8, 2, 8, 2);
+        StatusLabel.Padding = isUltraNarrow ? new Padding(2, 1, 2, 1) : new Padding(4, 2, 4, 2);
         var compactPadding = isUltraNarrow ? new Padding(4, 1, 4, 1) : new Padding(7, 2, 7, 2);
         AdBlockLabel.Padding = compactPadding;
         LoadTimeLabel.Padding = compactPadding;
@@ -210,10 +210,10 @@ public sealed class StatusBarPanel
         var normalChipBack = AppTheme.SurfaceAlt;
         var metaChipBack = AppTheme.SurfaceAlt;
         StatusLabel.Font = statusFont;
-        StatusLabel.BackColor = normalChipBack;
+        StatusLabel.BackColor = Color.Transparent;
         StatusLabel.BorderSides = ToolStripStatusLabelBorderSides.None;
-        StatusLabel.Padding = new Padding(8, 2, 8, 2);
-        StatusLabel.Margin = new Padding(4, 2, 4, 2);
+        StatusLabel.Padding = new Padding(4, 2, 4, 2);
+        StatusLabel.Margin = new Padding(2, 2, 2, 2);
 
         foreach (var label in new[] { AdBlockLabel, LoadTimeLabel, ZoomLabel, ModeLabel, IpLabel, MemoryLabel })
         {
