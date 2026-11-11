@@ -629,7 +629,7 @@ public sealed class SessionsWindow : Form
         ApplySurfaceCardStyle(_footerHintPanel, emphasizeAccent: false);
         ApplyContentSplitSurface();
 
-        StyleButton(_restoreButton);
+        StyleButton(_restoreButton, emphasize: true);
         StyleButton(_openSharedButton);
         StyleButton(_openIsolatedButton);
         StyleButton(_openPrivateButton);
@@ -650,11 +650,13 @@ public sealed class SessionsWindow : Form
         StyleButton(_previewSharedButton);
         StyleButton(_previewDedupeButton);
         StyleButton(_previewDeleteButton);
+        _previewDeleteButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
         StyleButton(_deleteButton);
+        _deleteButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
         StyleButton(_exportButton);
         StyleButton(_importButton);
         StyleButton(_refreshButton);
-        StyleButton(_closeButton);
+        StyleButton(_closeButton, emphasize: true);
         StyleKpiLabel(_kpiWorkspaceCountLabel);
         StyleKpiLabel(_kpiTabCountLabel);
         StyleKpiLabel(_kpiDuplicateLabel);
@@ -726,8 +728,33 @@ public sealed class SessionsWindow : Form
         panel.BackColor = AppTheme.Surface;
         panel.Paint -= DrawSurfaceCardFrame;
         panel.Paint += DrawSurfaceCardFrame;
+        panel.SizeChanged -= HandleCardSizeChanged;
+        panel.SizeChanged += HandleCardSizeChanged;
         panel.Tag = emphasizeAccent ? "surface-card-accent" : "surface-card-normal";
+        UpdateCardRegion(panel);
         panel.Invalidate();
+    }
+
+    private static void HandleCardSizeChanged(object? sender, EventArgs e)
+    {
+        if (sender is Control control)
+        {
+            UpdateCardRegion(control);
+            control.Invalidate();
+        }
+    }
+
+    private static void UpdateCardRegion(Control panel)
+    {
+        if (panel.Width <= 0 || panel.Height <= 0)
+        {
+            return;
+        }
+
+        var old = panel.Region;
+        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, panel.Width, panel.Height), 10);
+        panel.Region = new Region(path);
+        old?.Dispose();
     }
 
     private static void DrawSurfaceCardFrame(object? sender, PaintEventArgs eventArgs)
@@ -762,21 +789,8 @@ public sealed class SessionsWindow : Form
         eventArgs.Graphics.DrawPath(borderPen, path);
     }
 
-    private static GraphicsPath BuildCardPath(Rectangle rect, int radius)
-    {
-        var path = new GraphicsPath();
-        var diameter = radius * 2;
-        var arc = new Rectangle(rect.Left, rect.Top, diameter, diameter);
-        path.AddArc(arc, 180, 90);
-        arc.X = rect.Right - diameter;
-        path.AddArc(arc, 270, 90);
-        arc.Y = rect.Bottom - diameter;
-        path.AddArc(arc, 0, 90);
-        arc.X = rect.Left;
-        path.AddArc(arc, 90, 90);
-        path.CloseFigure();
-        return path;
-    }
+    private static GraphicsPath BuildCardPath(Rectangle rect, int radius) =>
+        AppTheme.BuildRoundedRect(rect, radius);
 
     protected override void OnPaintBackground(PaintEventArgs eventArgs)
     {
@@ -2474,9 +2488,9 @@ public sealed class SessionsWindow : Form
         return string.IsNullOrWhiteSpace(safe) ? "session" : safe;
     }
 
-    private void StyleButton(Button button)
+    private void StyleButton(Button button, bool emphasize = false)
     {
-        AppTheme.ApplyPrimaryButton(button);
+        AppTheme.ApplyPrimaryButton(button, emphasize);
         if (IsKpiActionButton(button))
         {
             button.MinimumSize = new Size(AppTheme.IsCompact ? 98 : 110, AppTheme.IsCompact ? 28 : 32);

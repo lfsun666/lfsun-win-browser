@@ -84,6 +84,7 @@ public sealed class SplitBrowserPanel : Panel
         _btnBack.FlatAppearance.BorderSize = 0;
         _btnBack.Font = AppTheme.CreateFont(11F, FontStyle.Bold);
         _btnBack.Cursor = Cursors.Hand;
+        ApplyControlRegion(_btnBack, 5);
         _btnBack.Click += (_, _) => { if (_secondaryWebView?.CanGoBack == true) _secondaryWebView.GoBack(); };
 
         _btnForward.Text = "›";
@@ -92,6 +93,7 @@ public sealed class SplitBrowserPanel : Panel
         _btnForward.FlatAppearance.BorderSize = 0;
         _btnForward.Font = AppTheme.CreateFont(11F, FontStyle.Bold);
         _btnForward.Cursor = Cursors.Hand;
+        ApplyControlRegion(_btnForward, 5);
         _btnForward.Click += (_, _) => { if (_secondaryWebView?.CanGoForward == true) _secondaryWebView.GoForward(); };
 
         _btnRefresh.Text = "↻";
@@ -100,11 +102,12 @@ public sealed class SplitBrowserPanel : Panel
         _btnRefresh.FlatAppearance.BorderSize = 0;
         _btnRefresh.Font = AppTheme.CreateFont(10.5F, FontStyle.Bold);
         _btnRefresh.Cursor = Cursors.Hand;
+        ApplyControlRegion(_btnRefresh, 5);
         _btnRefresh.Click += (_, _) => _secondaryWebView?.Reload();
 
         _secondaryUrlBox.Size = new Size(200, 26);
         _secondaryUrlBox.Font = AppTheme.CreateFont(8.8F);
-        _secondaryUrlBox.BorderStyle = BorderStyle.FixedSingle;
+        AppTheme.ApplyTextInput(_secondaryUrlBox);
         _secondaryUrlBox.PlaceholderText = "输入网址回车访问...";
         _secondaryUrlBox.KeyDown += (_, e) =>
         {
@@ -121,6 +124,7 @@ public sealed class SplitBrowserPanel : Panel
         _btnSwap.FlatAppearance.BorderSize = 0;
         _btnSwap.Font = AppTheme.CreateFont(8.5F);
         _btnSwap.Cursor = Cursors.Hand;
+        ApplyControlRegion(_btnSwap, 5);
         _btnSwap.Click += (_, _) => SwapPages();
 
         _btnClose.Text = "✕ 关闭分屏";
@@ -130,6 +134,7 @@ public sealed class SplitBrowserPanel : Panel
         _btnClose.Font = AppTheme.CreateFont(8.5F);
         _btnClose.ForeColor = Color.FromArgb(230, 80, 80);
         _btnClose.Cursor = Cursors.Hand;
+        ApplyControlRegion(_btnClose, 5);
         _btnClose.Click += (_, _) => SplitViewClosed?.Invoke();
 
         headerFlow.Controls.Add(_btnBack);
@@ -307,8 +312,7 @@ public sealed class SplitBrowserPanel : Panel
         BackColor = AppTheme.Surface;
         _splitContainer.BackColor = AppTheme.PanelBorder;
         _secondaryHeader.BackColor = AppTheme.SurfaceAlt;
-        _secondaryUrlBox.BackColor = AppTheme.InputBackground;
-        _secondaryUrlBox.ForeColor = AppTheme.TextPrimary;
+        AppTheme.ApplyTextInput(_secondaryUrlBox);
 
         _btnBack.ForeColor = AppTheme.TextSecondary;
         _btnForward.ForeColor = AppTheme.TextSecondary;
@@ -322,8 +326,18 @@ public sealed class SplitBrowserPanel : Panel
         {
             btn.FlatAppearance.MouseOverBackColor = hoverBg;
             btn.FlatAppearance.MouseDownBackColor = pressBg;
+            ApplyControlRegion(btn, 5);
         }
         _btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(232, 17, 35);
         _btnClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(199, 15, 29);
+        ApplyControlRegion(_btnClose, 5);
+    }
+
+    private static void ApplyControlRegion(Control control, int radius)
+    {
+        var old = control.Region;
+        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, control.Width, control.Height), radius);
+        control.Region = new Region(path);
+        old?.Dispose();
     }
 }

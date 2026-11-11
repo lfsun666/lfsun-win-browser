@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Text;
 using System.Windows.Forms;
 using Lfsun.Win.Browser.Core;
@@ -19,6 +20,8 @@ public sealed class ShortcutsOverviewWindow : Form
     private readonly BrowserConfig _config;
     private readonly IReadOnlyList<(string Id, string Name, string Shortcut, bool Enabled)> _pluginBindings;
 
+    private readonly Panel _topPanel = new();
+    private readonly Panel _listCardPanel = new();
     private readonly TextBox _searchBox = new();
     private readonly Label _countLabel = new();
     private readonly ListView _listView = new();
@@ -40,8 +43,9 @@ public sealed class ShortcutsOverviewWindow : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        Width = 820;
-        Height = 600;
+        Width = 840;
+        Height = 620;
+        DoubleBuffered = true;
         Font = AppTheme.CreateFont(9.2F);
 
         BuildLayout();
@@ -51,19 +55,21 @@ public sealed class ShortcutsOverviewWindow : Form
 
     private void BuildLayout()
     {
-        var topPanel = new Panel
-        {
-            Dock = DockStyle.Top,
-            Height = 52,
-            Padding = new Padding(12, 9, 12, 9)
-        };
+        Padding = new Padding(12);
+
+        _topPanel.Dock = DockStyle.Top;
+        _topPanel.Height = 54;
+        _topPanel.Padding = new Padding(12, 9, 12, 9);
+        _topPanel.BackColor = AppTheme.Surface;
+        ApplyCardVisual(_topPanel);
 
         var searchLabel = new Label
         {
             Text = "搜索：",
             AutoSize = true,
             Anchor = AnchorStyles.Left,
-            Margin = new Padding(0, 0, 6, 0)
+            Margin = new Padding(0, 4, 6, 0),
+            ForeColor = AppTheme.TextSecondary
         };
         _searchBox.Width = 240;
         AppTheme.ApplyTextInput(_searchBox);
@@ -72,17 +78,15 @@ public sealed class ShortcutsOverviewWindow : Form
 
         _countLabel.AutoSize = true;
         _countLabel.Anchor = AnchorStyles.Left;
-        _countLabel.Margin = new Padding(12, 0, 0, 0);
+        _countLabel.Margin = new Padding(12, 4, 0, 0);
         _countLabel.Font = AppTheme.CreateFont(9F);
         _countLabel.ForeColor = AppTheme.TextSecondary;
 
         _copyButton.Text = "复制全部";
-        _copyButton.Anchor = AnchorStyles.Right;
         _copyButton.Click += (_, _) => CopyAll();
         AppTheme.ApplyPrimaryButton(_copyButton, emphasize: false);
 
         _closeButton.Text = "关闭";
-        _closeButton.Anchor = AnchorStyles.Right;
         _closeButton.Click += (_, _) => Close();
         AppTheme.ApplyPrimaryButton(_closeButton, emphasize: true);
 
@@ -91,17 +95,25 @@ public sealed class ShortcutsOverviewWindow : Form
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
-            AutoScroll = false
+            AutoScroll = false,
+            BackColor = Color.Transparent
         };
         flow.Controls.Add(searchLabel);
         flow.Controls.Add(_searchBox);
         flow.Controls.Add(_countLabel);
-        flow.Controls.Add(new Panel { Width = 8, Height = 1 });
+        flow.Controls.Add(new Panel { Width = 12, Height = 1, BackColor = Color.Transparent });
         flow.Controls.Add(_copyButton);
         flow.Controls.Add(_closeButton);
-        topPanel.Controls.Add(flow);
+        _topPanel.Controls.Add(flow);
+
+        _listCardPanel.Dock = DockStyle.Fill;
+        _listCardPanel.Padding = new Padding(3);
+        _listCardPanel.Margin = new Padding(0, 8, 0, 0);
+        _listCardPanel.BackColor = AppTheme.Surface;
+        ApplyCardVisual(_listCardPanel);
 
         _listView.Dock = DockStyle.Fill;
+        _listView.BorderStyle = BorderStyle.None;
         _listView.View = View.Details;
         _listView.FullRowSelect = true;
         _listView.MultiSelect = false;
@@ -112,20 +124,97 @@ public sealed class ShortcutsOverviewWindow : Form
         _listView.Columns.Add("快捷键", 210);
         _listView.Columns.Add("范围", 84);
         _listView.Columns.Add("说明", 240);
+        _listCardPanel.Controls.Add(_listView);
 
-        Controls.Add(_listView);
-        Controls.Add(topPanel);
-        topPanel.BringToFront();
+        var contentContainer = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            BackColor = Color.Transparent
+        };
+        contentContainer.RowStyles.Add(new RowStyle(SizeType.Absolute, 62));
+        contentContainer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        contentContainer.Controls.Add(_topPanel, 0, 0);
+        contentContainer.Controls.Add(_listCardPanel, 0, 1);
+
+        Controls.Add(contentContainer);
     }
 
     private void ApplyTheme()
     {
         BackColor = AppTheme.WindowBackground;
         ForeColor = AppTheme.TextPrimary;
+        _topPanel.BackColor = AppTheme.Surface;
+        _listCardPanel.BackColor = AppTheme.Surface;
         _listView.BackColor = AppTheme.InputBackground;
         _listView.ForeColor = AppTheme.TextPrimary;
         _listView.HeaderStyle = ColumnHeaderStyle.Nonclickable;
         _countLabel.ForeColor = AppTheme.TextSecondary;
+        AppTheme.ApplyPrimaryButton(_copyButton, emphasize: false);
+        AppTheme.ApplyPrimaryButton(_closeButton, emphasize: true);
+        UpdateCardRegion(_topPanel);
+        UpdateCardRegion(_listCardPanel);
+    }
+
+    private static void ApplyCardVisual(Panel panel)
+    {
+        panel.Paint -= HandleCardPaint;
+        panel.Paint += HandleCardPaint;
+        panel.SizeChanged -= HandleCardSizeChanged;
+        panel.SizeChanged += HandleCardSizeChanged;
+        UpdateCardRegion(panel);
+    }
+
+    private static void HandleCardSizeChanged(object? sender, EventArgs e)
+    {
+        if (sender is Panel panel)
+        {
+            UpdateCardRegion(panel);
+            panel.Invalidate();
+        }
+    }
+
+    private static void UpdateCardRegion(Panel panel)
+    {
+        if (panel.Width <= 0 || panel.Height <= 0)
+        {
+            return;
+        }
+
+        var old = panel.Region;
+        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, panel.Width, panel.Height), 8);
+        panel.Region = new Region(path);
+        old?.Dispose();
+    }
+
+    private static void HandleCardPaint(object? sender, PaintEventArgs e)
+    {
+        if (sender is not Panel panel) return;
+        var rect = new Rectangle(0, 0, panel.Width - 1, panel.Height - 1);
+        if (rect.Width <= 0 || rect.Height <= 0) return;
+        e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        using var borderPen = new Pen(AppTheme.PanelBorder, 1F);
+        using var path = AppTheme.BuildRoundedRect(rect, 8);
+        e.Graphics.DrawPath(borderPen, path);
+    }
+
+    protected override void OnPaintBackground(PaintEventArgs eventArgs)
+    {
+        var startColor = AppTheme.IsDark
+            ? AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.12F)
+            : AppTheme.Mix(AppTheme.WindowBackground, AppTheme.Accent, 0.06F);
+        var endColor = AppTheme.IsDark
+            ? AppTheme.Mix(AppTheme.WindowBackground, Color.Black, 0.16F)
+            : AppTheme.Mix(AppTheme.WindowBackground, Color.White, 0.04F);
+
+        using var gradient = new LinearGradientBrush(ClientRectangle, startColor, endColor, 90F);
+        eventArgs.Graphics.FillRectangle(gradient, ClientRectangle);
+
+        eventArgs.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        var glow = Color.FromArgb(AppTheme.IsDark ? 24 : 18, AppTheme.Accent);
+        using var glowBrush = new SolidBrush(glow);
+        eventArgs.Graphics.FillEllipse(glowBrush, new Rectangle(-80, (int)(ClientSize.Height * 0.4F), 200, 160));
     }
 
     /// <summary>

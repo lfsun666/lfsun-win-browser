@@ -14,6 +14,7 @@ public sealed class QuickBookmarksView : UserControl
     private readonly Action _openManagerCallback;
 
     private readonly TextBox _searchBox = new();
+    private readonly Panel _treeCardPanel = new();
     private readonly TreeView _tree = new();
     private readonly ImageList _treeImageList = new()
     {
@@ -64,11 +65,15 @@ public sealed class QuickBookmarksView : UserControl
 
         _searchBox.Dock = DockStyle.Fill;
         _searchBox.PlaceholderText = "🔍 搜索书签 (名称或网址)...";
-        _searchBox.BorderStyle = BorderStyle.FixedSingle;
-        _searchBox.Font = AppTheme.CreateFont(9F);
+        AppTheme.ApplyTextInput(_searchBox);
         _searchBox.Margin = new Padding(0, 0, 0, 6);
         _searchBox.TextChanged += (_, _) => FilterBookmarks(_searchBox.Text.Trim());
         mainLayout.Controls.Add(_searchBox, 0, 0);
+
+        _treeCardPanel.Dock = DockStyle.Fill;
+        _treeCardPanel.Padding = new Padding(2);
+        _treeCardPanel.BackColor = AppTheme.Surface;
+        ApplyCardVisual(_treeCardPanel);
 
         _tree.Dock = DockStyle.Fill;
         _tree.BorderStyle = BorderStyle.None;
@@ -96,7 +101,8 @@ public sealed class QuickBookmarksView : UserControl
             }
         };
 
-        mainLayout.Controls.Add(_tree, 0, 1);
+        _treeCardPanel.Controls.Add(_tree);
+        mainLayout.Controls.Add(_treeCardPanel, 0, 1);
         Controls.Add(mainLayout);
     }
 
@@ -224,11 +230,54 @@ public sealed class QuickBookmarksView : UserControl
     public void ApplyTheme()
     {
         BackColor = AppTheme.Surface;
-        _searchBox.BackColor = AppTheme.SurfaceAlt;
-        _searchBox.ForeColor = AppTheme.TextPrimary;
+        _treeCardPanel.BackColor = AppTheme.Surface;
+        AppTheme.ApplyTextInput(_searchBox);
         _tree.BackColor = AppTheme.Surface;
         _tree.ForeColor = AppTheme.TextPrimary;
         _tree.LineColor = AppTheme.PanelBorder;
         AppTheme.ApplyContextMenu(_contextMenu);
+        UpdateCardRegion(_treeCardPanel);
+    }
+
+    private static void ApplyCardVisual(Panel panel)
+    {
+        panel.Paint -= HandleCardPaint;
+        panel.Paint += HandleCardPaint;
+        panel.SizeChanged -= HandleCardSizeChanged;
+        panel.SizeChanged += HandleCardSizeChanged;
+        UpdateCardRegion(panel);
+    }
+
+    private static void HandleCardSizeChanged(object? sender, EventArgs e)
+    {
+        if (sender is Panel panel)
+        {
+            UpdateCardRegion(panel);
+            panel.Invalidate();
+        }
+    }
+
+    private static void UpdateCardRegion(Panel panel)
+    {
+        if (panel.Width <= 0 || panel.Height <= 0)
+        {
+            return;
+        }
+
+        var old = panel.Region;
+        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, panel.Width, panel.Height), 8);
+        panel.Region = new Region(path);
+        old?.Dispose();
+    }
+
+    private static void HandleCardPaint(object? sender, PaintEventArgs e)
+    {
+        if (sender is not Panel panel) return;
+        var rect = new Rectangle(0, 0, panel.Width - 1, panel.Height - 1);
+        if (rect.Width <= 0 || rect.Height <= 0) return;
+        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var borderPen = new Pen(AppTheme.PanelBorder, 1F);
+        using var path = AppTheme.BuildRoundedRect(rect, 8);
+        e.Graphics.DrawPath(borderPen, path);
     }
 }

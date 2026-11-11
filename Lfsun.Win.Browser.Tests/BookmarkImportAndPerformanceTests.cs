@@ -662,4 +662,49 @@ public sealed class BookmarkImportAndPerformanceTests
         thread.Start();
         thread.Join();
     }
+
+    [Fact]
+    public void ShortcutsOverview_And_SidePanelViews_And_SplitView_VisualConfiguredProperly()
+    {
+        var thread = new Thread(() =>
+        {
+            var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(tempDir);
+            try
+            {
+                // 1. ShortcutsOverviewWindow
+                var config = new BrowserConfig();
+                using var shortcutsWin = new ShortcutsOverviewWindow(config, Array.Empty<(string, string, string, bool)>());
+                Assert.NotNull(shortcutsWin);
+                Assert.Equal("快捷键一览", shortcutsWin.Text);
+
+                // 2. SplitBrowserPanel
+                using var splitPanel = new Lfsun.Win.Browser.UI.SplitView.SplitBrowserPanel();
+                Assert.NotNull(splitPanel);
+                Assert.False(splitPanel.IsSplitActive);
+                splitPanel.ApplyTheme();
+
+                // 3. SidePanel Views
+                var dm = new DownloadManager(tempDir, _ => { });
+                using var quickDownloads = new Lfsun.Win.Browser.UI.SidePanel.QuickDownloadsView(dm, _ => { }, () => { });
+                Assert.NotNull(quickDownloads);
+                quickDownloads.ApplyTheme();
+
+                var hm = new HistoryManager(Path.Combine(tempDir, "h.json"), _ => { });
+                using var quickHistory = new Lfsun.Win.Browser.UI.SidePanel.QuickHistoryView(hm, (_, _) => Task.CompletedTask, _ => { }, () => { });
+                Assert.NotNull(quickHistory);
+                quickHistory.ApplyTheme();
+            }
+            finally
+            {
+                if (Directory.Exists(tempDir))
+                {
+                    try { Directory.Delete(tempDir, true); } catch { }
+                }
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
 }

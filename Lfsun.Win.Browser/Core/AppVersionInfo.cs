@@ -42,6 +42,18 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.14",
+            "2026-11-11",
+            "全局UI布局与侧边栏/分屏/会话容器全面升华：会话管理卡片全量防透底裁剪与主次按钮层级强化、快捷键一览卡片化重构与全局渐变流光底板、侧边栏导航胶囊药丸化与高对比度红关闭键、快速书签/下载/历史自适应卡片包裹与选中胶囊圆角平滑过渡、双屏分屏控制胶囊微交互全覆盖",
+            [
+                "【会话管理全量卡片裁剪与按钮层级】SessionsWindow 标题栏、筛选栏、左右分屏容器、底部按键与提示栏全面接入动态 Region 几何圆角裁剪，消除直角外露瑕疵；主恢复键与关闭键赋予强调色突显，删除/清理动作配置专属危险悬停警示",
+                "【快捷键一览沉浸卡片化】ShortcutsOverviewWindow 重构为双层现代 Fluent 圆角卡片容器结构，顶部搜索操作栏与快捷键列表各自包裹在防漏底卡片中，背景铺设微光流晕渐变",
+                "【侧边栏导航药丸胶囊化】BrowserSidePanel 导航选项卡按钮升级为圆角微胶囊药丸（6px Region），关闭按钮赋予现代圆形危险红悬停反馈，消除切页重复 new Font 内存隐患",
+                "【快速书签/下载/历史卡片包裹】QuickBookmarksView、QuickDownloadsView、QuickHistoryView 内部列表与树形视图均由专有圆角卡片安全包裹，下载与历史条目选中态重构为抗锯齿圆角胶囊高亮",
+                "【双屏分屏控制微交互全覆盖】SplitBrowserPanel 后退/前进/刷新/对调/关闭分屏按键全部赋予圆角 Region 裁剪与 Fluent 悬停按压动效，副屏网址栏深度集成全局文本输入标准"
+            ]
+        ),
+        new VersionReleaseEntry(
             "0.9.13",
             "2026-11-11",
             "全局UI布局与交互细节全面升级：地址栏下拉建议统一图标槽对齐防跳动、新标签页Fluent磨砂亚克力微质感与卡片动效、标签关闭按钮高对比度圆形药丸悬停、垂直标签栏操作按键平滑过渡、页内查找条动态聚焦边框高亮、收藏夹选择树圆角卡片化与自适应撑满布局",

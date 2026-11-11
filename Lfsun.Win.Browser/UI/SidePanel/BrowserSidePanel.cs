@@ -130,6 +130,7 @@ public sealed class BrowserSidePanel : Panel
         _closeButton.Font = AppTheme.CreateFont(9.5F, FontStyle.Bold);
         _closeButton.ForeColor = AppTheme.TextSecondary;
         _closeButton.Cursor = Cursors.Hand;
+        ApplyControlRegion(_closeButton, 6);
         _closeButton.Click += (_, _) => CloseRequested?.Invoke();
 
         _headerBar.Controls.Add(_closeButton);
@@ -198,19 +199,26 @@ public sealed class BrowserSidePanel : Panel
         var btn = new Button
         {
             Text = $"{icon} {label}",
-            Width = 56,
+            Width = 58,
             Height = 30,
-            Font = AppTheme.CreateFont(8.2F),
+            Font = AppTheme.CreateFont(8.4F, FontStyle.Bold),
             FlatStyle = FlatStyle.Flat,
-            Margin = new Padding(1, 1, 1, 1),
+            Margin = new Padding(2, 1, 2, 1),
             Cursor = Cursors.Hand
         };
         btn.FlatAppearance.BorderSize = 0;
-        btn.FlatAppearance.MouseOverBackColor = AppTheme.IsDark ? Color.FromArgb(40, 255, 255, 255) : Color.FromArgb(20, 0, 0, 0);
-        btn.FlatAppearance.MouseDownBackColor = AppTheme.IsDark ? Color.FromArgb(60, 255, 255, 255) : Color.FromArgb(36, 0, 0, 0);
+        ApplyControlRegion(btn, 6);
         btn.Click += (_, _) => SwitchTo(mode);
         _navButtons[mode] = btn;
         return btn;
+    }
+
+    private static void ApplyControlRegion(Control control, int radius)
+    {
+        var old = control.Region;
+        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, control.Width, control.Height), radius);
+        control.Region = new Region(path);
+        old?.Dispose();
     }
 
     public void SwitchTo(SidePanelMode mode)
@@ -222,7 +230,12 @@ public sealed class BrowserSidePanel : Panel
             var isSelected = m == mode;
             btn.BackColor = isSelected ? AppTheme.Accent : Color.Transparent;
             btn.ForeColor = isSelected ? Color.White : AppTheme.TextSecondary;
-            btn.Font = AppTheme.CreateFont(8.2F, isSelected ? FontStyle.Bold : FontStyle.Regular);
+            btn.FlatAppearance.MouseOverBackColor = isSelected
+                ? AppTheme.AccentHover
+                : (AppTheme.IsDark ? Color.FromArgb(40, 255, 255, 255) : Color.FromArgb(20, 0, 0, 0));
+            btn.FlatAppearance.MouseDownBackColor = isSelected
+                ? AppTheme.AccentPressed
+                : (AppTheme.IsDark ? Color.FromArgb(60, 255, 255, 255) : Color.FromArgb(36, 0, 0, 0));
         }
 
         foreach (var (m, view) in _views)

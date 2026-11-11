@@ -13,6 +13,7 @@ public sealed class QuickDownloadsView : UserControl
     private readonly Action<string> _toastCallback;
     private readonly Action _openDownloadsWindowCallback;
 
+    private readonly Panel _listCardPanel = new();
     private readonly ListBox _downloadsListBox = new();
     private readonly Button _openFolderButton = new();
     private readonly Button _openFullButton = new();
@@ -63,13 +64,19 @@ public sealed class QuickDownloadsView : UserControl
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         mainLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
 
+        _listCardPanel.Dock = DockStyle.Fill;
+        _listCardPanel.Padding = new Padding(2);
+        _listCardPanel.BackColor = AppTheme.Surface;
+        ApplyCardVisual(_listCardPanel);
+
         _downloadsListBox.Dock = DockStyle.Fill;
         _downloadsListBox.BorderStyle = BorderStyle.None;
         _downloadsListBox.DrawMode = DrawMode.OwnerDrawFixed;
         _downloadsListBox.ItemHeight = 48;
         _downloadsListBox.DrawItem += OnDrawDownloadItem;
         _downloadsListBox.DoubleClick += (_, _) => OpenSelectedDownload();
-        mainLayout.Controls.Add(_downloadsListBox, 0, 0);
+        _listCardPanel.Controls.Add(_downloadsListBox);
+        mainLayout.Controls.Add(_listCardPanel, 0, 0);
 
         var buttonBar = new FlowLayoutPanel
         {
@@ -86,6 +93,7 @@ public sealed class QuickDownloadsView : UserControl
         _openFolderButton.BackColor = AppTheme.SurfaceAlt;
         _openFolderButton.ForeColor = AppTheme.TextPrimary;
         _openFolderButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+        ApplyControlRegion(_openFolderButton, 6);
         _openFolderButton.Click += (_, _) => _downloadManager.OpenDownloadDirectory();
 
         _openFullButton.Text = "下载中心 ↗";
@@ -95,6 +103,7 @@ public sealed class QuickDownloadsView : UserControl
         _openFullButton.BackColor = AppTheme.SurfaceAlt;
         _openFullButton.ForeColor = AppTheme.TextSecondary;
         _openFullButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+        ApplyControlRegion(_openFullButton, 6);
         _openFullButton.Click += (_, _) => _openDownloadsWindowCallback();
 
         buttonBar.Controls.Add(_openFolderButton);
@@ -184,13 +193,15 @@ public sealed class QuickDownloadsView : UserControl
         var bounds = eventArgs.Bounds;
 
         var cardRect = Rectangle.Inflate(bounds, -2, -1);
+        eventArgs.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         if (isSelected)
         {
             var selectBg = AppTheme.IsDark
                 ? AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F)
                 : AppTheme.Mix(AppTheme.AccentHover, Color.White, 0.60F);
             using var bgBrush = new SolidBrush(selectBg);
-            eventArgs.Graphics.FillRectangle(bgBrush, cardRect);
+            using var path = AppTheme.BuildRoundedRect(cardRect, 6);
+            eventArgs.Graphics.FillPath(bgBrush, path);
         }
         else
         {
@@ -234,6 +245,7 @@ public sealed class QuickDownloadsView : UserControl
     public void ApplyTheme()
     {
         BackColor = AppTheme.Surface;
+        _listCardPanel.BackColor = AppTheme.Surface;
         _downloadsListBox.BackColor = AppTheme.Surface;
         _downloadsListBox.ForeColor = AppTheme.TextPrimary;
         _openFolderButton.BackColor = AppTheme.SurfaceAlt;
@@ -242,6 +254,67 @@ public sealed class QuickDownloadsView : UserControl
         _openFullButton.BackColor = AppTheme.SurfaceAlt;
         _openFullButton.ForeColor = AppTheme.TextSecondary;
         _openFullButton.FlatAppearance.BorderColor = AppTheme.PanelBorder;
+
+        var hoverBg = AppTheme.IsDark ? Color.FromArgb(40, 255, 255, 255) : Color.FromArgb(20, 0, 0, 0);
+        var pressBg = AppTheme.IsDark ? Color.FromArgb(60, 255, 255, 255) : Color.FromArgb(36, 0, 0, 0);
+        _openFolderButton.FlatAppearance.MouseOverBackColor = hoverBg;
+        _openFolderButton.FlatAppearance.MouseDownBackColor = pressBg;
+        _openFullButton.FlatAppearance.MouseOverBackColor = hoverBg;
+        _openFullButton.FlatAppearance.MouseDownBackColor = pressBg;
+
         AppTheme.ApplyContextMenu(_contextMenu);
+        UpdateCardRegion(_listCardPanel);
+        ApplyControlRegion(_openFolderButton, 6);
+        ApplyControlRegion(_openFullButton, 6);
+    }
+
+    private static void ApplyCardVisual(Panel panel)
+    {
+        panel.Paint -= HandleCardPaint;
+        panel.Paint += HandleCardPaint;
+        panel.SizeChanged -= HandleCardSizeChanged;
+        panel.SizeChanged += HandleCardSizeChanged;
+        UpdateCardRegion(panel);
+    }
+
+    private static void HandleCardSizeChanged(object? sender, EventArgs e)
+    {
+        if (sender is Panel panel)
+        {
+            UpdateCardRegion(panel);
+            panel.Invalidate();
+        }
+    }
+
+    private static void UpdateCardRegion(Panel panel)
+    {
+        if (panel.Width <= 0 || panel.Height <= 0)
+        {
+            return;
+        }
+
+        var old = panel.Region;
+        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, panel.Width, panel.Height), 8);
+        panel.Region = new Region(path);
+        old?.Dispose();
+    }
+
+    private static void ApplyControlRegion(Control control, int radius)
+    {
+        var old = control.Region;
+        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, control.Width, control.Height), radius);
+        control.Region = new Region(path);
+        old?.Dispose();
+    }
+
+    private static void HandleCardPaint(object? sender, PaintEventArgs e)
+    {
+        if (sender is not Panel panel) return;
+        var rect = new Rectangle(0, 0, panel.Width - 1, panel.Height - 1);
+        if (rect.Width <= 0 || rect.Height <= 0) return;
+        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var borderPen = new Pen(AppTheme.PanelBorder, 1F);
+        using var path = AppTheme.BuildRoundedRect(rect, 8);
+        e.Graphics.DrawPath(borderPen, path);
     }
 }

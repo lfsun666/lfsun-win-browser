@@ -14,6 +14,7 @@ public sealed class QuickHistoryView : UserControl
     private readonly Action _openHistoryWindowCallback;
 
     private readonly TextBox _searchBox = new();
+    private readonly Panel _listCardPanel = new();
     private readonly ListBox _historyListBox = new();
     private readonly ContextMenuStrip _contextMenu = new();
     private readonly ToolStripMenuItem _ctxOpen = new("在当前标签打开");
@@ -60,11 +61,15 @@ public sealed class QuickHistoryView : UserControl
 
         _searchBox.Dock = DockStyle.Fill;
         _searchBox.PlaceholderText = "🔍 搜索浏览历史...";
-        _searchBox.BorderStyle = BorderStyle.FixedSingle;
-        _searchBox.Font = AppTheme.CreateFont(9F);
+        AppTheme.ApplyTextInput(_searchBox);
         _searchBox.Margin = new Padding(0, 0, 0, 6);
         _searchBox.TextChanged += (_, _) => FilterHistory(_searchBox.Text.Trim());
         mainLayout.Controls.Add(_searchBox, 0, 0);
+
+        _listCardPanel.Dock = DockStyle.Fill;
+        _listCardPanel.Padding = new Padding(2);
+        _listCardPanel.BackColor = AppTheme.Surface;
+        ApplyCardVisual(_listCardPanel);
 
         _historyListBox.Dock = DockStyle.Fill;
         _historyListBox.BorderStyle = BorderStyle.None;
@@ -80,7 +85,8 @@ public sealed class QuickHistoryView : UserControl
             }
         };
 
-        mainLayout.Controls.Add(_historyListBox, 0, 1);
+        _listCardPanel.Controls.Add(_historyListBox);
+        mainLayout.Controls.Add(_listCardPanel, 0, 1);
         Controls.Add(mainLayout);
     }
 
@@ -173,13 +179,15 @@ public sealed class QuickHistoryView : UserControl
         var bounds = eventArgs.Bounds;
 
         var cardRect = Rectangle.Inflate(bounds, -2, -1);
+        eventArgs.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
         if (isSelected)
         {
             var selectBg = AppTheme.IsDark
                 ? AppTheme.Mix(AppTheme.AccentHover, AppTheme.SurfaceAlt, 0.35F)
                 : AppTheme.Mix(AppTheme.AccentHover, Color.White, 0.60F);
             using var bgBrush = new SolidBrush(selectBg);
-            eventArgs.Graphics.FillRectangle(bgBrush, cardRect);
+            using var path = AppTheme.BuildRoundedRect(cardRect, 6);
+            eventArgs.Graphics.FillPath(bgBrush, path);
         }
         else
         {
@@ -213,10 +221,53 @@ public sealed class QuickHistoryView : UserControl
     public void ApplyTheme()
     {
         BackColor = AppTheme.Surface;
-        _searchBox.BackColor = AppTheme.SurfaceAlt;
-        _searchBox.ForeColor = AppTheme.TextPrimary;
+        _listCardPanel.BackColor = AppTheme.Surface;
+        AppTheme.ApplyTextInput(_searchBox);
         _historyListBox.BackColor = AppTheme.Surface;
         _historyListBox.ForeColor = AppTheme.TextPrimary;
         AppTheme.ApplyContextMenu(_contextMenu);
+        UpdateCardRegion(_listCardPanel);
+    }
+
+    private static void ApplyCardVisual(Panel panel)
+    {
+        panel.Paint -= HandleCardPaint;
+        panel.Paint += HandleCardPaint;
+        panel.SizeChanged -= HandleCardSizeChanged;
+        panel.SizeChanged += HandleCardSizeChanged;
+        UpdateCardRegion(panel);
+    }
+
+    private static void HandleCardSizeChanged(object? sender, EventArgs e)
+    {
+        if (sender is Panel panel)
+        {
+            UpdateCardRegion(panel);
+            panel.Invalidate();
+        }
+    }
+
+    private static void UpdateCardRegion(Panel panel)
+    {
+        if (panel.Width <= 0 || panel.Height <= 0)
+        {
+            return;
+        }
+
+        var old = panel.Region;
+        using var path = AppTheme.BuildRoundedRect(new Rectangle(0, 0, panel.Width, panel.Height), 8);
+        panel.Region = new Region(path);
+        old?.Dispose();
+    }
+
+    private static void HandleCardPaint(object? sender, PaintEventArgs e)
+    {
+        if (sender is not Panel panel) return;
+        var rect = new Rectangle(0, 0, panel.Width - 1, panel.Height - 1);
+        if (rect.Width <= 0 || rect.Height <= 0) return;
+        e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var borderPen = new Pen(AppTheme.PanelBorder, 1F);
+        using var path = AppTheme.BuildRoundedRect(rect, 8);
+        e.Graphics.DrawPath(borderPen, path);
     }
 }
