@@ -68,6 +68,35 @@ public sealed class CredentialStore
         return false;
     }
 
+    /// <summary>
+    /// 中文注释：按站点（域名/IP）+ 用户名定位已有记录，供自动保存去重与密码更新复用。
+    /// 命中返回记录 Id 与已存密码（解密后）；未命中返回 false。
+    /// </summary>
+    public bool TryFindEntry(string site, string username, out Guid id, out string password)
+    {
+        id = Guid.Empty;
+        password = string.Empty;
+        var host = NormalizeSiteHost(site);
+        if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(username))
+        {
+            return false;
+        }
+
+        var match = _entries
+            .Where(entry => string.Equals(NormalizeSiteHost(entry.Site), host, StringComparison.OrdinalIgnoreCase))
+            .Where(entry => string.Equals(entry.Username.Trim(), username.Trim(), StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(entry => entry.UpdatedUtc)
+            .FirstOrDefault();
+        if (match is null)
+        {
+            return false;
+        }
+
+        id = match.Id;
+        password = DecryptPassword(match.EncryptedPassword);
+        return true;
+    }
+
     public bool SaveEntry(Guid? id, string site, string username, string password, out string error)
     {
         error = string.Empty;

@@ -314,6 +314,29 @@ public sealed class TabManager
 
     public int LiveTabCount => _tabs.Count(tab => tab.IsLive);
 
+    /// <summary>
+    /// 中文注释：设置保存后批量刷新所有标签页的广告过滤过滤器注册状态
+    /// （开关开时注册 "*" 全量过滤器、关时移除，详见 BrowserTab.UpdateWebResourceFilterRegistration）。
+    /// </summary>
+    public void RefreshWebResourceFilters()
+    {
+        foreach (var tab in _tabs)
+        {
+            tab.UpdateWebResourceFilterRegistration();
+        }
+    }
+
+    /// <summary>
+    /// 中文注释：设置保存后把 WebView2 内核的自动填充/密码保存开关同步到所有已初始化的标签页。
+    /// </summary>
+    public void RefreshWebViewSettings()
+    {
+        foreach (var tab in _tabs)
+        {
+            tab.UpdateWebViewSettings();
+        }
+    }
+
     public void MoveTab(int fromIndex, int toIndex)
     {
         if (fromIndex < 0 || fromIndex >= _tabs.Count || toIndex < 0 || toIndex >= _tabs.Count || fromIndex == toIndex)

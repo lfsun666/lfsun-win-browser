@@ -7,6 +7,8 @@
 public sealed class StatusBarPanel
 {
     private readonly ToolStripRenderer _renderer = new ModernStatusStripRenderer();
+    private bool _hasLoadTime;
+    private bool _isUltraNarrow;
 
     public StatusStrip Strip { get; } = new();
     public ToolStripStatusLabel StatusLabel { get; } = new();
@@ -111,15 +113,13 @@ public sealed class StatusBarPanel
         var isNarrow = clientWidth < 1280;
         var isUltraNarrow = clientWidth < 1020;
         var isCompact = clientWidth < 900;
+        _isUltraNarrow = isUltraNarrow;
 
         ModeLabel.Visible = !isUltraNarrow;
         IpLabel.Visible = !isNarrow;
         MemoryLabel.Visible = true;
-        // 中文注释：超窄屏隐藏耗时芯片，优先保主状态。
-        if (isUltraNarrow)
-        {
-            LoadTimeLabel.Visible = false;
-        }
+        // 中文注释：超窄屏隐藏耗时芯片，窗口拉宽后按“是否有数据”自动恢复，避免永久消失。
+        LoadTimeLabel.Visible = _hasLoadTime && !isUltraNarrow;
 
         // 中文注释：窄屏时让状态栏优先展示运行状态和内存，弱化次级信息，避免信息挤压。
         StatusLabel.Spring = true;
@@ -180,6 +180,7 @@ public sealed class StatusBarPanel
     /// <summary>中文注释：更新页面导航耗时芯片；负值隐藏，按快慢分级着色（开发者向）。</summary>
     public void SetLoadTime(int milliseconds)
     {
+        _hasLoadTime = milliseconds >= 0;
         if (milliseconds < 0)
         {
             LoadTimeLabel.Text = string.Empty;
@@ -190,7 +191,7 @@ public sealed class StatusBarPanel
         LoadTimeLabel.Text = milliseconds >= 1000
             ? $"⏱ {milliseconds / 1000.0:0.0}s"
             : $"⏱ {milliseconds}ms";
-        LoadTimeLabel.Visible = true;
+        LoadTimeLabel.Visible = !_isUltraNarrow;
 
         var semantic = milliseconds < 1000
             ? AppTheme.Success

@@ -67,9 +67,22 @@ public sealed class BrowserConfig
     public int FetchRetry { get; set; } = 1;
     // 中文注释：跨域抓取桥重试之间的退避间隔（毫秒，0~5000）。
     public int FetchRetryDelayMs { get; set; } = 500;
+    // 中文注释：跨域抓取桥的 SSRF 防护开关：拦截环回/内网/链路本地等非公网目标与解析到内网的域名；
+    // 需要抓取本机或局域网目标（如本地演示站、NAS）时设为 false。默认开启。
+    public bool FetchSsrfGuardEnabled { get; set; } = true;
     public bool IsGeneralAutofillEnabled { get; set; } = true;
-    public bool IsPasswordAutosaveEnabled { get; set; } = true;
+    // 中文注释：WebView2 内核自带的密码自动保存——登录后会弹出内核的“保存密码”气泡，
+    // 点保存时内核写入密码库会有短暂卡顿。默认关闭，改由本浏览器自己的凭据库自动保存
+    // （见 IsCredentialAutosaveEnabled）；老配置里为 true 的首次加载会被一次性迁移关闭。
+    public bool IsPasswordAutosaveEnabled { get; set; }
+    // 中文注释：一次性迁移标记——老版本配置没有该字段（默认 false），首次加载自动关闭内核密码保存，
+    // 之后用户若在设置里显式打开内核开关则不再覆盖。
+    public bool WebView2PasswordAutosaveMigrated { get; set; }
     public bool IsCredentialAutofillEnabled { get; set; } = true;
+    // 中文注释：登录表单提交后自动把账号密码存入本机凭据库（不弹窗、由 CredentialAutosaveService 执行）。
+    public bool IsCredentialAutosaveEnabled { get; set; } = true;
+    // 中文注释：自动保存的站点规则（域名/IP，可带端口）；命中规则优先于全局开关，未命中按全局开关处理。
+    public List<CredentialAutosaveRule> CredentialAutosaveRules { get; set; } = [];
     public bool RestoreLastSessionOnStartup { get; set; } = true;
     public bool AskBeforeRestoringSessionOnStartup { get; set; } = false;
     public bool EnableAddressBarSuggestions { get; set; } = true;
@@ -168,7 +181,8 @@ public sealed class BrowserConfig
         }
     }
 
-    private static BrowserConfig Normalize(BrowserConfig config)
+    // 中文注释：internal 供单元测试直测归一化规则（如白名单不再强制回填 net:fetch）。
+    internal static BrowserConfig Normalize(BrowserConfig config)
     {
         config.AllowedPluginPermissions ??= [];
         // 中文注释：旧版本默认白名单只有 dom_read/dom_write，升级后自动补上 content:inject，
@@ -187,16 +201,8 @@ public sealed class BrowserConfig
         {
             config.AllowedPluginPermissions = ["content:dom_read", "content:dom_write", "content:inject", DefaultNetFetchPermission];
         }
-        // 中文注释：兜底：只要白名单不是空的，就确保新增的 net:fetch 在里面；
-        // 白名单为空（Length==0）视为用户主动关闭所有权限，不强制追加。
-        if (config.AllowedPluginPermissions.Length > 0 &&
-            !config.AllowedPluginPermissions.Contains(DefaultNetFetchPermission, StringComparer.OrdinalIgnoreCase))
-        {
-            config.AllowedPluginPermissions = config.AllowedPluginPermissions
-                .Append(DefaultNetFetchPermission)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-        }
+        // 中文注释：其余情况一律尊重用户白名单原样保存——用户主动删掉 net:fetch 属于收紧安全策略，
+        // 不能在重启后静默加回（否则收紧意图永远无法生效）。新装默认值本身已含 net:fetch。
         config.AdditionalBrowserArguments = string.IsNullOrWhiteSpace(config.AdditionalBrowserArguments)
             ? string.Empty
             : config.AdditionalBrowserArguments.Trim();
@@ -257,6 +263,15 @@ public sealed class BrowserConfig
         config.ZoomOverrides = NormalizeZoomOverrides(config.ZoomOverrides);
         config.CustomSearchEngines = NormalizeCustomSearchEngines(config.CustomSearchEngines);
         config.AdBlockCustomDomains = NormalizeAdBlockCustomDomains(config.AdBlockCustomDomains);
+        // 中文注释：老配置一次性迁移——内核密码保存默认关闭，避免继续弹原生保存气泡；
+        // 迁移完成后用户在设置里显式打开则尊重其选择。
+        if (!config.WebView2PasswordAutosaveMigrated)
+        {
+            config.WebView2PasswordAutosaveMigrated = true;
+            config.IsPasswordAutosaveEnabled = false;
+        }
+
+        config.CredentialAutosaveRules = NormalizeCredentialAutosaveRules(config.CredentialAutosaveRules);
         config.ToolbarButtons = NormalizeToolbarButtons(config.ToolbarButtons);
         config.AddressCommands = NormalizeAddressCommands(config.AddressCommands);
         config.PinnedAddressCommandIds = NormalizePinnedAddressCommandIds(config.PinnedAddressCommandIds);
@@ -374,6 +389,75 @@ public sealed class BrowserConfig
         }
 
         return normalized;
+    }
+
+    private static List<CredentialAutosaveRule> NormalizeCredentialAutosaveRules(List<CredentialAutosaveRule>? rules)
+    {
+        // 中文注释：站点归一化为小写主机（可带端口/IPv6 方括号），非法主机与非法策略（非 Allow 一律 Block）丢弃/纠正，同主机去重。
+        var normalized = new List<CredentialAutosaveRule>();
+        if (rules is null)
+        {
+            return normalized;
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rule in rules)
+        {
+            var host = NormalizeRuleHost(rule?.Host);
+            if (host.Length == 0 || !seen.Add(host))
+            {
+                continue;
+            }
+
+            normalized.Add(new CredentialAutosaveRule
+            {
+                Host = host,
+                Mode = string.Equals(rule?.Mode, CredentialAutosaveRule.ModeAllow, StringComparison.OrdinalIgnoreCase)
+                    ? CredentialAutosaveRule.ModeAllow
+                    : CredentialAutosaveRule.ModeBlock
+            });
+            if (normalized.Count >= 200)
+            {
+                break;
+            }
+        }
+
+        return normalized;
+    }
+
+    private static string NormalizeRuleHost(string? raw)
+    {
+        var value = (raw ?? string.Empty).Trim();
+        if (value.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var schemeIndex = value.IndexOf("://", StringComparison.Ordinal);
+        if (schemeIndex >= 0)
+        {
+            value = value[(schemeIndex + 3)..];
+        }
+
+        var slashIndex = value.IndexOf('/');
+        if (slashIndex >= 0)
+        {
+            value = value[..slashIndex];
+        }
+
+        value = value.Trim().TrimEnd('.').ToLowerInvariant();
+        if (value.Length == 0 || value.Length > 253)
+        {
+            return string.Empty;
+        }
+
+        // 中文注释：仅允许域名/IP 字符（含端口冒号与 IPv6 方括号），其余一律视为非法输入丢弃。
+        if (value.Any(ch => !(char.IsAsciiLetterOrDigit(ch) || ch == '.' || ch == '-' || ch == '_' || ch == ':' || ch == '[' || ch == ']')))
+        {
+            return string.Empty;
+        }
+
+        return value;
     }
 
     private static string NormalizeSearchTemplate(string rawTemplate)

@@ -149,10 +149,15 @@ public sealed class AdBlockService
         "ipinyou.com"
     };
 
+    // 中文注释：EasyList 域名规则中主机名的截断字符（^/$/|/*/ /?/:）。
+    private static readonly char[] RuleTrimChars = { '^', '$', '|', '*', '/', '?', ':' };
+
     private readonly BrowserConfig _config;
     // 中文注释：自定义域名按配置列表引用做缓存，设置保存后引用变化时自动重建。
     private List<string>? _cachedCustomSource;
     private HashSet<string> _customDomains = new(StringComparer.OrdinalIgnoreCase);
+    // 中文注释：EasyList 例外规则（@@||domain^）解析出的放行域名，优先级高于屏蔽规则。
+    private HashSet<string> _customExceptionDomains = new(StringComparer.OrdinalIgnoreCase);
 
     public AdBlockService(BrowserConfig config)
     {
@@ -180,6 +185,12 @@ public sealed class AdBlockService
         var candidate = host;
         while (true)
         {
+            // 中文注释：例外域名（@@ 规则）优先放行——覆盖内置与自定义的任何屏蔽规则。
+            if (_customExceptionDomains.Contains(candidate))
+            {
+                return false;
+            }
+
             if (BuiltInDomains.Contains(candidate) || _customDomains.Contains(candidate))
             {
                 return true;
@@ -204,8 +215,88 @@ public sealed class AdBlockService
         }
 
         _cachedCustomSource = source;
-        _customDomains = new HashSet<string>(
-            (source ?? []).Where(domain => !string.IsNullOrWhiteSpace(domain)).Select(domain => domain.Trim()),
-            StringComparer.OrdinalIgnoreCase);
+        var blocked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var exceptions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var rawLine in source ?? [])
+        {
+            var domain = ParseRuleHost(rawLine, out var isException);
+            if (string.IsNullOrEmpty(domain))
+            {
+                continue;
+            }
+
+            if (isException)
+            {
+                exceptions.Add(domain);
+            }
+            else
+            {
+                blocked.Add(domain);
+            }
+        }
+
+        _customDomains = blocked;
+        _customExceptionDomains = exceptions;
+    }
+
+    /// <summary>
+    /// 中文注释：解析一行自定义规则的主机名部分，兼容两类写法：
+    /// 1) 纯域名（旧行为，向后兼容）：example.com；
+    /// 2) EasyList 域名规则：屏蔽 `||example.com^` 与例外 `@@||example.com^`（`^/$/|` 等分隔符与
+    ///    `$script`、`$third-party` 选项全部剥离；`!`/`#` 注释行忽略）。
+    /// 仅提取主机锚定的域名规则（EasyList 中数量最大的一类）；不支持的形态（如完整 URL 正则规则）返回空串忽略。
+    /// </summary>
+    internal static string ParseRuleHost(string? rawLine, out bool isException)
+    {
+        isException = false;
+        if (string.IsNullOrWhiteSpace(rawLine))
+        {
+            return string.Empty;
+        }
+
+        var line = rawLine.Trim();
+        if (line.StartsWith('!') || line.StartsWith('#'))
+        {
+            return string.Empty;
+        }
+
+        if (line.StartsWith("@@", StringComparison.Ordinal))
+        {
+            isException = true;
+            line = line[2..].TrimStart();
+        }
+
+        if (line.StartsWith("||", StringComparison.Ordinal))
+        {
+            line = line[2..];
+        }
+        else if (line.StartsWith('|') || line.StartsWith("://", StringComparison.Ordinal))
+        {
+            // 中文注释：|http://... 形态的完整 URL 规则不做主机锚定解析，忽略。
+            return string.Empty;
+        }
+
+        // 中文注释：剥离规则修饰符：^（分隔符）$（选项）|（锚）* / ? : （通配/路径/端口）。
+        var cutIndex = line.IndexOfAny(RuleTrimChars);
+        if (cutIndex >= 0)
+        {
+            line = line[..cutIndex];
+        }
+
+        // 中文注释：剩下部分须形如域名（仅字母数字点连字符、含点且不空段）。
+        if (line.Length == 0 || !line.Contains('.') || line.StartsWith('.') || line.EndsWith('.'))
+        {
+            return string.Empty;
+        }
+
+        foreach (var ch in line)
+        {
+            if (!char.IsLetterOrDigit(ch) && ch is not ('.' or '-'))
+            {
+                return string.Empty;
+            }
+        }
+
+        return line.ToLowerInvariant();
     }
 }

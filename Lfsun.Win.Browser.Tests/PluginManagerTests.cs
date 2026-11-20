@@ -109,6 +109,32 @@ public sealed class PluginManagerTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(installedDir, ".git")), ".git 目录不应被复制到插件目录");
     }
 
+    // 中文注释：Chrome 扩展的 version 字段应映射到转换后的插件 manifest（后续插件升级比对的基础）。
+    [Fact]
+    public void InstallPluginFromDirectory_ChromeExtension_PreservesVersionField()
+    {
+        var sourceDir = Path.Combine(_tempRoot, "chrome-ext-ver");
+        Directory.CreateDirectory(sourceDir);
+        File.WriteAllText(Path.Combine(sourceDir, "manifest.json"), """
+            {
+              "manifest_version": 3,
+              "name": "Ver Ext",
+              "version": "2.3.1",
+              "content_scripts": [
+                { "matches": ["https://example.com/*"], "js": ["content.js"] }
+              ]
+            }
+            """);
+        File.WriteAllText(Path.Combine(sourceDir, "content.js"), "console.log('hi');");
+
+        var manager = CreateManager();
+        var ok = manager.InstallPluginFromDirectory(sourceDir, out var error);
+
+        Assert.True(ok, $"安装应成功，实际错误：{error}");
+        var installedManifest = File.ReadAllText(Path.Combine(manager.PluginsRoot, "ver-ext", "manifest.json"));
+        Assert.Contains("\"version\": \"2.3.1\"", installedManifest);
+    }
+
     public void Dispose()
     {
         try

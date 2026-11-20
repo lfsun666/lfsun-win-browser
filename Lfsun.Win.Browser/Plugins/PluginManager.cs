@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -51,6 +52,14 @@ public sealed class PluginManager
     // 中文注释：已注册插件桥的 WebView（弱引用），storage 变更时向其他页面广播 onChanged。
     private readonly List<WeakReference<CoreWebView2>> _bridgedWebViews = new();
 
+    // 中文注释：每个 WebView 的插件桥安装令牌（随机 256bit，宿主与页面桥闭包各持一份）。
+    // 注入脚本源码与闭包变量对页面脚本不可读，因此网页无法伪造令牌；宿主校验消息令牌后才处理，
+    // 从根上杜绝任意网页冒充插件调用 net.fetch/storage/openUrl 等宿主能力（桥消息伪造攻击）。
+    private static readonly ConditionalWeakTable<CoreWebView2, string> BridgeTokens = new();
+
+    // 中文注释：跨域抓取桥的 SSRF 防护开关（来自 BrowserConfig，UpdatePolicy 时刷新）。
+    private bool _fetchSsrfGuardEnabled = true;
+
     // 中文注释：探测“手动运行触发事件”的正则：脚本里 document/window.addEventListener('xxx:fill' 或 'xxx:run')。
     private static readonly Regex RunEventListenerRegex = new(
         @"(?:document|window)\.addEventListener\(\s*['""]([\w.-]+:(?:fill|run))['""]",
@@ -76,6 +85,7 @@ public sealed class PluginManager
         _fetchUserAgents = config.FetchUserAgents ?? new List<string>();
         _fetchRetry = Math.Clamp(config.FetchRetry, 1, 5);
         _fetchRetryDelayMs = Math.Clamp(config.FetchRetryDelayMs, 0, 5000);
+        _fetchSsrfGuardEnabled = config.FetchSsrfGuardEnabled;
     }
 
     public void Reload()
@@ -106,6 +116,14 @@ public sealed class PluginManager
                     continue;
                 }
 
+                // 中文注释：id 会拼进安装目录与 storage 文件路径，必须先做白名单校验，
+                // 拦截含 ../ 或绝对路径分量等字符的恶意 id（目录穿越/任意文件读写）。
+                if (!IsValidPluginId(manifest.Id))
+                {
+                    _log($"[插件:{manifest.Id}] 已阻止：id 含非法字符（仅允许字母数字/点/下划线/连字符）");
+                    continue;
+                }
+
                 var requestedPermissions = manifest.Permissions
                     .Where(p => !string.IsNullOrWhiteSpace(p))
                     .Select(p => p.Trim())
@@ -132,10 +150,12 @@ public sealed class PluginManager
                 var scripts = new List<string>();
                 foreach (var script in manifest.Scripts)
                 {
-                    var scriptPath = Path.Combine(pluginDirectory, script);
-                    if (!File.Exists(scriptPath))
+                    // 中文注释：脚本相对路径必须落在插件目录内，拒绝 ../ 越界读取任意本地文件。
+                    var scriptStatus = ResolvePluginScriptPath(pluginDirectory, script, out var scriptPath);
+                    if (scriptStatus != PluginScriptPathStatus.Ok)
                     {
-                        _log($"[插件:{manifest.Id}] 缺少脚本: {script}");
+                        var reason = scriptStatus == PluginScriptPathStatus.Escaped ? "脚本路径越界已拒绝" : "缺少脚本";
+                        _log($"[插件:{manifest.Id}] {reason}: {script}");
                         continue;
                     }
 
@@ -158,10 +178,12 @@ public sealed class PluginManager
                             var groupScripts = new List<string>();
                             foreach (var script in group.Scripts)
                             {
-                                var scriptPath = Path.Combine(pluginDirectory, script);
-                                if (!File.Exists(scriptPath))
+                                // 中文注释：内容脚本同样做目录内路径校验，拒绝 ../ 越界。
+                                var scriptStatus = ResolvePluginScriptPath(pluginDirectory, script, out var scriptPath);
+                                if (scriptStatus != PluginScriptPathStatus.Ok)
                                 {
-                                    _log($"[插件:{manifest.Id}] 缺少内容脚本: {script}");
+                                    var reason = scriptStatus == PluginScriptPathStatus.Escaped ? "脚本路径越界已拒绝" : "缺少内容脚本";
+                                    _log($"[插件:{manifest.Id}] {reason}: {script}");
                                     continue;
                                 }
 
@@ -335,6 +357,14 @@ public sealed class PluginManager
                 return TryInstallChromeExtension(sourceDirectory, manifestPath, out error);
             }
 
+            // 中文注释：id 直接拼进目标安装目录，安装前校验字符白名单，
+            // 拦截含 ../ 的 id 把插件文件写到 plugins 目录之外（路径穿越）。
+            if (!IsValidPluginId(manifest.Id.Trim()))
+            {
+                error = "插件 id 含非法字符（仅允许字母数字、点、下划线、连字符，且以字母或数字开头）。";
+                return false;
+            }
+
             var targetDirectory = Path.Combine(_pluginsRoot, manifest.Id.Trim());
             if (!TryClearBrokenPluginDirectory(targetDirectory))
             {
@@ -409,6 +439,8 @@ public sealed class PluginManager
 
     public async Task InjectForPageAsync(WebView2 webView, Uri uri)
     {
+        // 中文注释：取该 WebView 已安装桥的令牌，包裹脚本靠它换取插件专属 chrome 垫片。
+        var bridgeToken = ResolveWebViewBridgeToken(webView);
         foreach (var plugin in _plugins)
         {
             if (!plugin.IsMatch(uri))
@@ -420,7 +452,7 @@ public sealed class PluginManager
             {
                 try
                 {
-                    await webView.ExecuteScriptAsync(BuildChromeScopedScript(plugin.Manifest.Id, scriptBody));
+                    await webView.ExecuteScriptAsync(BuildChromeScopedScript(plugin.Manifest.Id, scriptBody, bridgeToken));
                 }
                 catch (Exception ex)
                 {
@@ -437,10 +469,12 @@ public sealed class PluginManager
     public async Task RegisterContentScriptsAsync(CoreWebView2 coreWebView)
     {
         // 中文注释：先注册 chrome.* 兼容桥（storage 持久化/插件快捷键/选项页识别），
-        // 内容脚本靠它读取 chrome.storage 配置，必须先于内容脚本执行。
+        // 内容脚本靠它读取 chrome.storage 配置，必须先于内容脚本执行；
+        // 桥脚本携带该 WebView 专属令牌，页面无法伪造插件消息。
         try
         {
-            await coreWebView.AddScriptToExecuteOnDocumentCreatedAsync(BuildBridgeScript());
+            var bridgeToken = GetOrCreateBridgeToken(coreWebView);
+            await coreWebView.AddScriptToExecuteOnDocumentCreatedAsync(BuildBridgeScript(bridgeToken));
             _bridgedWebViews.RemoveAll(reference => !reference.TryGetTarget(out _));
             _bridgedWebViews.Add(new WeakReference<CoreWebView2>(coreWebView));
         }
@@ -458,7 +492,7 @@ public sealed class PluginManager
                     try
                     {
                         await coreWebView.AddScriptToExecuteOnDocumentCreatedAsync(
-                            BuildGuardedContentScript(plugin.Manifest.Id, group.MatchPatternSources, scriptBody));
+                            BuildGuardedContentScript(plugin.Manifest.Id, group.MatchPatternSources, scriptBody, GetOrCreateBridgeToken(coreWebView)));
                     }
                     catch (Exception ex)
                     {
@@ -483,9 +517,11 @@ public sealed class PluginManager
         var executed = 0;
         try
         {
+            // 中文注释：手动运行同样携带当前 WebView 的桥令牌，换取插件专属 chrome 垫片。
+            var bridgeToken = ResolveWebViewBridgeToken(webView);
             foreach (var scriptBody in plugin.ScriptBodies)
             {
-                await webView.ExecuteScriptAsync(BuildChromeScopedScript(plugin.Manifest.Id, scriptBody));
+                await webView.ExecuteScriptAsync(BuildChromeScopedScript(plugin.Manifest.Id, scriptBody, bridgeToken));
                 executed++;
             }
 
@@ -493,7 +529,7 @@ public sealed class PluginManager
             {
                 foreach (var scriptBody in group.ScriptBodies)
                 {
-                    await webView.ExecuteScriptAsync(BuildChromeScopedScript(plugin.Manifest.Id, scriptBody));
+                    await webView.ExecuteScriptAsync(BuildChromeScopedScript(plugin.Manifest.Id, scriptBody, bridgeToken));
                     executed++;
                 }
             }
@@ -575,16 +611,29 @@ public sealed class PluginManager
     }
 
     // 中文注释：生成带地址守卫的包裹脚本；正则源串用 JSON 序列化转 JS 字符串字面量，避免转义问题。
-    // 包裹内声明局部 chrome 变量指向本插件专属垫片，让扩展的 chrome.storage 等调用直接可用。
-    private static string BuildGuardedContentScript(string pluginId, string[] patternSources, string scriptBody)
+    // 包裹内声明局部 chrome 变量指向本插件专属垫片，让扩展的 chrome.storage 等调用直接可用；
+    // 令牌由宿主注入（仅存在于注入脚本源码里，页面读不到），换不到合法令牌拿不到真垫片。
+    private static string BuildGuardedContentScript(string pluginId, string[] patternSources, string scriptBody, string bridgeToken)
     {
         var patternArray = string.Join(", ", patternSources.Select(source => JsonSerializer.Serialize(source)));
         var idLiteral = JsonSerializer.Serialize(pluginId);
+        var tokenLiteral = JsonSerializer.Serialize(bridgeToken);
         return "(function () {\n" +
-               $"    var __lpPatterns = [{patternArray}];\n" +
+               "    var __lpPatterns = [" + patternArray + "];\n" +
                "    var __lpHref = window.location.href;\n" +
                "    if (!__lpPatterns.some(function (p) { try { return new RegExp(p, 'i').test(__lpHref); } catch (e) { return false; } })) { return; }\n" +
-               $"    var chrome = window.__lfsunChromeFor ? window.__lfsunChromeFor({idLiteral}) : (window.chrome || {{}});\n" +
+               $"    var chrome = window.__lfsunChromeFor ? window.__lfsunChromeFor({idLiteral}, {tokenLiteral}) : (window.chrome || {{}});\n" +
+               scriptBody + "\n" +
+               "})();";
+    }
+
+    // 中文注释：手动运行/地址匹配注入时的包裹：同样提供本插件专属 chrome 垫片（需携带桥令牌）。
+    private static string BuildChromeScopedScript(string pluginId, string scriptBody, string bridgeToken)
+    {
+        var idLiteral = JsonSerializer.Serialize(pluginId);
+        var tokenLiteral = JsonSerializer.Serialize(bridgeToken);
+        return "(function () {\n" +
+               $"    var chrome = window.__lfsunChromeFor ? window.__lfsunChromeFor({idLiteral}, {tokenLiteral}) : (window.chrome || {{}});\n" +
                scriptBody + "\n" +
                "})();";
     }
@@ -609,6 +658,8 @@ public sealed class PluginManager
             window.__lfsunPluginBridgeInstalled = true;
             var bases = __BASES__;
             var bindings = __BINDINGS__;
+            // 宿主生成的本 WebView 专属令牌，仅存在于闭包与注入脚本源码中，页面脚本读不到。
+            var __lpToken = '__TOKEN__';
             var host = (window.chrome && window.chrome.webview) ? window.chrome.webview : null;
             var caches = {};
             var pending = {};
@@ -617,7 +668,7 @@ public sealed class PluginManager
             var pendingBody = {};
             var listeners = {};
             var seq = 0;
-            function post(msg) { if (host) { try { host.postMessage(msg); } catch (e) {} } }
+            function post(msg) { if (host) { msg.token = __lpToken; try { host.postMessage(msg); } catch (e) {} } }
             if (host) {
                 host.addEventListener('message', function (e) {
                     var m = e.data;
@@ -671,7 +722,31 @@ public sealed class PluginManager
                 pending[reqId] = cb;
                 post({ type: 'lfsun-plugin-storage-get', pluginId: pluginId, reqId: reqId });
             }
-            window.__lfsunChromeFor = function (pluginId) {
+            // 令牌校验失败时返回的惰性垫片：形态兼容但全部空转，避免恶意页面探测时崩溃报错。
+            function buildInertShim() {
+                function inertFetch() { return Promise.reject(new Error('权限拒绝: 令牌无效')); }
+                function inertArea() {
+                    return { get: function (k, cb) { if (cb) { cb({}); } }, set: function (i, cb) { if (cb) { cb(); } }, remove: function (k, cb) { if (cb) { cb(); } } };
+                }
+                var inertAreaInstance = inertArea();
+                return {
+                    storage: { sync: inertAreaInstance, local: inertAreaInstance, onChanged: { addListener: function () {} } },
+                    net: { fetch: inertFetch, startCapture: function () {}, getCaptureEntries: function () { return Promise.resolve([]); }, stopCapture: function () {}, getResponseBody: inertFetch },
+                    runtime: { onMessage: { addListener: function () {} }, getURL: function (p) { return p || ''; }, openOptionsPage: function () {} },
+                    tabs: { create: function () {}, query: function (q, cb) { if (cb) { cb([]); } } }
+                };
+            }
+            // 垫片工厂挂到 window 上但不可改写；第二个参数必须是本 WebView 的桥令牌，
+            // 页面脚本拿不到令牌只能得到惰性垫片，无法冒充插件调用宿主能力。
+            Object.defineProperty(window, '__lfsunChromeFor', {
+                value: function (pluginId, token) {
+                    if (token !== __lpToken) { return buildInertShim(); }
+                    return buildPluginShim(pluginId);
+                },
+                writable: false,
+                configurable: false
+            });
+            function buildPluginShim(pluginId) {
                 function getItems(keys, cb) {
                     load(pluginId, function (data) {
                         var out = {};
@@ -793,7 +868,7 @@ public sealed class PluginManager
                         query: function (q, cb) { if (cb) { cb([]); } }
                     }
                 };
-            };
+            }
             if (bindings.length > 0) {
                 document.addEventListener('keydown', function (e) {
                     for (var i = 0; i < bindings.length; i++) {
@@ -813,7 +888,7 @@ public sealed class PluginManager
             var href = window.location.href.toLowerCase();
             Object.keys(bases).forEach(function (id) {
                     if (bases[id] && href.indexOf(bases[id].toLowerCase()) === 0) {
-                        var shim = window.__lfsunChromeFor(id);
+                        var shim = window.__lfsunChromeFor(id, __lpToken);
                         var c = window.chrome = window.chrome || {};
                         c.storage = shim.storage;
                         c.tabs = shim.tabs;
@@ -827,8 +902,8 @@ public sealed class PluginManager
         })();
         """;
 
-    // 中文注释：按已加载插件生成桥脚本：file:// 基地址表（选项页识别）+ 快捷键绑定表。
-    private string BuildBridgeScript()
+    // 中文注释：按已加载插件生成桥脚本：file:// 基地址表（选项页识别）+ 快捷键绑定表 + 本 WebView 专属令牌。
+    private string BuildBridgeScript(string bridgeToken)
     {
         var bases = new JsonObject();
         var bindings = new JsonArray();
@@ -862,7 +937,8 @@ public sealed class PluginManager
 
         return BridgeScriptTemplate
             .Replace("__BASES__", bases.ToJsonString())
-            .Replace("__BINDINGS__", bindings.ToJsonString());
+            .Replace("__BINDINGS__", bindings.ToJsonString())
+            .Replace("__TOKEN__", bridgeToken);
     }
 
     // 中文注释：解析快捷键文本为修饰键 + 主键（大写），供桥脚本按 KeyboardEvent 匹配；
@@ -911,6 +987,25 @@ public sealed class PluginManager
             var type = message["type"]?.GetValue<string>() ?? string.Empty;
             if (!type.StartsWith("lfsun-plugin-", StringComparison.Ordinal))
             {
+                return;
+            }
+
+            // 中文注释：令牌校验——桥脚本把令牌存在闭包里，页面脚本读不到；
+            // 带不上正确令牌的 lfsun-plugin-* 消息一律视为网页伪造，直接拒绝。
+            string messageToken;
+            try
+            {
+                messageToken = message["token"]?.GetValue<string>() ?? string.Empty;
+            }
+            catch
+            {
+                messageToken = string.Empty;
+            }
+
+            if (!TryGetBridgeToken(sender, out var expectedToken) ||
+                !string.Equals(messageToken, expectedToken, StringComparison.Ordinal))
+            {
+                _log("[插件桥] 已拒绝未携带有效令牌的消息（疑似网页伪造）");
                 return;
             }
 
@@ -995,7 +1090,8 @@ public sealed class PluginManager
                 // 宿主用 HttpClient 发请求，不受渲染引擎同源/CORS 限制；权限 net:fetch 门控。
                 case "lfsun-plugin-fetch":
                 {
-                    if (!plugin.Manifest.Permissions.Contains(NetFetchPermission, StringComparer.OrdinalIgnoreCase))
+                    // 中文注释：运行时权限二次校验（用加载时归一化后的权限集合，容忍声明里多余空格）。
+                    if (!plugin.HasPermission(NetFetchPermission))
                     {
                         ReplyNetFetch(sender, plugin.Manifest.Id, message, ok: false, status: 403,
                             statusText: $"权限拒绝: {NetFetchPermission}", headers: null, body: string.Empty,
@@ -1008,6 +1104,17 @@ public sealed class PluginManager
                     {
                         ReplyNetFetch(sender, plugin.Manifest.Id, message, ok: false, status: 400,
                             statusText: "无效的 URL", headers: null, body: string.Empty,
+                            encoding: "utf8", truncated: false);
+                        break;
+                    }
+
+                    // 中文注释：SSRF 防护——拦截环回/内网/链路本地目标与解析到内网的域名，
+                    // 防被诱导页面借插件通道探测内网服务与云元数据端点；需要抓本机/局域网时在配置里关闭。
+                    if (_fetchSsrfGuardEnabled && await FetchSsrfGuard.IsBlockedAsync(fetchUri))
+                    {
+                        ReplyNetFetch(sender, plugin.Manifest.Id, message, ok: false, status: 403,
+                            statusText: "SSRF 防护: 目标为环回/内网/链路本地地址，已拦截（可在配置 fetchSsrfGuardEnabled 关闭）",
+                            headers: null, body: string.Empty,
                             encoding: "utf8", truncated: false);
                         break;
                     }
@@ -1264,8 +1371,13 @@ public sealed class PluginManager
         var hashIndex = relativePath.IndexOf('#');
         var filePart = hashIndex >= 0 ? relativePath[..hashIndex] : relativePath;
         var fragment = hashIndex >= 0 ? relativePath[hashIndex..] : string.Empty;
-        var fullPath = Path.GetFullPath(Path.Combine(plugin.DirectoryPath, filePart));
-        if (!fullPath.StartsWith(Path.GetFullPath(plugin.DirectoryPath), StringComparison.OrdinalIgnoreCase) ||
+        var rootPath = Path.GetFullPath(plugin.DirectoryPath);
+        var fullPath = Path.GetFullPath(Path.Combine(rootPath, filePart));
+        var relativeToRoot = Path.GetRelativePath(rootPath, fullPath);
+        // 中文注释：相对路径越出插件目录（含子目录起始同名的边界：必须以分隔符隔开）一律拒绝。
+        if (relativeToRoot.StartsWith("..", StringComparison.Ordinal) ||
+            Path.IsPathRooted(relativeToRoot) ||
+            string.IsNullOrEmpty(relativeToRoot) ||
             !File.Exists(fullPath))
         {
             return false;
@@ -1626,6 +1738,8 @@ public sealed class PluginManager
                               !desc.StartsWith("__MSG_", StringComparison.OrdinalIgnoreCase)
                 ? desc
                 : "由 Chrome 扩展自动转换";
+            // 中文注释：同步保留 Chrome 扩展的 version 字段，便于后续插件升级比对。
+            var version = root["version"]?.GetValue<string>()?.Trim() ?? string.Empty;
             var converted = new JsonObject
             {
                 ["id"] = pluginId,
@@ -1635,6 +1749,10 @@ public sealed class PluginManager
                 ["permissions"] = new JsonArray("content:dom_read", "content:dom_write", ContentInjectPermission),
                 ["contentScripts"] = contentScripts
             };
+            if (version.Length > 0 && version.Length <= 32)
+            {
+                converted["version"] = version;
+            }
             if (!string.IsNullOrEmpty(runEvent))
             {
                 converted["runEvent"] = runEvent;
@@ -1697,8 +1815,8 @@ public sealed class PluginManager
                     continue;
                 }
 
-                var path = Path.Combine(sourceDirectory, scriptFile);
-                if (!File.Exists(path))
+                // 中文注释：转换扫描同样校验路径不越出源目录。
+                if (ResolvePluginScriptPath(sourceDirectory, scriptFile, out var path) != PluginScriptPathStatus.Ok)
                 {
                     continue;
                 }
@@ -1732,5 +1850,154 @@ public sealed class PluginManager
 
         var id = builder.ToString().Trim('-');
         return string.IsNullOrEmpty(id) ? $"imported-{Guid.NewGuid():N}"[..17] : id;
+    }
+
+    /// <summary>
+    /// 中文注释：插件 id 白名单：任意 Unicode 字母/数字开头（兼容中文等非 ASCII 插件名），
+    /// 中间仅允许字母/数字/点/下划线/连字符，且不能以点收尾；长度 ≤64。
+    /// id 会拼进安装目录与 storage 文件路径，必须先过这关，
+    /// 拦截 ../、绝对路径、盘符、路径分隔符、Windows 保留字符（&lt;&gt;:"|?*）等穿越写法。
+    /// </summary>
+    internal static bool IsValidPluginId(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id) || id.Length > 64)
+        {
+            return false;
+        }
+
+        if (!char.IsLetterOrDigit(id[0]) || id[^1] == '.')
+        {
+            return false;
+        }
+
+        foreach (var ch in id)
+        {
+            if (!char.IsLetterOrDigit(ch) && ch is not ('.' or '_' or '-'))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 中文注释：插件脚本相对路径解析结果：Ok=目录内且存在；Missing=目录内但文件不存在；Escaped=越出插件目录。
+    /// </summary>
+    internal enum PluginScriptPathStatus
+    {
+        Ok,
+        Missing,
+        Escaped
+    }
+
+    /// <summary>
+    /// 中文注释：解析插件脚本相对路径，拒绝越出插件目录的目标（../ 逃逸、绝对路径、盘符等），
+    /// 防止恶意 manifest 把任意本地文件内容注入到页面上下文。
+    /// </summary>
+    internal static PluginScriptPathStatus ResolvePluginScriptPath(string pluginDirectory, string script, out string fullPath)
+    {
+        fullPath = string.Empty;
+        if (string.IsNullOrWhiteSpace(script))
+        {
+            return PluginScriptPathStatus.Missing;
+        }
+
+        try
+        {
+            var root = Path.GetFullPath(pluginDirectory);
+            var candidate = Path.GetFullPath(Path.Combine(root, script));
+            var relative = Path.GetRelativePath(root, candidate);
+            if (relative.StartsWith("..", StringComparison.Ordinal) ||
+                Path.IsPathRooted(relative) ||
+                string.IsNullOrEmpty(relative))
+            {
+                return PluginScriptPathStatus.Escaped;
+            }
+
+            if (!File.Exists(candidate))
+            {
+                return PluginScriptPathStatus.Missing;
+            }
+
+            fullPath = candidate;
+            return PluginScriptPathStatus.Ok;
+        }
+        catch
+        {
+            // 中文注释：非法字符等解析异常一律按越界处理，宁可拒绝也不冒险加载。
+            return PluginScriptPathStatus.Escaped;
+        }
+    }
+
+    /// <summary>
+    /// 中文注释：取 WebView 已安装桥的令牌；不存在则新建（每次 RegisterContentScripts 幂等复用，
+    /// 插件重载/重注册不会换令牌，避免已打开页面里的旧桥消息被误拒）。
+    /// </summary>
+    private static string GetOrCreateBridgeToken(CoreWebView2 coreWebView)
+    {
+        return BridgeTokens.GetValue(coreWebView, _ =>
+            Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32)));
+    }
+
+    /// <summary>
+    /// 中文注释：读取 WebView 的桥令牌；该 WebView 从未注册过桥时返回 false。
+    /// </summary>
+    internal static bool TryGetBridgeToken(CoreWebView2 coreWebView, out string token)
+    {
+        if (coreWebView is not null &&
+            BridgeTokens.TryGetValue(coreWebView, out var value) &&
+            !string.IsNullOrEmpty(value))
+        {
+            token = value;
+            return true;
+        }
+
+        token = string.Empty;
+        return false;
+    }
+
+    /// <summary>
+    /// 中文注释：校验一条桥消息 JSON 的令牌是否属于该 WebView；供宿主侧各消息入口（含网络抓包桥）复用。
+    /// </summary>
+    public bool IsValidBridgeMessage(CoreWebView2 sender, string messageJson)
+    {
+        try
+        {
+            if (JsonNode.Parse(messageJson) is not JsonObject message)
+            {
+                return false;
+            }
+
+            if (!TryGetBridgeToken(sender, out var expected))
+            {
+                return false;
+            }
+
+            string provided;
+            try
+            {
+                provided = message["token"]?.GetValue<string>() ?? string.Empty;
+            }
+            catch
+            {
+                provided = string.Empty;
+            }
+
+            return string.Equals(provided, expected, StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // 中文注释：取当前 WebView 已安装桥的令牌；桥未安装（异常路径）返回空串，
+    // 空令牌在页面侧换不到真垫片（会得到惰性垫片），安全降级而非报错。
+    private static string ResolveWebViewBridgeToken(WebView2 webView)
+    {
+        return webView.CoreWebView2 is { } core && TryGetBridgeToken(core, out var token)
+            ? token
+            : string.Empty;
     }
 }

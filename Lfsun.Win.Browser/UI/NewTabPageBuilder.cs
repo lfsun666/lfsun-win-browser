@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Lfsun.Win.Browser.Bookmarks;
 using Lfsun.Win.Browser.Core;
@@ -16,16 +17,49 @@ public static class NewTabPageBuilder
 {
     private const int MaxTopSites = 12;
 
+    // 中文注释：注入页内 JS 的字符串序列化选项：非 ASCII（中文引擎名等）不转义，
+    // 生成的页面脚本可读且与页面声明一致。
+    private static readonly JsonSerializerOptions JsLiteralOptions = new()
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
     public static string Build(
         BrowserConfig config,
         IReadOnlyList<HistoryEntry> historyEntries,
         IReadOnlyList<BookmarkNode> bookmarkItems)
     {
+        // 中文注释：搜索引擎下拉直接接真实目录（内置 + 用户自定义同名覆盖），
+        // 新标签页搜索与地址栏口径一致；不再硬编码 5 个引擎。
+        var engines = SearchEngineCatalog.GetAll(config);
+        var defaultEngineId = ResolveDefaultEngineId(engines, config);
+        var defaultEngineTemplate = engines
+            .FirstOrDefault(engine => string.Equals(engine.Name, defaultEngineId, StringComparison.Ordinal))?.Template
+            ?? "https://www.bing.com/search?q={query}";
+
+        var engineOptionsHtml = new StringBuilder();
+        var engineTemplatesJson = new System.Text.Json.Nodes.JsonObject();
+        var enginePlaceholdersJson = new System.Text.Json.Nodes.JsonObject();
+        foreach (var engine in engines)
+        {
+            var encodedName = WebUtility.HtmlEncode(engine.Name);
+            engineOptionsHtml.AppendLine($"""<option value="{encodedName}">{encodedName}</option>""");
+            engineTemplatesJson[engine.Name] = engine.Template;
+            enginePlaceholdersJson[engine.Name] = $"用 {engine.Name} 搜索，或输入网址后回车...";
+        }
+
+        // 中文注释：非 ASCII 不转义，保证注入的 JS 字面量与测试断言/页面阅读一致。
+        var engineTemplatesJs = engineTemplatesJson.ToJsonString(JsLiteralOptions);
+        var enginePlaceholdersJs = enginePlaceholdersJson.ToJsonString(JsLiteralOptions);
+        var defaultEngineIdJs = JsonSerializer.Serialize(defaultEngineId, JsLiteralOptions);
+        var defaultEngineTemplateJs = JsonSerializer.Serialize(defaultEngineTemplate, JsLiteralOptions);
+
         var topSites = CollectTopSites(historyEntries, bookmarkItems);
-        var defaultEngine = string.IsNullOrWhiteSpace(config.DefaultSearchEngineName)
-            ? "bing"
-            : (config.DefaultSearchEngineName.Contains("百度") ? "baidu" : "bing");
-        var searchTemplateJs = JsonSerializer.Serialize(config.DefaultSearchEngineUrlTemplate);
+
+        // 中文注释：搜索框聚焦光环颜色由强调色计算，不再硬编码蓝色，
+        // 换 Green/Orange/Rose 强调色时新标签页同步跟随。
+        var accent = AppTheme.Accent;
+        var accentRingCss = $"rgba({accent.R}, {accent.G}, {accent.B}, 0.22)";
 
         var cardsHtml = new StringBuilder();
         foreach (var site in topSites)
@@ -75,6 +109,7 @@ public static class NewTabPageBuilder
                 --text: {{ToCss(AppTheme.TextPrimary)}};
                 --text-2: {{ToCss(AppTheme.TextSecondary)}};
                 --accent: {{ToCss(AppTheme.Accent)}};
+                --accent-ring: {{accentRingCss}};
                 --input-bg: {{ToCss(AppTheme.InputBackground)}};
               }
               * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -110,7 +145,7 @@ public static class NewTabPageBuilder
               }
               .search-box:focus-within {
                 border-color: var(--accent);
-                box-shadow: 0 8px 30px rgba(0,0,0,.14), 0 0 0 3.5px rgba(33, 115, 243, .22);
+                box-shadow: 0 8px 30px rgba(0,0,0,.14), 0 0 0 3.5px var(--accent-ring);
               }
               .engine-select {
                 border: 0; outline: 0; background: transparent; color: var(--text);
@@ -213,13 +248,9 @@ public static class NewTabPageBuilder
               
               <div class="search-container">
                 <form class="search-box" id="searchForm">
-                  <select id="engineSelect" class="engine-select">
-                    <option value="bing">必应</option>
-                    <option value="baidu">百度</option>
-                    <option value="google">谷歌</option>
-                    <option value="github">GitHub</option>
-                    <option value="juejin">稀土掘金</option>
-                  </select>
+                <select id="engineSelect" class="engine-select">
+                    {{engineOptionsHtml}}
+                </select>
                   <input id="searchInput" type="text" autofocus autocomplete="off"
                          placeholder="输入搜索内容，或输入网址后回车...">
                   <button type="submit">搜索</button>
@@ -240,13 +271,12 @@ public static class NewTabPageBuilder
               {{emptyHtml}}
               <div class="footer-version">{{AppVersionInfo.ProductName}} v{{AppVersionInfo.CurrentVersion}} · {{AppVersionInfo.Slogan}}</div>
             <script>
-              const engineTemplates = {
-                bing: "https://cn.bing.com/search?q={query}",
-                baidu: "https://www.baidu.com/s?wd={query}",
-                google: "https://www.google.com/search?q={query}",
-                github: "https://github.com/search?q={query}",
-                juejin: "https://juejin.cn/search?query={query}"
-              };
+              const engineTemplates = {{engineTemplatesJs}};
+              const enginePlaceholders = {{enginePlaceholdersJs}};
+              const defaultEngineId = {{defaultEngineIdJs}};
+              const defaultEngineTemplate = {{defaultEngineTemplateJs}};
+              // 中文注释：旧版硬编码引擎 id（bing/baidu/google/github/juejin）迁移到新目录同名引擎。
+              const legacyEngineIds = { bing: "Bing", baidu: "百度", google: "Google", github: "GitHub", juejin: "稀土拱金" };
 
               const quotes = [
                 "“代码是写给人看的，顺便能在机器上运行。” — Martin Fowler",
@@ -257,14 +287,6 @@ public static class NewTabPageBuilder
                 "“Talk is cheap. Show me the code.” — Linus Torvalds"
               ];
 
-              const enginePlaceholders = {
-                bing: "使用必应搜索，或输入网址后回车...",
-                baidu: "使用百度搜索，或输入网址后回车...",
-                google: "使用谷歌搜索，或输入网址后回车...",
-                github: "在 GitHub 搜索仓库或代码...",
-                juejin: "在稀土掘金搜索技术文章..."
-              };
-
               const engineSelect = document.getElementById("engineSelect");
               const searchInput = document.getElementById("searchInput");
               function updateSearchPlaceholder() {
@@ -274,16 +296,27 @@ public static class NewTabPageBuilder
                 }
               }
 
-              const savedEngine = localStorage.getItem("lfsun_fav_engine");
-              if (savedEngine && engineTemplates[savedEngine]) {
-                engineSelect.value = savedEngine;
-              } else {
-                engineSelect.value = "{{defaultEngine}}";
+              // 中文注释：NavigateToString 页面是 about:blank 不透明源，Chromium 直接访问 localStorage
+              // 会抛 SecurityError 并杀死整段脚本（时钟/问候语/引擎 placeholder 全部不生效的存量 bug）。
+              // 统一封装安全读写，失败时静默降级（引擎选择不跨会话记忆，当次仍可用）。
+              function readSavedEngine() {
+                try { return localStorage.getItem("lfsun_fav_engine"); } catch (e) { return null; }
               }
+              function persistEngine(value) {
+                try { localStorage.setItem("lfsun_fav_engine", value); } catch (e) {}
+              }
+
+              const savedEngine = readSavedEngine();
+              const savedEngineId = (savedEngine && engineTemplates[savedEngine])
+                ? savedEngine
+                : legacyEngineIds[savedEngine ?? ""];
+              engineSelect.value = (savedEngineId && engineTemplates[savedEngineId])
+                ? savedEngineId
+                : defaultEngineId;
               updateSearchPlaceholder();
 
               engineSelect.addEventListener("change", () => {
-                localStorage.setItem("lfsun_fav_engine", engineSelect.value);
+                persistEngine(engineSelect.value);
                 updateSearchPlaceholder();
               });
 
@@ -304,8 +337,11 @@ public static class NewTabPageBuilder
               refreshClock();
               setInterval(refreshClock, 15000);
 
-              // 随机展示每日名言
-              const qIndex = Math.floor(Math.random() * quotes.length);
+              // 每日名言：按日期取模，当天内多次打开新标签页保持同一句。
+              const dayKey = new Date().toISOString().slice(0, 10);
+              let dayHash = 0;
+              for (const ch of dayKey) { dayHash = (dayHash * 31 + ch.charCodeAt(0)) >>> 0; }
+              const qIndex = dayHash % quotes.length;
               document.getElementById("quote").textContent = quotes[qIndex];
 
               document.getElementById("searchForm").addEventListener("submit", event => {
@@ -318,7 +354,7 @@ public static class NewTabPageBuilder
                   location.href = "https://" + raw;
                 } else {
                   const sel = engineSelect.value;
-                  const tmpl = engineTemplates[sel] || "https://cn.bing.com/search?q={query}";
+                  const tmpl = engineTemplates[sel] || defaultEngineTemplate;
                   location.href = tmpl.replace("{query}", encodeURIComponent(raw));
                 }
               });
@@ -329,6 +365,16 @@ public static class NewTabPageBuilder
     }
 
     private sealed record TopSite(string Title, string Url, string Host, string? FaviconDataUrl = null);
+
+    // 中文注释：默认引擎优先按模板精确匹配（与地址栏默认引擎一致），其次按名称，最后回退首个。
+    private static string ResolveDefaultEngineId(IReadOnlyList<SearchEngineOption> engines, BrowserConfig config)
+    {
+        var match = engines.FirstOrDefault(engine =>
+                string.Equals(engine.Template, config.DefaultSearchEngineUrlTemplate, StringComparison.OrdinalIgnoreCase))
+            ?? engines.FirstOrDefault(engine =>
+                string.Equals(engine.Name, config.DefaultSearchEngineName, StringComparison.OrdinalIgnoreCase));
+        return match?.Name ?? engines.FirstOrDefault()?.Name ?? "Bing";
+    }
 
     private static List<TopSite> CollectTopSites(
         IReadOnlyList<HistoryEntry> historyEntries,

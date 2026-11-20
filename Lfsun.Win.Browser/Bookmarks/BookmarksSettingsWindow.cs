@@ -58,8 +58,12 @@ public sealed class BookmarksSettingsWindow : Form
         Width = 980;
         Height = 620;
         StartPosition = FormStartPosition.CenterParent;
+        WindowLayout.FitToWorkingArea(this);
         DoubleBuffered = true;
         Font = AppTheme.CreateFont(9F);
+        // 中文注释：与设置窗口一致的高 DPI 自适应，高缩放屏上控件与字体等比例放大。
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
         Shown += (_, _) => UpdateSplitterDistance();
         Resize += (_, _) => UpdateSplitterDistance();
 

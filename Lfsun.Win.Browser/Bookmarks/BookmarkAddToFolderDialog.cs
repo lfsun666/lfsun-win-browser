@@ -22,6 +22,8 @@ public sealed class BookmarkAddToFolderDialog : Form
         Height = 560;
         StartPosition = FormStartPosition.CenterParent;
         FormBorderStyle = FormBorderStyle.SizableToolWindow;
+        // 中文注释：小屏或高 DPI 下收敛到工作区，保证目录树与底部按钮都可操作。
+        WindowLayout.FitToWorkingArea(this);
         DoubleBuffered = true;
         Font = AppTheme.CreateFont(9F);
 

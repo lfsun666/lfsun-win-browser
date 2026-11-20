@@ -13,6 +13,11 @@ public sealed class PluginManifest
     [JsonPropertyName("description")]
     public string Description { get; init; } = string.Empty;
 
+    // 中文注释：插件版本号（如 "1.2.0"，Chrome 扩展转换时映射其 version 字段）；
+    // 留空视为未声明。为将来插件升级/迁移比对打基础。
+    [JsonPropertyName("version")]
+    public string Version { get; init; } = string.Empty;
+
     [JsonPropertyName("enabled")]
     public bool Enabled { get; init; } = true;
 

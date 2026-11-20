@@ -40,9 +40,10 @@ public sealed class ReaderModeAndSplitViewTests
         var html = NewTabPageBuilder.Build(config, [], []);
 
         Assert.Contains("id=\"engineSelect\"", html);
-        Assert.Contains("value=\"bing\"", html);
-        Assert.Contains("value=\"baidu\"", html);
-        Assert.Contains("value=\"github\"", html);
+        // 中文注释：引擎下拉选项改由真实引擎目录生成（内置 Bing/百度/Google/DuckDuckGo + 自定义引擎）。
+        Assert.Contains("value=\"Bing\"", html);
+        Assert.Contains("value=\"百度\"", html);
+        Assert.Contains("value=\"Google\"", html);
         Assert.Contains("id=\"quote\"", html);
     }
 }

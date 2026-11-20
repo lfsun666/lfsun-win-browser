@@ -14,7 +14,7 @@
 - 页内查找 `Ctrl+F`（匹配计数、区分大小写）
 - 页面缩放 `Ctrl+滚轮 / Ctrl+±0`，按域名记忆缩放倍率
 - 无痕窗口 `Ctrl+Shift+N`（不写历史、独立会话）
-- 广告过滤（简版规则 + 自定义域名黑名单，状态栏显示拦截计数）
+- 广告过滤（内置广告/统计域名库 + 自定义黑名单，支持 EasyList 规则语法，状态栏显示拦截计数）
 
 ### 开发者向
 - `F12` 或工具栏 `</>` 按钮打开开发者工具（Console / Network）
@@ -135,6 +135,7 @@ dotnet test .\LfsunWin.sln
   ],
   "fetchRetry": 2,
   "fetchRetryDelayMs": 500,
+  "fetchSsrfGuardEnabled": true,
   "shortcutDevToolsEnabled": true,
   "shortcutDevTools": "F12"
 }
@@ -153,11 +154,14 @@ dotnet test .\LfsunWin.sln
 - `fetchUserAgents`：跨域抓取桥的 **User-Agent 候选池**；插件开启「轮换 UA」后按请求轮流使用，降低被单一 UA 限流的概率
 - `fetchRetry`：跨域抓取桥**默认重试次数**（1~5，仅网络层异常重试，HTTP 4xx/5xx 不重试）
 - `fetchRetryDelayMs`：重试之间的退避间隔（毫秒，0~5000）
+- `fetchSsrfGuardEnabled`：跨域抓取 SSRF 防护（默认开启）：拦截环回/内网/链路本地目标（含 `169.254.169.254` 云元数据）及解析到内网的域名，仅允许 http/https；需要抓取本机或局域网（如本地演示站 `127.0.0.1:8090`）时设为 `false`
 - `isGeneralAutofillEnabled` / `isPasswordAutosaveEnabled` / `isCredentialAutofillEnabled`：自动填充相关开关
 - `restoreLastSessionOnStartup`：启动时恢复上次会话
 - `defaultSearchEngineName` / `defaultSearchEngineUrlTemplate`：默认搜索引擎（模板必须包含 `{query}`）
 - `uiTheme`：`Light` / `Dark` / `System`
 - `adBlockEnabled`：是否启用广告过滤
+- `adBlockCustomDomains`：自定义屏蔽列表；每行支持两种写法——纯域名（`example.com`，后缀匹配含子域）或 EasyList 规则（`||example.com^` 屏蔽、`@@||example.com^` 例外放行，`$script`/`$third-party` 等修饰符自动剥离，`!`/`#` 注释行忽略；例外规则优先级最高，可覆盖内置库）
+- IPv6 地址：地址栏可直接输入 IPv6 字面量（`::1`、`2001:db8::1`、`[::1]:8080`），自动按 URL 导航
 - `downloadDirectory`：下载目录；为空时默认使用系统"下载"文件夹
 - `shortcut*Enabled` / `shortcut*`：各快捷键开关与按键组合（格式如 `Ctrl+D` / `Ctrl+Shift+L` / `F12`）
 - `toolbarButtons` / `addressCommands`：工具栏按钮与地址栏命令布局（建议通过设置页修改）
@@ -216,7 +220,8 @@ chrome.net.fetch("https://other-site.com/page", {
 说明：
 
 - `chrome.net.fetch` 返回 Promise；文本类响应 `encoding:"utf8"`、`body` 为字符串，二进制 `encoding:"base64"` 并附带 `arrayBuffer`。
-- 宿主侧有安全护栏：单请求超时 1~120s、响应体积上限 8MB（超出截断并置 `truncated:true`）、权限 `net:fetch` 门控（插件须声明且白名单允许）。
+- 宿主侧有安全护栏：单请求超时 1~120s、响应体积上限 8MB（超出截断并置 `truncated:true`）、权限 `net:fetch` 门控（插件须声明且白名单允许）、SSRF 防护（`fetchSsrfGuardEnabled`，默认拦截内网/环回/链路本地目标）。
+- **令牌校验**：宿主为每个 WebView 生成随机安装令牌，页面桥消息必须携带；网页脚本读不到令牌，无法伪造插件身份调用 `chrome.net.fetch`/`storage`/`openUrl` 等宿主能力。
 - **重试**：仅对网络层异常（连接失败/超时/DNS 解析失败）重试，HTTP 4xx/5xx 视为业务结果不重试；次数与退避由 `retry`/`retryDelayMs` 控制，缺省回退全局 `fetchRetry`/`fetchRetryDelayMs`。
 - **代理**：留空直连；可按请求 `proxy` 覆盖，否则用全局 `fetchProxyUrl`；代理 `HttpClient` 按地址缓存复用。
 - **UA 轮换**：`rotateUA:true` 时按请求轮流使用 `fetchUserAgents` 候选池；若显式给了 `userAgent` 则优先使用该值。
@@ -306,3 +311,5 @@ powershell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1 -Version 
 ## 许可证
 
 本项目仅供学习与研究使用。
+
+> AI生成

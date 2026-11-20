@@ -11,6 +11,7 @@ using Lfsun.Win.Browser.Plugins;
 using Lfsun.Win.Browser.Security;
 using Lfsun.Win.Browser.Sessions;
 using Lfsun.Win.Browser.Settings;
+using Lfsun.Win.Browser.Shortcuts;
 using Lfsun.Win.Browser.UI;
 using Lfsun.Win.Browser.UI.Chrome;
 using Lfsun.Win.Browser.UI.SidePanel;
@@ -102,6 +103,10 @@ public sealed class MainWindow : Form
     private readonly System.Windows.Forms.Timer _addressSuggestionRefreshTimer = new();
     private readonly System.Windows.Forms.Timer _ambientMotionTimer = new();
     private readonly System.Windows.Forms.Timer _windowTransitionTimer = new();
+    // 中文注释：窗口尺寸变化后延迟重排标题栏标签，避免拖拽调整窗口时高频重建。
+    private readonly System.Windows.Forms.Timer _chromeLayoutTimer = new();
+    // 中文注释：记录上次标题栏重排时的客户区宽度，纵向拉伸窗口时无需重建标签。
+    private int _chromeLayoutWidth = -1;
     private readonly DownloadManager _downloadManager;
     private readonly BookmarkManager _bookmarkManager;
     private readonly PluginManager _pluginManager;
@@ -408,9 +413,15 @@ public sealed class MainWindow : Form
         MinimumSize = new Size(1080, 680);
         Width = 1420;
         Height = 920;
+        // 中文注释：低分辨率/高缩放屏幕下把主窗口收敛到工作区，避免标题栏或状态栏被屏幕边缘裁掉。
+        WindowLayout.FitToWorkingArea(this);
         KeyPreview = true;
         DoubleBuffered = true;
         Font = AppTheme.CreateFont(9F);
+        // 中文注释：与设置窗口一致的高 DPI 自适应——字体按 Point 随 DPI 放大，标题栏/工具栏等
+        // 像素条带靠 DPI 缩放同步放大，高缩放屏上不再出现“字体变大、条带固定截字”的错位。
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
         ApplyWindowIconFromConfig();
 
         var downloadDirectory = string.IsNullOrWhiteSpace(_config.DownloadDirectory)
@@ -654,7 +665,7 @@ public sealed class MainWindow : Form
     {
         _titleBar.GripStyle = ToolStripGripStyle.Hidden;
         _titleBar.AutoSize = false;
-        _titleBar.Height = AppTheme.IsCompact ? 32 : 36;
+        _titleBar.Height = AppTheme.IsCompact ? 33 : 36;
         _titleBar.Padding = new Padding(8, 0, 0, 0);
         _titleBar.Dock = DockStyle.Top;
         _titleBar.ImageScalingSize = new Size(16, 16);
@@ -663,7 +674,7 @@ public sealed class MainWindow : Form
 
         _topBar.GripStyle = ToolStripGripStyle.Hidden;
         _topBar.AutoSize = false;
-        _topBar.Height = AppTheme.IsCompact ? 38 : 44;
+        _topBar.Height = AppTheme.IsCompact ? 38 : 42;
         _topBar.Padding = new Padding(8, 3, 8, 3);
         _topBar.Dock = DockStyle.Top;
         _topBar.ImageScalingSize = new Size(20, 20);
@@ -679,8 +690,7 @@ public sealed class MainWindow : Form
         _addressBar.LayoutStyle = ToolStripLayoutStyle.HorizontalStackWithOverflow;
         _addressBar.CanOverflow = true;
 
-        _addressTextBox.AutoSize = false;
-        _addressTextBox.Size = new Size(520, 30);
+        _addressTextBox.AutoSize = true;
         _addressTextBox.Margin = new Padding(1, 2, 4, 2);
         _addressTextBox.BorderStyle = BorderStyle.FixedSingle;
         UpdateAddressCommandTooltip();
@@ -1605,7 +1615,7 @@ public sealed class MainWindow : Form
         {
             AutoSize = false,
             Width = buttonWidth,
-            Height = AppTheme.IsCompact ? 23 : 26,
+            Height = AppTheme.IsCompact ? 26 : 29,
             Margin = new Padding(2, 1, 2, 1),
             BackColor = AppTheme.AccentMuted,
             ForeColor = AppTheme.TextPrimary,
@@ -1687,7 +1697,7 @@ public sealed class MainWindow : Form
         {
             AutoSize = false,
             Width = buttonWidth,
-            Height = AppTheme.IsCompact ? 23 : 26,
+            Height = AppTheme.IsCompact ? 26 : 29,
             Margin = new Padding(2, 1, 2, 1),
             BackColor = AppTheme.AccentMuted,
             ForeColor = AppTheme.TextPrimary,
@@ -1985,14 +1995,15 @@ public sealed class MainWindow : Form
         _sidePanel?.ApplyTheme();
         _splitPanel?.ApplyTheme();
         _verticalTabStrip?.ApplyTheme();
-        _titleBar.Padding = compact ? new Padding(8, 2, 8, 2) : new Padding(8, 2, 8, 2);
+        _titleBar.Padding = new Padding(8, 2, 8, 2);
         _topBar.Height = compact ? 38 : 42;
         _topBar.Padding = compact ? new Padding(8, 3, 8, 3) : new Padding(10, 4, 10, 4);
         _addressBar.Height = compact ? 34 : 38;
         _addressBar.Padding = compact ? new Padding(8, 3, 8, 3) : new Padding(10, 4, 10, 4);
         _bookmarksBar.Height = compact ? 28 : 30;
         _bookmarksBar.Padding = compact ? new Padding(6, 1, 6, 1) : new Padding(8, 1, 8, 1);
-        _addressTextBox.Size = new Size(compact ? 480 : 620, compact ? 24 : 28);
+        // 中文注释：地址栏交给 ToolStripSpringTextBox 自适应宽度，随窗口伸缩占满剩余视域。
+        _addressTextBox.AutoSize = true;
         _addressTextBox.Margin = compact ? new Padding(1, 1, 3, 1) : new Padding(1, 2, 4, 2);
         _addressSuggestionListBox.ItemHeight = compact ? 34 : 40;
         _addressSuggestionHintLabel.Height = compact ? 22 : 24;
@@ -2503,6 +2514,12 @@ public sealed class MainWindow : Form
         {
             UpdateMaximizedBoundsForCurrentScreen();
             HandleWindowStateTransition();
+            // 中文注释：最小化时窗口尺寸归零，跳过重排可避免无意义的状态栏/浮层布局计算。
+            if (WindowState == FormWindowState.Minimized)
+            {
+                return;
+            }
+
             UpdateResponsiveTopBarVisuals();
             UpdateResponsiveStatusBarVisuals();
             _titleBar.PerformLayout();
@@ -2510,6 +2527,7 @@ public sealed class MainWindow : Form
             _addressBar.PerformLayout();
             UpdateToastLocation();
             UpdateAddressSuggestionLocation();
+            ScheduleTitleBarRebuild();
         };
         Move += (_, _) => UpdateMaximizedBoundsForCurrentScreen();
         // 中文注释：监听系统主题变化，在“跟随系统”模式下自动切换深浅主题。
@@ -2985,6 +3003,26 @@ public sealed class MainWindow : Form
 
         _windowTransitionTimer.Interval = WindowTransitionTickMs;
         _windowTransitionTimer.Tick += (_, _) => OnWindowTransitionTick();
+
+        // 中文注释：窗口拖动缩放的防抖重排：停止调整 120ms 后再重建标题栏标签，避免逐帧闪烁。
+        _chromeLayoutTimer.Interval = 120;
+        _chromeLayoutTimer.Tick += (_, _) =>
+        {
+            _chromeLayoutTimer.Stop();
+            if (IsDisposed || !IsHandleCreated)
+            {
+                return;
+            }
+
+            if (WindowState == FormWindowState.Minimized)
+            {
+                // 中文注释：最小化时跳过重建，但重置宽度记录，保证恢复窗口后补做一次标题栏重排。
+                _chromeLayoutWidth = -1;
+                return;
+            }
+
+            RequestTitleBarRebuild();
+        };
     }
 
     private void ApplyRuntimeConfig()
@@ -3003,6 +3041,10 @@ public sealed class MainWindow : Form
         ApplyZenMode(_config.ZenMode, persist: false, showToast: false);
         // 中文注释：设置保存后同步状态栏拦截计数显示（开关可能变化）。
         _statusBarPanel.SetAdBlockedCount(_config.AdBlockEnabled, _tabManager.ActiveTab?.AdBlockedCount ?? 0);
+        // 中文注释：广告过滤开关变化后刷新各标签页的请求过滤器注册状态（按需注册/移除，省每请求回调开销）。
+        _tabManager.RefreshWebResourceFilters();
+        // 中文注释：自动填充/密码保存开关变化后同步到所有已初始化的 WebView2 内核实例。
+        _tabManager.RefreshWebViewSettings();
         RefreshToolbar();
         RefreshMetrics();
     }
@@ -10171,6 +10213,29 @@ public sealed class MainWindow : Form
         }
     }
 
+    /// <summary>
+    /// 中文注释：窗口尺寸变化后防抖重建标题栏标签，避免拖拽缩放时逐帧重建造成闪烁与卡顿。
+    /// 启动完成前不调度，初始标签布局由 ApplyTheme / RefreshToolbar 负责。
+    /// </summary>
+    private void ScheduleTitleBarRebuild()
+    {
+        if (!_startupCompleted || IsDisposed || !IsHandleCreated)
+        {
+            return;
+        }
+
+        // 中文注释：标签数量只与可用宽度有关，纯高度变化（纵向拖拽）无需重建。
+        var width = ClientSize.Width;
+        if (width == _chromeLayoutWidth)
+        {
+            return;
+        }
+
+        _chromeLayoutWidth = width;
+        _chromeLayoutTimer.Stop();
+        _chromeLayoutTimer.Start();
+    }
+
     private void ShowBrandQuickMenu(Point location)
     {
         DismissTransientMenus();
@@ -11311,355 +11376,14 @@ public sealed class MainWindow : Form
 
     private async Task<bool> HandleShortcutAsync(KeyEventArgs eventArgs)
     {
-                if (eventArgs.Control && !eventArgs.Shift && !eventArgs.Alt && eventArgs.KeyCode == Keys.M)
+        // 中文注释：快捷键表驱动派发——绑定表与命中顺序见 Shortcuts/ShortcutCommandTable.cs
+        // （绑定顺序与原 if-else 链逐一对应，首个命中且成功消费的命令生效）；
+        // 处理器返回 false（如无活动标签、切签失败）时继续尝试后续命中命令，与原链路行为一致。
+        foreach (var command in ShortcutCommandRouter.MatchCommands(_config, eventArgs))
         {
-            var activeTab = _tabManager.ActiveTab;
-            if (activeTab is not null)
-            {
-                activeTab.ToggleMute();
-                ShowToast(activeTab.IsMuted ? "已静音当前标签 🔇" : "已恢复当前标签声音 🔊");
-                RefreshToolbar();
-                return true;
-            }
-        }
-
-        if ((eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.E) || (eventArgs.Alt && eventArgs.KeyCode == Keys.S))
-        {
-            ToggleSidePanel();
-            return true;
-        }
-
-        if ((eventArgs.Alt && eventArgs.KeyCode == Keys.D) || (eventArgs.Control && eventArgs.Alt && eventArgs.KeyCode == Keys.D))
-        {
-            await ToggleSplitViewAsync();
-            return true;
-        }
-
-        if ((eventArgs.Alt && eventArgs.KeyCode == Keys.R) || (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.R))
-        {
-            await ToggleReaderModeForActiveTabAsync();
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Alt && eventArgs.KeyCode == Keys.S)
-        {
-            await CaptureScreenshotForActiveTabAsync();
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.V)
-        {
-            ToggleVerticalTabs();
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.P)
-        {
-            OpenCommandPalette();
-            return true;
-        }
-
-        if (eventArgs.Control && !eventArgs.Shift && eventArgs.KeyCode == Keys.K)
-        {
-            OpenTabQuickSwitchPalette();
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.Z)
-        {
-            ApplyZenMode(!_isZenMode, persist: true, showToast: true);
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.S)
-        {
-            SaveWorkspaceSnapshot();
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.O)
-        {
-            ShowSessionsWindow(workspaceOnlyMode: true);
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.T)
-        {
-            var reopened = await _tabManager.ReopenLastClosedTabAsync();
-            if (reopened)
-            {
-                RefreshToolbar();
-                RefreshMetrics();
-                Log("已恢复最近关闭标签");
-            }
-            else
-            {
-                Log("没有可恢复的关闭标签");
-            }
-
-            return true;
-        }
-
-        if (eventArgs.Control && !eventArgs.Shift && eventArgs.KeyCode == Keys.T)
-        {
-            await _tabManager.CreateTabAsync(new Uri("about:blank"));
-            RefreshToolbar();
-            RefreshMetrics();
-            return true;
-        }
-
-        if (eventArgs.Control && !eventArgs.Shift && eventArgs.KeyCode == Keys.W)
-        {
-            await _tabManager.CloseActiveTabAsync();
-            RefreshToolbar();
-            RefreshMetrics();
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.W)
-        {
-            await CloseOtherTabsKeepActiveAsync();
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.L)
-        {
-            await ApplyTabOpsByCommandAsync(["closeleft"]);
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.R)
-        {
-            await ApplyTabOpsByCommandAsync(["closeright"]);
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.D)
-        {
-            await ApplyTabOpsByCommandAsync(["dedupe"]);
-            return true;
-        }
-
-        if ((eventArgs.Control && !eventArgs.Shift && eventArgs.KeyCode == Keys.R) || eventArgs.KeyCode == Keys.F5)
-        {
-            _tabManager.ActiveTab?.Reload();
-            return true;
-        }
-
-        if (eventArgs.Alt && eventArgs.KeyCode == Keys.Left)
-        {
-            if (_tabManager.ActiveTab?.CanGoBack == true)
-            {
-                _tabManager.ActiveTab.GoBack();
-                RefreshToolbar();
-            }
-
-            return true;
-        }
-
-        if (eventArgs.Alt && eventArgs.KeyCode == Keys.Right)
-        {
-            if (_tabManager.ActiveTab?.CanGoForward == true)
-            {
-                _tabManager.ActiveTab.GoForward();
-                RefreshToolbar();
-            }
-
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.PageUp)
-        {
-            if (TryMoveActiveTabByDelta(-1))
-            {
-                Log("已将当前标签向左移动");
-            }
-
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.PageDown)
-        {
-            if (TryMoveActiveTabByDelta(1))
-            {
-                Log("已将当前标签向右移动");
-            }
-
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.Left)
-        {
-            if (TryMoveActiveTabByDelta(-1))
-            {
-                Log("已将当前标签向左移动");
-            }
-
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.Shift && eventArgs.KeyCode == Keys.Right)
-        {
-            if (TryMoveActiveTabByDelta(1))
-            {
-                Log("已将当前标签向右移动");
-            }
-
-            return true;
-        }
-
-        if (eventArgs.Control && eventArgs.KeyCode == Keys.Tab)
-        {
-            if (TryCycleTabSelection(forward: !eventArgs.Shift))
+            if (await ExecuteShortcutCommandAsync(command, eventArgs))
             {
                 return true;
-            }
-        }
-
-        if (eventArgs.Control && !eventArgs.Shift)
-        {
-            var tabIndex = eventArgs.KeyCode switch
-            {
-                Keys.D1 or Keys.NumPad1 => 0,
-                Keys.D2 or Keys.NumPad2 => 1,
-                Keys.D3 or Keys.NumPad3 => 2,
-                Keys.D4 or Keys.NumPad4 => 3,
-                Keys.D5 or Keys.NumPad5 => 4,
-                Keys.D6 or Keys.NumPad6 => 5,
-                Keys.D7 or Keys.NumPad7 => 6,
-                Keys.D8 or Keys.NumPad8 => 7,
-                Keys.D9 or Keys.NumPad9 => 8,
-                _ => -1
-            };
-            if (tabIndex >= 0 && TrySelectTabByIndex(tabIndex))
-            {
-                return true;
-            }
-        }
-
-        if ((eventArgs.Control && eventArgs.KeyCode == Keys.L) || (eventArgs.Alt && eventArgs.KeyCode == Keys.D))
-        {
-            if (_isZenMode)
-            {
-                ApplyZenMode(false, persist: true, showToast: false);
-            }
-
-            _addressTextBox.Focus();
-            _addressTextBox.SelectAll();
-            return true;
-        }
-
-        if (IsShortcutTriggered(_config.ShortcutAddBookmarkEnabled, _config.ShortcutAddBookmark, eventArgs))
-        {
-            AddCurrentPageBookmark();
-            return true;
-        }
-
-        if (IsShortcutTriggered(_config.ShortcutNewTabEnabled, _config.ShortcutNewTab, eventArgs))
-        {
-            await _tabManager.CreateTabAsync(new Uri(_config.StartPage));
-            RefreshToolbar();
-            RefreshMetrics();
-            return true;
-        }
-
-        if (IsShortcutTriggered(_config.ShortcutCloseTabEnabled, _config.ShortcutCloseTab, eventArgs))
-        {
-            await _tabManager.CloseActiveTabAsync();
-            RefreshToolbar();
-            RefreshMetrics();
-            return true;
-        }
-
-        if (IsShortcutTriggered(_config.ShortcutFocusAddressEnabled, _config.ShortcutFocusAddress, eventArgs))
-        {
-            _addressTextBox.Focus();
-            _addressTextBox.SelectAll();
-            return true;
-        }
-
-        if (IsShortcutTriggered(_config.ShortcutRefreshEnabled, _config.ShortcutRefresh, eventArgs))
-        {
-            _tabManager.ActiveTab?.Reload();
-            return true;
-        }
-
-        if (IsShortcutTriggered(_config.ShortcutDevToolsEnabled, _config.ShortcutDevTools, eventArgs))
-        {
-            _tabManager.ActiveTab?.OpenDevTools();
-            return true;
-        }
-
-        if (IsShortcutTriggered(_config.ShortcutToggleBookmarksBarEnabled, _config.ShortcutToggleBookmarksBar, eventArgs))
-        {
-            ToggleBookmarksBarVisibility();
-            return true;
-        }
-
-        if (IsShortcutTriggered(_config.ShortcutRestoreClosedTabEnabled, _config.ShortcutRestoreClosedTab, eventArgs))
-        {
-            var reopened = await _tabManager.ReopenLastClosedTabAsync();
-            if (!reopened)
-            {
-                Log("没有可恢复的关闭标签");
-            }
-            else
-            {
-                Log("已恢复最近关闭标签");
-                RefreshToolbar();
-                RefreshMetrics();
-            }
-
-            return true;
-        }
-
-        if (IsShortcutTriggered(_config.ShortcutOpenHistoryEnabled, _config.ShortcutOpenHistory, eventArgs))
-        {
-            ShowHistoryWindow();
-            return true;
-        }
-
-        if (IsShortcutTriggered(_config.ShortcutFindInPageEnabled, _config.ShortcutFindInPage, eventArgs))
-        {
-            ShowFindBar();
-            return true;
-        }
-
-        // 中文注释：无痕窗口固定快捷键 Ctrl+Shift+N，不参与自定义快捷键体系。
-        if (eventArgs.Control && eventArgs.Shift && !eventArgs.Alt && eventArgs.KeyCode == Keys.N)
-        {
-            LaunchBrowserProcess(isPrivateWindow: true, useCurrentProfile: false);
-            return true;
-        }
-
-        // 中文注释：独立双开窗口固定快捷键 Ctrl+Shift+M（全新独立 profile，数据不共享），与无痕的 Ctrl+Shift+N 并列。
-        if (eventArgs.Control && eventArgs.Shift && !eventArgs.Alt && eventArgs.KeyCode == Keys.M)
-        {
-            LaunchBrowserProcess(isPrivateWindow: false, useCurrentProfile: false);
-            return true;
-        }
-
-        // 中文注释：查看源码固定快捷键 Ctrl+U（开发者向），新标签打开 view-source。
-        if (eventArgs.Control && !eventArgs.Shift && !eventArgs.Alt && eventArgs.KeyCode == Keys.U)
-        {
-            await OpenActiveTabSourceViewAsync();
-            return true;
-        }
-
-        // 中文注释：页面缩放固定快捷键 Ctrl+加号/减号/0（含小键盘），不参与自定义快捷键体系。
-        if (eventArgs.Control && !eventArgs.Alt && !eventArgs.Shift)
-        {
-            switch (eventArgs.KeyCode)
-            {
-                case Keys.Oemplus or Keys.Add:
-                    AdjustActiveTabZoom(1);
-                    return true;
-                case Keys.OemMinus or Keys.Subtract:
-                    AdjustActiveTabZoom(-1);
-                    return true;
-                case Keys.D0 or Keys.NumPad0:
-                    _tabManager.ActiveTab?.SetZoomFactor(1.0);
-                    return true;
             }
         }
 
@@ -11677,19 +11401,255 @@ public sealed class MainWindow : Form
         return false;
     }
 
-    private static bool IsShortcutTriggered(bool enabled, string configuredShortcut, KeyEventArgs eventArgs)
+    /// <summary>
+    /// 中文注释：执行一条快捷键命令。返回 false 表示该命令未消费按键（如静音时无活动标签、
+    /// Ctrl+Tab 切签失败），调用方将继续尝试后续命中命令——对应原 if-else 链“落到下一分支”。
+    /// </summary>
+    private async Task<bool> ExecuteShortcutCommandAsync(string command, KeyEventArgs eventArgs)
     {
-        if (!enabled)
+        switch (command)
         {
-            return false;
-        }
+            case ShortcutCommands.ToggleMute:
+            {
+                var activeTab = _tabManager.ActiveTab;
+                if (activeTab is null)
+                {
+                    return false;
+                }
 
-        if (!ShortcutParser.TryParse(configuredShortcut, out var expected))
-        {
-            return false;
-        }
+                activeTab.ToggleMute();
+                ShowToast(activeTab.IsMuted ? "已静音当前标签 🔇" : "已恢复当前标签声音 🔊");
+                RefreshToolbar();
+                return true;
+            }
 
-        return eventArgs.KeyData == expected;
+            case ShortcutCommands.ToggleSidePanel:
+                ToggleSidePanel();
+                return true;
+
+            case ShortcutCommands.ToggleSplitView:
+                await ToggleSplitViewAsync();
+                return true;
+
+            case ShortcutCommands.ToggleReaderMode:
+                await ToggleReaderModeForActiveTabAsync();
+                return true;
+
+            case ShortcutCommands.CaptureScreenshot:
+                await CaptureScreenshotForActiveTabAsync();
+                return true;
+
+            case ShortcutCommands.ToggleVerticalTabs:
+                ToggleVerticalTabs();
+                return true;
+
+            case ShortcutCommands.OpenCommandPalette:
+                OpenCommandPalette();
+                return true;
+
+            case ShortcutCommands.OpenTabQuickSwitchPalette:
+                OpenTabQuickSwitchPalette();
+                return true;
+
+            case ShortcutCommands.ToggleZenMode:
+                ApplyZenMode(!_isZenMode, persist: true, showToast: true);
+                return true;
+
+            case ShortcutCommands.SaveWorkspaceSnapshot:
+                SaveWorkspaceSnapshot();
+                return true;
+
+            case ShortcutCommands.OpenWorkspaceSessions:
+                ShowSessionsWindow(workspaceOnlyMode: true);
+                return true;
+
+            case ShortcutCommands.ReopenClosedTab:
+            {
+                var reopened = await _tabManager.ReopenLastClosedTabAsync();
+                if (reopened)
+                {
+                    RefreshToolbar();
+                    RefreshMetrics();
+                    Log("已恢复最近关闭标签");
+                }
+                else
+                {
+                    Log("没有可恢复的关闭标签");
+                }
+
+                return true;
+            }
+
+            case ShortcutCommands.NewBlankTab:
+                await _tabManager.CreateTabAsync(new Uri("about:blank"));
+                RefreshToolbar();
+                RefreshMetrics();
+                return true;
+
+            case ShortcutCommands.CloseActiveTab:
+                await _tabManager.CloseActiveTabAsync();
+                RefreshToolbar();
+                RefreshMetrics();
+                return true;
+
+            case ShortcutCommands.CloseOtherTabs:
+                await CloseOtherTabsKeepActiveAsync();
+                return true;
+
+            case ShortcutCommands.CloseLeftTabs:
+                await ApplyTabOpsByCommandAsync(["closeleft"]);
+                return true;
+
+            case ShortcutCommands.CloseRightTabs:
+                await ApplyTabOpsByCommandAsync(["closeright"]);
+                return true;
+
+            case ShortcutCommands.ReloadActiveTab:
+                _tabManager.ActiveTab?.Reload();
+                return true;
+
+            case ShortcutCommands.GoBack:
+                if (_tabManager.ActiveTab?.CanGoBack == true)
+                {
+                    _tabManager.ActiveTab.GoBack();
+                    RefreshToolbar();
+                }
+
+                return true;
+
+            case ShortcutCommands.GoForward:
+                if (_tabManager.ActiveTab?.CanGoForward == true)
+                {
+                    _tabManager.ActiveTab.GoForward();
+                    RefreshToolbar();
+                }
+
+                return true;
+
+            case ShortcutCommands.MoveActiveTabLeft:
+                if (TryMoveActiveTabByDelta(-1))
+                {
+                    Log("已将当前标签向左移动");
+                }
+
+                return true;
+
+            case ShortcutCommands.MoveActiveTabRight:
+                if (TryMoveActiveTabByDelta(1))
+                {
+                    Log("已将当前标签向右移动");
+                }
+
+                return true;
+
+            case ShortcutCommands.CycleTabSelection:
+                return TryCycleTabSelection(forward: !eventArgs.Shift);
+
+            case ShortcutCommands.SelectTabByIndex:
+            {
+                var tabIndex = ShortcutCommandRouter.GetDigitTabIndex(eventArgs);
+                return tabIndex >= 0 && TrySelectTabByIndex(tabIndex);
+            }
+
+            case ShortcutCommands.FocusAddressBar:
+                if (_isZenMode)
+                {
+                    ApplyZenMode(false, persist: true, showToast: false);
+                }
+
+                _addressTextBox.Focus();
+                _addressTextBox.SelectAll();
+                return true;
+
+            case ShortcutCommands.AddBookmark:
+                AddCurrentPageBookmark();
+                return true;
+
+            case ShortcutCommands.NewConfigurableTab:
+                await _tabManager.CreateTabAsync(new Uri(_config.StartPage));
+                RefreshToolbar();
+                RefreshMetrics();
+                return true;
+
+            case ShortcutCommands.CloseConfigurableTab:
+                await _tabManager.CloseActiveTabAsync();
+                RefreshToolbar();
+                RefreshMetrics();
+                return true;
+
+            case ShortcutCommands.FocusAddressBarCustom:
+                _addressTextBox.Focus();
+                _addressTextBox.SelectAll();
+                return true;
+
+            case ShortcutCommands.RefreshCustom:
+                _tabManager.ActiveTab?.Reload();
+                return true;
+
+            case ShortcutCommands.OpenDevTools:
+                _tabManager.ActiveTab?.OpenDevTools();
+                return true;
+
+            case ShortcutCommands.ToggleBookmarksBar:
+                ToggleBookmarksBarVisibility();
+                return true;
+
+            case ShortcutCommands.RestoreClosedTabCustom:
+            {
+                var reopenedCustom = await _tabManager.ReopenLastClosedTabAsync();
+                if (!reopenedCustom)
+                {
+                    Log("没有可恢复的关闭标签");
+                }
+                else
+                {
+                    Log("已恢复最近关闭标签");
+                    RefreshToolbar();
+                    RefreshMetrics();
+                }
+
+                return true;
+            }
+
+            case ShortcutCommands.OpenHistory:
+                ShowHistoryWindow();
+                return true;
+
+            case ShortcutCommands.ShowFindBar:
+                ShowFindBar();
+                return true;
+
+            // 中文注释：无痕窗口固定快捷键 Ctrl+Shift+N，不参与自定义快捷键体系。
+            case ShortcutCommands.NewPrivateWindow:
+                LaunchBrowserProcess(isPrivateWindow: true, useCurrentProfile: false);
+                return true;
+
+            // 中文注释：独立双开窗口固定快捷键 Ctrl+Shift+M（全新独立 profile，数据不共享），与无痕的 Ctrl+Shift+N 并列。
+            case ShortcutCommands.NewDualWindow:
+                LaunchBrowserProcess(isPrivateWindow: false, useCurrentProfile: false);
+                return true;
+
+            // 中文注释：查看源码固定快捷键 Ctrl+U（开发者向），新标签打开 view-source。
+            case ShortcutCommands.ViewSource:
+                await OpenActiveTabSourceViewAsync();
+                return true;
+
+            // 中文注释：页面缩放固定快捷键 Ctrl+加号/减号/0（含小键盘），不参与自定义快捷键体系。
+            case ShortcutCommands.ZoomIn:
+                AdjustActiveTabZoom(1);
+                return true;
+
+            case ShortcutCommands.ZoomOut:
+                AdjustActiveTabZoom(-1);
+                return true;
+
+            case ShortcutCommands.ZoomReset:
+                _tabManager.ActiveTab?.SetZoomFactor(1.0);
+                return true;
+
+            default:
+                return false;
+        }
     }
 
     protected override void WndProc(ref Message m)
@@ -12034,13 +11994,14 @@ public sealed class MainWindow : Form
     {
         if (disposing)
         {
-            // 中文注释：停止所有 6 个定时器，避免窗口释放后仍触发 Tick 回调访问已释放对象。
+            // 中文注释：停止所有 7 个定时器，避免窗口释放后仍触发 Tick 回调访问已释放对象。
             try { _maintenanceTimer.Stop(); } catch { }
             try { _refreshClickTimer.Stop(); } catch { }
             try { _toastTimer.Stop(); } catch { }
             try { _addressSuggestionRefreshTimer.Stop(); } catch { }
             try { _ambientMotionTimer.Stop(); } catch { }
             try { _windowTransitionTimer.Stop(); } catch { }
+            try { _chromeLayoutTimer.Stop(); } catch { }
 
             // 中文注释：取消正在进行的 ToolStripItem 背景色渐变动画，释放静态 Timer。
             try { UI.Chrome.ToolStripItemColorAnimator.CancelAll(); } catch { }

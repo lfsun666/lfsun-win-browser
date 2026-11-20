@@ -473,6 +473,114 @@ public sealed class BookmarkImportAndPerformanceTests
     }
 
     [Fact]
+    public void WindowLayout_FitToWorkingArea_ClampsOversizedWindow()
+    {
+        var thread = new Thread(() =>
+        {
+            var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
+            using var form = new Form
+            {
+                StartPosition = FormStartPosition.Manual,
+                Width = area.Width + 800,
+                Height = area.Height + 800
+            };
+
+            WindowLayout.FitToWorkingArea(form, margin: 24);
+
+            Assert.True(form.Width <= area.Width);
+            Assert.True(form.Height <= area.Height);
+            Assert.True(form.Left >= area.Left);
+            Assert.True(form.Top >= area.Top);
+            Assert.True(form.Right <= area.Right);
+            Assert.True(form.Bottom <= area.Bottom);
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
+
+    [Fact]
+    public void WindowLayout_FitToWorkingArea_RelaxesOversizedMinimumSize()
+    {
+        var thread = new Thread(() =>
+        {
+            var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
+            using var form = new Form
+            {
+                StartPosition = FormStartPosition.Manual,
+                MinimumSize = new Size(area.Width + 200, area.Height + 200),
+                Width = area.Width + 200,
+                Height = area.Height + 200
+            };
+
+            WindowLayout.FitToWorkingArea(form, margin: 24);
+
+            // 中文注释：最小尺寸必须被放宽，否则 Size 会被 MinimumSize 顶回屏幕外。
+            Assert.True(form.MinimumSize.Width <= area.Width);
+            Assert.True(form.MinimumSize.Height <= area.Height);
+            Assert.True(form.Width <= area.Width);
+            Assert.True(form.Height <= area.Height);
+            Assert.True(form.Right <= area.Right);
+            Assert.True(form.Bottom <= area.Bottom);
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
+
+    [Fact]
+    public void WindowLayout_FitToWorkingArea_LeavesFittingWindowUntouched()
+    {
+        var thread = new Thread(() =>
+        {
+            var area = Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
+            var width = Math.Max(320, area.Width / 2);
+            var height = Math.Max(240, area.Height / 2);
+            var left = area.Left + 20;
+            var top = area.Top + 20;
+            using var form = new Form
+            {
+                StartPosition = FormStartPosition.Manual,
+                Location = new Point(left, top),
+                Width = width,
+                Height = height
+            };
+
+            WindowLayout.FitToWorkingArea(form, margin: 24);
+
+            Assert.Equal(width, form.Width);
+            Assert.Equal(height, form.Height);
+            Assert.Equal(left, form.Left);
+            Assert.Equal(top, form.Top);
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
+
+    [Fact]
+    public void StatusBarPanel_LoadTimeChip_RestoresAfterWidening()
+    {
+        var thread = new Thread(() =>
+        {
+            var panel = new Lfsun.Win.Browser.UI.Chrome.StatusBarPanel();
+            panel.Strip.Visible = true;
+            panel.ApplyTheme(compact: false);
+
+            panel.ApplyResponsiveLayout(900);
+            panel.SetLoadTime(850);
+            Assert.False(panel.LoadTimeLabel.Visible);
+
+            panel.ApplyResponsiveLayout(1400);
+            Assert.True(panel.LoadTimeLabel.Visible);
+            Assert.Equal("⏱ 850ms", panel.LoadTimeLabel.Text);
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+    }
+
+    [Fact]
     public void StatusBarPanel_StatusLabel_TransparentBack_ForCleanSpringDisplay()
     {
         var thread = new Thread(() =>

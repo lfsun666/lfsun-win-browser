@@ -47,6 +47,10 @@ public sealed class SettingsWindow : Form
     private readonly CheckBox _autofillCheckBox = new();
     private readonly CheckBox _passwordAutosaveCheckBox = new();
     private readonly CheckBox _credentialAutofillCheckBox = new();
+    private readonly CheckBox _credentialAutosaveCheckBox = new();
+    private readonly DataGridView _credentialAutosaveRuleGrid = new();
+    private readonly BindingList<CredentialAutosaveRuleRow> _credentialAutosaveRuleRows = [];
+    private readonly Button _credentialAutosaveRuleDeleteButton = new();
     private readonly CheckBox _adBlockEnabledCheckBox = new();
     private readonly TextBox _adBlockCustomDomainsTextBox = new();
     private readonly CheckBox _enableAddressBarSuggestionsCheckBox = new();
@@ -165,6 +169,7 @@ public sealed class SettingsWindow : Form
         Font = AppTheme.CreateFont(9F);
         AutoScaleMode = AutoScaleMode.Dpi;
         AutoScaleDimensions = new SizeF(96F, 96F);
+        WindowLayout.FitToWorkingArea(this);
         CancelButton = _cancelButton;
 
         BuildLayout();
@@ -949,18 +954,78 @@ public sealed class SettingsWindow : Form
 
         _autofillCheckBox.Text = "启用自动填充";
         _autofillCheckBox.AutoSize = true;
-        _passwordAutosaveCheckBox.Text = "启用密码自动保存";
-        _passwordAutosaveCheckBox.AutoSize = true;
+        _credentialAutosaveCheckBox.Text = "登录后自动保存密码到本机账号库（不弹窗，推荐）";
+        _credentialAutosaveCheckBox.AutoSize = true;
         _credentialAutofillCheckBox.Text = "访问登录页时自动填充已保存账号密码";
         _credentialAutofillCheckBox.AutoSize = true;
+        _passwordAutosaveCheckBox.Text = "WebView2 内核密码保存（会弹出内核保存确认框，点保存时可能卡顿，不推荐）";
+        _passwordAutosaveCheckBox.AutoSize = true;
         panel.Controls.Add(_autofillCheckBox);
-        panel.Controls.Add(_passwordAutosaveCheckBox);
+        panel.Controls.Add(_credentialAutosaveCheckBox);
         panel.Controls.Add(_credentialAutofillCheckBox);
+        panel.Controls.Add(_passwordAutosaveCheckBox);
         panel.Controls.Add(new Label
         {
             AutoSize = true,
-            Text = "说明：登录站点后，凭据会通过 WebView2 配置自动保存。"
+            Text = "说明：开启「登录后自动保存密码」后，登录表单提交时自动把账号密码存入本机账号库（当前 Windows 用户加密），\n下次访问自动填充，不再弹出内核保存气泡；下方规则可按域名或 IP 单独允许/禁止，未列出的站点按全局开关处理。"
         });
+
+        // 中文注释：自动保存站点规则表格（域名/IP + 允许/不保存），底部空行新增、行尾 Delete 删除。
+        panel.Controls.Add(new Label
+        {
+            AutoSize = true,
+            Text = "自动保存站点规则（每行一条，示例：example.com、192.168.1.1、192.168.1.1:8080）",
+            Margin = new Padding(0, 12, 0, 4)
+        });
+        _credentialAutosaveRuleGrid.Width = 460;
+        _credentialAutosaveRuleGrid.Height = 120;
+        _credentialAutosaveRuleGrid.Anchor = AnchorStyles.Left;
+        _credentialAutosaveRuleGrid.AutoGenerateColumns = false;
+        _credentialAutosaveRuleGrid.AllowUserToAddRows = true;
+        _credentialAutosaveRuleGrid.AllowUserToDeleteRows = true;
+        _credentialAutosaveRuleGrid.RowHeadersVisible = false;
+        _credentialAutosaveRuleGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+        _credentialAutosaveRuleGrid.MultiSelect = false;
+        _credentialAutosaveRuleGrid.DataSource = _credentialAutosaveRuleRows;
+        _credentialAutosaveRuleGrid.Columns.Add(new DataGridViewTextBoxColumn
+        {
+            DataPropertyName = nameof(CredentialAutosaveRuleRow.Host),
+            HeaderText = "站点或 IP",
+            Width = 240
+        });
+        _credentialAutosaveRuleGrid.Columns.Add(new DataGridViewComboBoxColumn
+        {
+            DataPropertyName = nameof(CredentialAutosaveRuleRow.Mode),
+            HeaderText = "策略",
+            Width = 120,
+            DataSource = new[] { "允许保存", "不保存" }
+        });
+        panel.Controls.Add(_credentialAutosaveRuleGrid);
+
+        var credentialAutosaveRuleButtons = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            FlowDirection = FlowDirection.LeftToRight
+        };
+        _credentialAutosaveRuleDeleteButton.Text = "删除选中规则";
+        _credentialAutosaveRuleDeleteButton.Click += (_, _) =>
+        {
+            if (_credentialAutosaveRuleGrid.CurrentRow is { IsNewRow: false } currentRow &&
+                currentRow.DataBoundItem is CredentialAutosaveRuleRow row)
+            {
+                _credentialAutosaveRuleRows.Remove(row);
+                MarkPendingChange("已删除自动保存站点规则");
+            }
+        };
+        credentialAutosaveRuleButtons.Controls.Add(_credentialAutosaveRuleDeleteButton);
+        credentialAutosaveRuleButtons.Controls.Add(new Label
+        {
+            AutoSize = true,
+            Text = "策略为「允许保存」的站点强制保存，「不保存」的站点禁止保存；其余站点跟随全局开关",
+            ForeColor = AppTheme.TextSecondary,
+            Margin = new Padding(10, 6, 0, 0)
+        });
+        panel.Controls.Add(credentialAutosaveRuleButtons);
 
         // 中文注释：简版广告过滤开关与自定义屏蔽域名。
         _adBlockEnabledCheckBox.Text = "启用广告过滤（拦截常见广告/统计域名）";
@@ -1259,6 +1324,7 @@ public sealed class SettingsWindow : Form
         AppTheme.ApplyPrimaryButton(_cancelButton);
         _customSearchEngineDeleteButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
         _credentialDeleteButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
+        _credentialAutosaveRuleDeleteButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
         _pluginUninstallButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Danger, AppTheme.SurfaceAlt, 0.25F);
         _shortcutResetDefaultsButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Warning, AppTheme.SurfaceAlt, 0.25F);
         _toolbarResetButton.FlatAppearance.MouseOverBackColor = AppTheme.Mix(AppTheme.Warning, AppTheme.SurfaceAlt, 0.25F);
@@ -1344,6 +1410,7 @@ public sealed class SettingsWindow : Form
         _autofillCheckBox.Checked = _config.IsGeneralAutofillEnabled;
         _passwordAutosaveCheckBox.Checked = _config.IsPasswordAutosaveEnabled;
         _credentialAutofillCheckBox.Checked = _config.IsCredentialAutofillEnabled;
+        _credentialAutosaveCheckBox.Checked = _config.IsCredentialAutosaveEnabled;
         _adBlockEnabledCheckBox.Checked = _config.AdBlockEnabled;
         _adBlockCustomDomainsTextBox.Text = string.Join(Environment.NewLine, _config.AdBlockCustomDomains);
         _searchEngineTemplateTextBox.Text = _config.DefaultSearchEngineUrlTemplate;
@@ -1415,6 +1482,7 @@ public sealed class SettingsWindow : Form
         RefreshToolbarGrid();
         RefreshAddressCommandGrid();
         RefreshCredentialGrid();
+        RefreshCredentialAutosaveRuleGrid();
         RefreshBookmarkCount();
     }
 
@@ -1442,7 +1510,7 @@ public sealed class SettingsWindow : Form
             new SettingSearchItem("账号 密码 凭据 记录", "搜索与账号 / 账号密码管理", 2, () => _credentialGrid),
             new SettingSearchItem("快捷键 收藏 新建 关闭 F12", "快捷键 / 全部快捷键", 3, () => _shortcutAddBookmarkTextBox),
             new SettingSearchItem("下载目录 download path", "下载 / 下载目录", 4, () => _downloadDirectoryTextBox),
-            new SettingSearchItem("自动填充 自动保存 密码", "隐私与登录 / 自动填充与密码保存", 5, () => _autofillCheckBox),
+            new SettingSearchItem("自动填充 自动保存 密码 弹窗 域名 规则", "隐私与登录 / 自动填充与密码保存", 5, () => _credentialAutosaveCheckBox),
             new SettingSearchItem("广告过滤 拦截 屏蔽域名 adblock", "隐私与登录 / 广告过滤", 5, () => _adBlockEnabledCheckBox),
             new SettingSearchItem("插件 安装 启用 禁用 卸载 权限 白名单", "插件 / 插件权限与管理", 6, () => _pluginGrid),
             new SettingSearchItem("书签 导入 导出 管理", "书签 / 书签管理", 7, () => _bookmarkManageButton),
@@ -2226,6 +2294,30 @@ public sealed class SettingsWindow : Form
         }
     }
 
+    private void RefreshCredentialAutosaveRuleGrid()
+    {
+        var prevSuppress = _suppressPendingChangeTracking;
+        _suppressPendingChangeTracking = true;
+        try
+        {
+            _credentialAutosaveRuleRows.Clear();
+            foreach (var rule in _config.CredentialAutosaveRules)
+            {
+                _credentialAutosaveRuleRows.Add(new CredentialAutosaveRuleRow
+                {
+                    Host = rule.Host,
+                    Mode = string.Equals(rule.Mode, CredentialAutosaveRule.ModeAllow, StringComparison.OrdinalIgnoreCase)
+                        ? "允许保存"
+                        : "不保存"
+                });
+            }
+        }
+        finally
+        {
+            _suppressPendingChangeTracking = prevSuppress;
+        }
+    }
+
     private CredentialRow? GetSelectedCredential()
     {
         if (_credentialGrid.SelectedRows.Count == 0)
@@ -2658,6 +2750,17 @@ public sealed class SettingsWindow : Form
         _config.IsGeneralAutofillEnabled = _autofillCheckBox.Checked;
         _config.IsPasswordAutosaveEnabled = _passwordAutosaveCheckBox.Checked;
         _config.IsCredentialAutofillEnabled = _credentialAutofillCheckBox.Checked;
+        _config.IsCredentialAutosaveEnabled = _credentialAutosaveCheckBox.Checked;
+        _config.CredentialAutosaveRules = _credentialAutosaveRuleRows
+            .Where(row => !string.IsNullOrWhiteSpace(row.Host))
+            .Select(row => new CredentialAutosaveRule
+            {
+                Host = row.Host.Trim(),
+                Mode = string.Equals(row.Mode, "允许保存", StringComparison.Ordinal)
+                    ? CredentialAutosaveRule.ModeAllow
+                    : CredentialAutosaveRule.ModeBlock
+            })
+            .ToList();
         _config.AdBlockEnabled = _adBlockEnabledCheckBox.Checked;
         _config.AdBlockCustomDomains = _adBlockCustomDomainsTextBox.Lines
             .Select(line => line.Trim())
@@ -3267,6 +3370,13 @@ public sealed class SettingsWindow : Form
         public string PasswordMasked { get; init; } = string.Empty;
         public string PasswordPlain { get; init; } = string.Empty;
         public string UpdatedAt { get; init; } = string.Empty;
+    }
+
+    // 中文注释：登录密码自动保存的站点规则可编辑行（域名/IP + 允许保存/不保存），绑定 DataGridView 直接编辑。
+    private sealed class CredentialAutosaveRuleRow
+    {
+        public string Host { get; set; } = string.Empty;
+        public string Mode { get; set; } = "允许保存";
     }
 
     // 中文注释：自定义搜索引擎可编辑行，绑定 DataGridView 直接编辑。

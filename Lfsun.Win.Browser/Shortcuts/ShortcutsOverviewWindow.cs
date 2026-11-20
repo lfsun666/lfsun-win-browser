@@ -45,8 +45,13 @@ public sealed class ShortcutsOverviewWindow : Form
         StartPosition = FormStartPosition.CenterParent;
         Width = 840;
         Height = 620;
+        // 中文注释：小屏或高 DPI 下把窗口收敛到工作区，避免快捷键列表底部被裁切。
+        WindowLayout.FitToWorkingArea(this);
         DoubleBuffered = true;
         Font = AppTheme.CreateFont(9.2F);
+        // 中文注释：与设置窗口一致的高 DPI 自适应，高缩放屏上控件与字体等比例放大。
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
 
         BuildLayout();
         ApplyTheme();

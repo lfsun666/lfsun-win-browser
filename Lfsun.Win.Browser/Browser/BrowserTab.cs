@@ -47,6 +47,9 @@ public sealed class BrowserTab : IAsyncDisposable
     private string _customTitle = string.Empty;
     private bool _findEventsHooked;
     private bool _coreEventsHooked;
+    // 中文注释：WebView 初始化单飞任务缓存（见 EnsureWebViewAsync）与广告过滤过滤器注册状态。
+    private Task? _ensureWebViewTask;
+    private bool _webResourceFilterRegistered;
 
     public BrowserTab(
         TabPage tabPage,
@@ -666,6 +669,9 @@ public sealed class BrowserTab : IAsyncDisposable
         _webView.Dispose();
         _webView = null;
         _core = null;
+        // 中文注释：挂起后清掉初始化缓存与过滤器状态，下次 Resume 重新走完整初始化（重建 WebView/桥/过滤器）。
+        _ensureWebViewTask = null;
+        _webResourceFilterRegistered = false;
         IsSuspended = true;
         RenderSuspendedHint();
         UpdateCaption();
@@ -675,7 +681,9 @@ public sealed class BrowserTab : IAsyncDisposable
 
     public async Task ResumeIfNeededAsync()
     {
-        if (!IsSuspended && _webView is not null)
+        // 中文注释：未挂起且初始化已完成时直接返回；初始化进行中（_webView 已赋值但未就绪）也必须等待，
+        // 修掉并发调用在半初始化状态下继续导航导致的偶发导航丢失。
+        if (!IsSuspended && _webView is not null && _ensureWebViewTask is null)
         {
             return;
         }
@@ -719,13 +727,46 @@ public sealed class BrowserTab : IAsyncDisposable
         return string.Join(" ", args);
     }
 
-    private async Task EnsureWebViewAsync()
+    private Task EnsureWebViewAsync()
     {
-        if (_webView is not null)
-        {
-            return;
-        }
+        // 中文注释：缓存初始化任务并发共享——快速切标签/挂起恢复竞态下，并发调用者等待同一次初始化；
+        // 保证等待返回时 CoreWebView2 必已就绪，修复“半初始化即用”导致的偶发导航丢失。
+        _ensureWebViewTask ??= CreateWebViewAsync();
+        return _ensureWebViewTask;
+    }
 
+    private async Task CreateWebViewAsync()
+    {
+        try
+        {
+            await CreateWebViewCoreAsync();
+        }
+        catch
+        {
+            // 中文注释：初始化失败时清掉缓存与半成品控件，让下一次调用可完整重试，而不是永久缓存 faulted task。
+            _ensureWebViewTask = null;
+            _webResourceFilterRegistered = false;
+            try
+            {
+                if (_webView is not null)
+                {
+                    TabPage.Controls.Remove(_webView);
+                    _webView.Dispose();
+                }
+            }
+            catch
+            {
+                // 中文注释：清理失败忽略，交由下一次初始化覆盖。
+            }
+
+            _webView = null;
+            _core = null;
+            throw;
+        }
+    }
+
+    private async Task CreateWebViewCoreAsync()
+    {
         _webView = new WebView2
         {
             Dock = DockStyle.Fill
@@ -750,6 +791,8 @@ public sealed class BrowserTab : IAsyncDisposable
         _webView.CoreWebView2.Profile.IsGeneralAutofillEnabled = _config.IsGeneralAutofillEnabled;
         _webView.CoreWebView2.Profile.IsPasswordAutosaveEnabled = _config.IsPasswordAutosaveEnabled;
         await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(PagePointerBridgeScript);
+        // 中文注释：注入登录表单捕获脚本，用于把登录提交的用户名/密码自动存入本机凭据库（不弹内核保存气泡）。
+        await _webView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync(CredentialAutofillService.CredentialAutosaveScript);
         // 中文注释：注册插件内容脚本（文档创建时按匹配域名执行）。
         await _pluginManager.RegisterContentScriptsAsync(_webView.CoreWebView2);
 
@@ -791,6 +834,15 @@ public sealed class BrowserTab : IAsyncDisposable
                 return;
             }
 
+            // 中文注释：登录表单自动保存消息（页面脚本捕获 submit/提交点击后回传用户名密码）。
+            if (!string.IsNullOrWhiteSpace(message) &&
+                message.TrimStart().StartsWith("{", StringComparison.Ordinal) &&
+                message.Contains("credentialAutosave", StringComparison.Ordinal))
+            {
+                HandleCredentialAutosaveMessage(message);
+                return;
+            }
+
             // 中文注释：插件 chrome.* 桥消息（storage 读写/打开选项页/新标签）处理；
             // Network 抓包消息由当前标签页自己处理（它持有 WebView2 网络事件）。
             try
@@ -827,35 +879,9 @@ public sealed class BrowserTab : IAsyncDisposable
         };
         _downloadManager.AttachTo(_webView.CoreWebView2);
         // 中文注释：简版广告过滤：按域名拦截广告/统计请求，返回 403 空响应。
-        _webView.CoreWebView2.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
-        _webView.CoreWebView2.WebResourceRequested += (_, args) =>
-        {
-            try
-            {
-                var requestUri = args.Request.Uri;
-                var method = args.Request.Method;
-                var resourceContext = args.ResourceContext.ToString();
-                var requestHeaders = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                foreach (var header in args.Request.Headers)
-                {
-                    requestHeaders[header.Key] = header.Value;
-                }
-
-                if (AdBlockService is { IsEnabled: true } adBlock &&
-                    Uri.TryCreate(requestUri, UriKind.Absolute, out var uri) &&
-                    adBlock.ShouldBlock(uri))
-                {
-                    args.Response = _environment!.CreateWebResourceResponse(new MemoryStream(), 403, "Blocked", "Content-Type: text/plain");
-                    AdBlockedCount++;
-                    AdBlockedCountChanged?.Invoke(this, AdBlockedCount);
-                    return;
-                }
-            }
-            catch
-            {
-                // 中文注释：拦截失败时放行请求，不影响页面加载。
-            }
-        };
+        // 过滤器按需注册（AdBlock 关闭时不挂 "*" 全量过滤器，省掉每个请求的跨进程回调开销）。
+        _webView.CoreWebView2.WebResourceRequested += HandleWebResourceRequested;
+        UpdateWebResourceFilterRegistration();
         // 中文注释：改用 CDP Network 域监控请求（含响应体），见 SetupNetworkMonitoringAsync。
         if (_core is not null)
         {
@@ -893,6 +919,125 @@ public sealed class BrowserTab : IAsyncDisposable
         if (Uri.TryCreate(_lastKnownUrl, UriKind.Absolute, out var currentUri))
         {
             _webView.Source = currentUri;
+        }
+    }
+
+    // 中文注释：处理页面回传的登录凭据自动保存消息：解析后交服务按全局开关与站点规则决定是否落库。
+    private void HandleCredentialAutosaveMessage(string message)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(message);
+            var root = document.RootElement;
+            if (!root.TryGetProperty("type", out var typeElement) ||
+                !string.Equals(typeElement.GetString(), "credentialAutosave", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var username = root.TryGetProperty("username", out var usernameElement)
+                ? usernameElement.GetString() ?? string.Empty
+                : string.Empty;
+            var password = root.TryGetProperty("password", out var passwordElement)
+                ? passwordElement.GetString() ?? string.Empty
+                : string.Empty;
+            var source = _webView?.Source;
+            if (source is null)
+            {
+                return;
+            }
+
+            if (_credentialAutofillService.TryAutosaveAsync(source, username, password))
+            {
+                _log($"已自动保存账号密码: {source.Host} / {username}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _log($"自动保存密码消息处理失败: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 中文注释：设置保存后同步 WebView2 内核的自动填充/密码保存开关到当前内核实例（配置在标签创建时读取，保存后需手动刷新）。
+    /// </summary>
+    public void UpdateWebViewSettings()
+    {
+        if (_webView?.CoreWebView2 is not { } core)
+        {
+            return;
+        }
+
+        try
+        {
+            core.Settings.IsGeneralAutofillEnabled = _config.IsGeneralAutofillEnabled;
+            core.Settings.IsPasswordAutosaveEnabled = _config.IsPasswordAutosaveEnabled;
+            core.Profile.IsGeneralAutofillEnabled = _config.IsGeneralAutofillEnabled;
+            core.Profile.IsPasswordAutosaveEnabled = _config.IsPasswordAutosaveEnabled;
+        }
+        catch (Exception ex)
+        {
+            _log($"同步 WebView 内核设置失败: {ex.Message}");
+        }
+    }
+
+    // 中文注释：广告过滤请求拦截：按域名拦截广告/统计请求，返回 403 空响应。
+    private void HandleWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs args)
+    {
+        try
+        {
+            if (AdBlockService is { IsEnabled: true } adBlock &&
+                Uri.TryCreate(args.Request.Uri, UriKind.Absolute, out var uri) &&
+                adBlock.ShouldBlock(uri))
+            {
+                args.Response = _environment!.CreateWebResourceResponse(new MemoryStream(), 403, "Blocked", "Content-Type: text/plain");
+                AdBlockedCount++;
+                AdBlockedCountChanged?.Invoke(this, AdBlockedCount);
+            }
+        }
+        catch
+        {
+            // 中文注释：拦截失败时放行请求，不影响页面加载。
+        }
+    }
+
+    /// <summary>
+    /// 中文注释：按广告过滤开关同步 "*" 全量过滤器注册状态：开启时注册，关闭时移除；
+    /// 设置页保存后由主窗口批量刷新，避免开关关闭时每个请求仍要付跨进程回调成本。
+    /// </summary>
+    public void UpdateWebResourceFilterRegistration()
+    {
+        var core = _core;
+        if (core is null)
+        {
+            return;
+        }
+
+        var shouldRegister = AdBlockService is { IsEnabled: true };
+        if (shouldRegister && !_webResourceFilterRegistered)
+        {
+            try
+            {
+                core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
+                _webResourceFilterRegistered = true;
+            }
+            catch (Exception ex)
+            {
+                _log($"[广告过滤] 过滤器注册失败: {ex.Message}");
+            }
+        }
+        else if (!shouldRegister && _webResourceFilterRegistered)
+        {
+            try
+            {
+                core.RemoveWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
+            }
+            catch (Exception ex)
+            {
+                _log($"[广告过滤] 过滤器移除失败: {ex.Message}");
+            }
+
+            _webResourceFilterRegistered = false;
         }
     }
 
@@ -1157,6 +1302,15 @@ public sealed class BrowserTab : IAsyncDisposable
         }
 
         var type = message["type"]?.GetValue<string>();
+        // 中文注释：网络抓包桥消息同样校验令牌，杜绝网页伪造 startCapture/getResponseBody 等指令。
+        if (type is not null &&
+            type.StartsWith("lfsun-plugin-", StringComparison.Ordinal) &&
+            !_pluginManager.IsValidBridgeMessage(sender, bridgeJson))
+        {
+            _log("[插件桥] 已拒绝未携带有效令牌的网络抓包消息（疑似网页伪造）");
+            return true;
+        }
+
         switch (type)
         {
             case "lfsun-plugin-network-start":

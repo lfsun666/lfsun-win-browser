@@ -31,7 +31,12 @@ public sealed class AboutWindow : Form
         MinimizeBox = false;
         Width = 680;
         Height = 580;
+        // 中文注释：低分辨率/高缩放下把窗口收敛到工作区，保证底部操作按钮可见。
+        WindowLayout.FitToWorkingArea(this);
         Font = AppTheme.CreateFont(9.2F);
+        // 中文注释：与设置窗口一致的高 DPI 自适应，高缩放屏上控件与字体等比例放大。
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
 
         BuildLayout();
         ApplyTheme();

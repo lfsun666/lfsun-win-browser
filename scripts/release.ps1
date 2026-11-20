@@ -4,7 +4,7 @@
     [string]$Configuration = "Release",
     [string]$Runtime = "win-x64",
     [string]$OutputDir = "",
-    [int]$KeepVersions = 3,
+    [int]$KeepVersions = 5,
     [switch]$SkipTests,
     [switch]$SkipInstaller
 )

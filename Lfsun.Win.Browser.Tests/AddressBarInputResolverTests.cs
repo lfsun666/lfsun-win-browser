@@ -62,6 +62,54 @@ public class AddressBarInputResolverTests
         Assert.Equal("https", uri.Scheme);
     }
 
+    [Theory]
+    [InlineData("::1")]
+    [InlineData("2001:db8::1")]
+    [InlineData("fe80::1")]
+    [InlineData("[::1]")]
+    [InlineData("[2001:db8::1]:443")]
+    public void TryResolve_Ipv6Literal_TreatedAsUrlNotSearch(string input)
+    {
+        var ok = AddressBarInputResolver.TryResolve(input, CreateConfig(), out var uri, out var treatedAsSearch);
+
+        Assert.True(ok, $"IPv6 字面量应按 URL 处理: {input}");
+        Assert.False(treatedAsSearch, $"IPv6 字面量不应掉进搜索分支: {input}");
+        Assert.Equal("https", uri.Scheme);
+        // 中文注释：.NET Uri.Host 对 IPv6 主机会去掉外层方括号，主机内必含冒号。
+        Assert.Contains(":", uri.Host);
+    }
+
+    [Fact]
+    public void TryResolve_Ipv6WithPort_PreservesPort()
+    {
+        var ok = AddressBarInputResolver.TryResolve("[::1]:8080", CreateConfig(), out var uri, out _);
+
+        Assert.True(ok);
+        Assert.Equal(8080, uri.Port);
+    }
+
+    [Fact]
+    public void TryResolve_AmbiguousIpv6WithTrailingSegment_StaysIpv6Address()
+    {
+        // 中文注释：2001:db8::1:8080 是合法 IPv6 地址（末段即 8080），按地址整体处理，与浏览器惯例一致。
+        var ok = AddressBarInputResolver.TryResolve("2001:db8::1:8080", CreateConfig(), out var uri, out var treatedAsSearch);
+
+        Assert.True(ok);
+        Assert.False(treatedAsSearch);
+        Assert.Equal("https", uri.Scheme);
+    }
+
+    [Fact]
+    public void TryResolve_NonIpv6ColonText_TreatedAsSearch()
+    {
+        // 中文注释：含冒号但非 IPv6 字面量的文本（如 “hello:world”）应保持原有搜索行为；
+        // 注：纯十六进制形态（如 abc::def）是合法 IPv6 压缩地址，按 URL 处理符合浏览器惯例。
+        var ok = AddressBarInputResolver.TryResolve("hello:world", CreateConfig(), out var uri, out var treatedAsSearch);
+
+        Assert.True(ok);
+        Assert.True(treatedAsSearch);
+    }
+
     [Fact]
     public void TryResolve_PlainKeywordWithSpace_TreatedAsSearch()
     {

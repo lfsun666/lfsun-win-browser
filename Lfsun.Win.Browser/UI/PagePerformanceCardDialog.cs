@@ -32,8 +32,13 @@ public sealed class PagePerformanceCardDialog : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
+        // 中文注释：小屏或高 DPI 下收敛到工作区，避免诊断指标与底部按钮超出屏幕。
+        WindowLayout.FitToWorkingArea(this);
         DoubleBuffered = true;
         Font = AppTheme.CreateFont(9F);
+        // 中文注释：与设置窗口一致的高 DPI 自适应，高缩放屏上控件与字体等比例放大。
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
         BackColor = AppTheme.WindowBackground;
 
         BuildLayout();

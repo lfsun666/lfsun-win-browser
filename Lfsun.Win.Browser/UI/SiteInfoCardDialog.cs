@@ -43,6 +43,9 @@ public sealed class SiteInfoCardDialog : Form
         ClientSize = new Size(380, 360);
         DoubleBuffered = true;
         Font = AppTheme.CreateFont(9F);
+        // 中文注释：与设置窗口一致的高 DPI 自适应，高缩放屏上控件与字体等比例放大。
+        AutoScaleMode = AutoScaleMode.Dpi;
+        AutoScaleDimensions = new SizeF(96F, 96F);
         BackColor = AppTheme.Surface;
 
         BuildLayout();

@@ -5,6 +5,9 @@ namespace Lfsun.Win.Browser.Plugins;
 public sealed class PluginRuntime
 {
     private readonly Regex[] _matchRules;
+    // 中文注释：加载时归一化（去空格去重）的权限集合，运行时校验统一走它，
+    // 与加载侧白名单校验口径一致（manifest 声明里带空格也能正常命中）。
+    private readonly HashSet<string> _permissions;
 
     public PluginRuntime(PluginManifest manifest, IReadOnlyList<string> scriptBodies)
         : this(manifest, scriptBodies, Array.Empty<PluginContentScriptGroup>())
@@ -28,12 +31,20 @@ public sealed class PluginRuntime
         DirectoryPath = directoryPath;
         OptionsPage = optionsPage;
         _matchRules = BuildRules(manifest.Matches);
+        _permissions = new HashSet<string>(
+            manifest.Permissions
+                .Where(permission => !string.IsNullOrWhiteSpace(permission))
+                .Select(permission => permission.Trim()),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     public PluginManifest Manifest { get; }
     public IReadOnlyList<string> ScriptBodies { get; }
     // 中文注释：内容脚本分组（文档创建时注入，需 content:inject 权限）。
     public IReadOnlyList<PluginContentScriptGroup> ContentScriptGroups { get; }
+
+    // 中文注释：判断插件是否声明了某权限（与加载侧白名单校验同口径）。
+    public bool HasPermission(string permission) => _permissions.Contains(permission);
 
     // 中文注释：手动运行时要派发的 DOM 事件名（manifest 声明优先，否则从脚本源码自动探测）。
     public IReadOnlyList<string> RunEvents { get; }
