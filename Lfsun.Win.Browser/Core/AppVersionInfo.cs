@@ -42,6 +42,18 @@ public static class AppVersionInfo
     public static IReadOnlyList<VersionReleaseEntry> ReleaseHistory { get; } =
     [
         new VersionReleaseEntry(
+            "0.9.24",
+            "2026-11-25",
+            "稳定性专项：菜单崩溃与 WebView2 崩溃自动恢复修复、分屏边界统一防护、历史记录合并写盘、加载进度条与拖放打开",
+            [
+                "【菜单关闭崩溃修复】页面点击关闭宿主菜单时改为快照遍历工具栏项，修复 CloseVisibleDropDownItems 边遍历边关闭导致的集合被修改崩溃（2026-11-24 实测崩溃根因）",
+                "【WebView2 崩溃自动恢复】订阅 ProcessFailed：内核进程异常退出后自动销毁失效实例、显示恢复提示并重建页面，跳回最后访问地址；同时补齐关闭标签与重建的竞态保护",
+                "【分屏边界统一防护】新增 SplitLayoutHelper：按客户区夹取分隔位置、空间不足时等比缩边、挂起布局防递归；设置/会话/书签/分屏四处 SplitterDistance 赋值收敛到统一防护，修复小窗口与高 DPI 突变下的越界崩溃（历史日志 5 次崩溃根因）",
+                "【历史记录合并写盘】浏览记录改为空闲 2 秒合并落盘，清空/删除仍立即生效，窗口关闭强制补写，写盘失败 5 秒自动重试；消除每次导航全量序列化的 UI 卡顿",
+                "【加载进度条与拖放打开】新增内容区顶部 Chrome 风格细横线进度条（导航起跑、完成冲满淡出、淡出中新导航不回退）；支持把链接、本地网页文件与 .url 快捷方式拖入外壳/地址栏打开（单次最多 8 个，文件类型白名单）",
+                "【代码质量】SetPinned 冗余分支合并、修正共享 profile 误导注释；新增 StabilityRegressionTests 8 项回归测试（累计 241）覆盖历史写盘、分屏边界与进度条行为"
+            ]),
+        new VersionReleaseEntry(
             "0.9.23",
             "2026-11-20",
             "登录密码免弹窗自动保存 + 站点域名/IP 规则 + WebView2 内核密码保存默认关闭",
