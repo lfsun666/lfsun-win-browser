@@ -1,34 +1,39 @@
-# LfsunBrowser 全版本发布与交付说明
+﻿# LfsunBrowser 全版本发布与交付说明
 
-> **当前最新版本**: 0.9.23 | **发布日期**: 2026-11-20 | **运行时**: .NET 8.0 (Self-Contained x64)
+> **当前最新版本**: 0.9.24 | **发布日期**: 2026-11-25 | **运行时**: .NET 8.0 (Self-Contained x64)
 > **发布规范**: 自动保留最新 5 个历史版本的独立安装包与便携包（外加最新软链接 latest），全版本更新说明统一收口于本文档。
 
 ---
 
-## 当前最新交付清单 (v0.9.23)
+## 当前最新交付清单 (v0.9.24)
 
-- **LfsunBrowser-portable-latest.zip** (65.6 MB)
-- **LfsunBrowser-portable-win-x64-v0.9.19.zip** (65.57 MB)
+- **LfsunBrowser-portable-latest.zip** (63.58 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.20.zip** (65.57 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.21.zip** (65.58 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.22.zip** (65.6 MB)
 - **LfsunBrowser-portable-win-x64-v0.9.23.zip** (65.6 MB)
-- **LfsunBrowser-setup-0.9.19.exe** (47.68 MB)
+- **LfsunBrowser-portable-win-x64-v0.9.24.zip** (63.58 MB)
 - **LfsunBrowser-setup-0.9.20.exe** (47.7 MB)
 - **LfsunBrowser-setup-0.9.21.exe** (47.7 MB)
 - **LfsunBrowser-setup-0.9.22.exe** (47.7 MB)
 - **LfsunBrowser-setup-0.9.23.exe** (47.71 MB)
-- **LfsunBrowser-setup-latest.exe** (47.71 MB)
+- **LfsunBrowser-setup-0.9.24.exe** (47.7 MB)
+- **LfsunBrowser-setup-latest.exe** (47.7 MB)
 
 ## 当前版本更新亮点
 
-- 登录密码免弹窗自动保存：登录提交静默写入本机账号库（DPAPI 加密），不再弹内核保存框、点保存不再卡顿；WebView2 内核密码保存默认关闭（老配置一次性迁移，设置内可再开启）；新增站点域名/IP 级允许/不保存规则（支持子域安全匹配、IP:端口、IPv6）；设置保存后内核开关即时同步所有标签；新增 16 项单元测试
+- 修复菜单关闭崩溃与 WebView2 内核崩溃自动恢复；统一分屏边界防护修复小窗口/高DPI越界；历史记录合并延迟写盘；新增加载进度条与拖放打开；新增稳定性回归测试
 
 ---
 
 ## 全版本历史更新说明汇总 (Changelog)
 
 # 更新日志 (Changelog)
+
+## [0.9.24] - 2026-11-25
+
+### 变更内容
+- 修复菜单关闭崩溃与 WebView2 内核崩溃自动恢复；统一分屏边界防护修复小窗口/高DPI越界；历史记录合并延迟写盘；新增加载进度条与拖放打开；新增稳定性回归测试
 
 ## [0.9.23] - 2026-11-20
 
