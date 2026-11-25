@@ -97,6 +97,11 @@ public sealed class TabManager
     /// </summary>
     public event Action<BrowserTab>? TabAudioStateChanged;
 
+    /// <summary>
+    /// 中文注释：标签导航加载状态变化（标签, 是否加载中），由各标签转发给主窗口驱动顶部进度条。
+    /// </summary>
+    public event Action<BrowserTab, bool>? TabLoadingStateChanged;
+
     public IReadOnlyList<ClosedTabEntry> RecentlyClosedTabs => _recentlyClosedTabs;
 
     /// <summary>
@@ -124,6 +129,7 @@ public sealed class TabManager
         tab.ZoomChanged += HandleTabZoomChanged;
         tab.AdBlockedCountChanged += HandleTabAdBlockedCountChanged;
         tab.AudioStateChanged += HandleTabAudioStateChanged;
+        tab.LoadingStateChanged += HandleTabLoadingStateChanged;
         tab.InternalUrlNavigated += (t, u) => InternalUrlNavigated?.Invoke(t, u);
         tab.InternalUrlActionRequested += (t, a) => InternalUrlActionRequested?.Invoke(t, a);
         tab.NewTabHtmlProvider = () => NewTabPageHtmlProvider?.Invoke();
@@ -172,6 +178,7 @@ public sealed class TabManager
         current.ZoomChanged -= HandleTabZoomChanged;
         current.AdBlockedCountChanged -= HandleTabAdBlockedCountChanged;
         current.AudioStateChanged -= HandleTabAudioStateChanged;
+        current.LoadingStateChanged -= HandleTabLoadingStateChanged;
 
         if (current.CurrentUri is not null &&
             (string.Equals(current.CurrentUri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
@@ -388,9 +395,8 @@ public sealed class TabManager
         _tabs.RemoveAt(index);
         _tabControl.TabPages.Remove(tab.TabPage);
 
-        var targetIndex = pinned
-            ? _tabs.TakeWhile(item => item.IsPinned).Count()
-            : _tabs.TakeWhile(item => item.IsPinned).Count();
+        // 中文注释：固定标签始终位于普通标签之前；取消固定后同样插入固定分组末尾。
+        var targetIndex = _tabs.TakeWhile(item => item.IsPinned).Count();
         _tabs.Insert(targetIndex, tab);
         _tabControl.TabPages.Insert(targetIndex, tab.TabPage);
         _tabControl.SelectedTab = tab.TabPage;
@@ -477,6 +483,9 @@ public sealed class TabManager
         TabAudioStateChanged?.Invoke(tab);
         PublishTabEvents();
     }
+
+    private void HandleTabLoadingStateChanged(BrowserTab tab, bool isLoading)
+        => TabLoadingStateChanged?.Invoke(tab, isLoading);
 
     private void PublishTabEvents()
     {

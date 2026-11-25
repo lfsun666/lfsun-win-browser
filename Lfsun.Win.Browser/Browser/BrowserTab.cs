@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -50,6 +51,8 @@ public sealed class BrowserTab : IAsyncDisposable
     // 中文注释：WebView 初始化单飞任务缓存（见 EnsureWebViewAsync）与广告过滤过滤器注册状态。
     private Task? _ensureWebViewTask;
     private bool _webResourceFilterRegistered;
+    private bool _isRecoveringWebView;
+    private bool _isDisposed;
 
     public BrowserTab(
         TabPage tabPage,
@@ -87,7 +90,7 @@ public sealed class BrowserTab : IAsyncDisposable
     public Uri? CurrentUri => Uri.TryCreate(_lastKnownUrl, UriKind.Absolute, out var uri) ? uri : null;
     public bool CanGoBack => _webView?.CoreWebView2?.CanGoBack ?? false;
     public bool CanGoForward => _webView?.CoreWebView2?.CanGoForward ?? false;
-    public bool IsLive => !IsSuspended && _webView is not null;
+    public bool IsLive => !IsSuspended && !_isRecoveringWebView && _webView is not null;
     public bool IsPlayingAudio => _core?.IsDocumentPlayingAudio ?? false;
     public bool IsReaderModeActive { get; private set; }
     public event Action<bool>? ReaderModeChanged;
@@ -211,6 +214,30 @@ public sealed class BrowserTab : IAsyncDisposable
     /// 中文注释：当前页面已拦截的广告/统计请求数。
     /// </summary>
     public int AdBlockedCount { get; private set; }
+
+    /// <summary>
+    /// 中文注释：是否正在导航（导航开始置真，导航完成/失败/释放后置假），供进度条与状态提示使用。
+    /// </summary>
+    public bool IsLoading { get; private set; }
+
+    /// <summary>
+    /// 中文注释：导航加载状态变化事件（标签, 是否加载中），用于驱动顶部进度条。
+    /// </summary>
+    public event Action<BrowserTab, bool>? LoadingStateChanged;
+
+    /// <summary>
+    /// 中文注释：统一维护加载状态，仅在值真正变化时通知订阅者，避免重复刷新进度条。
+    /// </summary>
+    private void SetLoadingState(bool loading)
+    {
+        if (IsLoading == loading)
+        {
+            return;
+        }
+
+        IsLoading = loading;
+        LoadingStateChanged?.Invoke(this, loading);
+    }
 
     /// <summary>
     /// 中文注释：访问专有浏览器内部协议事件（如 edge://、chrome:// 等）。
@@ -655,8 +682,19 @@ public sealed class BrowserTab : IAsyncDisposable
 
     public Task SuspendAsync()
     {
-        if (_webView is null || IsSuspended)
+        if (IsSuspended)
         {
+            return Task.CompletedTask;
+        }
+
+        if (_webView is null)
+        {
+            // 中文注释：崩溃清理后没有 WebView，但标签仍需进入休眠态，避免被内存预算反复选中。
+            _ensureWebViewTask = null;
+            IsSuspended = true;
+            RenderSuspendedHint();
+            UpdateCaption();
+            StateChanged?.Invoke(this);
             return Task.CompletedTask;
         }
 
@@ -664,7 +702,15 @@ public sealed class BrowserTab : IAsyncDisposable
         UnsubscribeCdpEvents();
         UnsubscribeCoreEvents();
 
-        _lastKnownUrl = _webView.Source?.AbsoluteUri ?? _lastKnownUrl;
+        try
+        {
+            _lastKnownUrl = _webView.Source?.AbsoluteUri ?? _lastKnownUrl;
+        }
+        catch (Exception ex) when (IsWebViewLifetimeException(ex))
+        {
+            // 中文注释：进程已退出时 Source 不可访问，保留导航前记录的最后地址供恢复。
+        }
+
         TabPage.Controls.Remove(_webView);
         _webView.Dispose();
         _webView = null;
@@ -683,13 +729,21 @@ public sealed class BrowserTab : IAsyncDisposable
     {
         // 中文注释：未挂起且初始化已完成时直接返回；初始化进行中（_webView 已赋值但未就绪）也必须等待，
         // 修掉并发调用在半初始化状态下继续导航导致的偶发导航丢失。
-        if (!IsSuspended && _webView is not null && _ensureWebViewTask is null)
+        if (_isDisposed ||
+            (!IsSuspended && !_isRecoveringWebView && _webView?.CoreWebView2 is not null && _ensureWebViewTask is null))
         {
             return;
         }
 
+        _isRecoveringWebView = false;
         RemoveSuspendedHint();
         await EnsureWebViewAsync();
+        if (_isDisposed)
+        {
+            await SuspendAsync();
+            return;
+        }
+
         IsSuspended = false;
         UpdateCaption();
         StateChanged?.Invoke(this);
@@ -697,12 +751,16 @@ public sealed class BrowserTab : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _isDisposed = true;
+        _isRecoveringWebView = false;
+        UnsubscribeCdpEvents();
+        UnsubscribeCoreEvents();
         await SuspendAsync();
         RemoveSuspendedHint();
     }
 
     // 中文注释：拼装 WebView2 启动参数：默认磁盘缓存上限 + 可选 CORS 绕过(--disable-web-security)
-    // + 用户自定义参数。--disable-web-security 需配合独立 userDataFolder（本浏览器每个标签独立 profile，已满足）。
+    // + 用户自定义参数。userDataFolder 由窗口按 profile 统一管理，窗口内标签共享会话与 Cookie。
     private static string BuildBrowserArgs(BrowserConfig config)
     {
         var args = new List<string> { "--disk-cache-size=104857600" };
@@ -761,6 +819,7 @@ public sealed class BrowserTab : IAsyncDisposable
 
             _webView = null;
             _core = null;
+            _environment = null;
             throw;
         }
     }
@@ -913,6 +972,7 @@ public sealed class BrowserTab : IAsyncDisposable
         _core.DocumentTitleChanged += OnDocumentTitleChanged;
         _core.IsDocumentPlayingAudioChanged += OnIsDocumentPlayingAudioChanged;
         _core.IsMutedChanged += OnIsMutedChanged;
+        _core.ProcessFailed += OnBrowserProcessFailed;
         _webView.ZoomFactorChanged += OnZoomFactorChanged;
         _coreEventsHooked = true;
 
@@ -1056,6 +1116,8 @@ public sealed class BrowserTab : IAsyncDisposable
             ReaderModeChanged?.Invoke(false);
         }
         _lastKnownUrl = args.Uri;
+        // 中文注释：导航开始即进入加载态，顶部进度条据此起跑。
+        SetLoadingState(true);
         // 中文注释：新导航开始时拦截计数归零，并记录耗时起点。
         _loadStartTimestamp = Environment.TickCount64;
         LastLoadMilliseconds = -1;
@@ -1099,6 +1161,87 @@ public sealed class BrowserTab : IAsyncDisposable
         StateChanged?.Invoke(this);
     }
 
+    private void OnBrowserProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs args)
+    {
+        if (_isDisposed || _isRecoveringWebView)
+        {
+            return;
+        }
+
+        _isRecoveringWebView = true;
+        _log($"WebView2 进程异常退出（{args.ProcessFailedKind}），正在重建当前标签页。");
+        _ = RecoverFromProcessFailureAsync();
+    }
+
+    private async Task RecoverFromProcessFailureAsync()
+    {
+        try
+        {
+            // 中文注释：先退订再读取 Source；崩溃后 CoreWebView2 属性可能直接抛出，不能沿用普通休眠路径。
+            UnsubscribeCdpEvents();
+            UnsubscribeCoreEvents();
+            try
+            {
+                if (_webView?.Source is { } source)
+                {
+                    _lastKnownUrl = source.AbsoluteUri;
+                }
+            }
+            catch (Exception ex) when (IsWebViewLifetimeException(ex))
+            {
+                // 中文注释：保留崩溃前最后已知地址。
+            }
+
+            if (_webView is not null)
+            {
+                TabPage.Controls.Remove(_webView);
+                _webView.Dispose();
+            }
+
+            _webView = null;
+            _core = null;
+            _environment = null;
+            _ensureWebViewTask = null;
+            _webResourceFilterRegistered = false;
+            _findEventsHooked = false;
+            SetLoadingState(false);
+            IsSuspended = true;
+            RenderSuspendedHint("页面进程已退出，正在自动恢复…");
+            UpdateCaption();
+            StateChanged?.Invoke(this);
+
+            // 中文注释：让崩溃事件与控件释放先完成，再异步重建；不在 ProcessFailed 回调里同步操作新内核。
+            await Task.Delay(250);
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            await ResumeIfNeededAsync();
+            _log("WebView2 已自动重建，并恢复到最后访问的页面。");
+        }
+        catch (Exception ex)
+        {
+            if (_isDisposed)
+            {
+                return;
+            }
+
+            IsSuspended = true;
+            RenderSuspendedHint("页面进程恢复失败。\r\n请切换标签页后重试，或重新打开此页面。");
+            UpdateCaption();
+            StateChanged?.Invoke(this);
+            _log($"WebView2 自动恢复失败，已保留页面地址供重试：{ex.Message}");
+        }
+        finally
+        {
+            _isRecoveringWebView = false;
+        }
+    }
+
+    private static bool IsWebViewLifetimeException(Exception ex)
+        => ex is InvalidOperationException or ObjectDisposedException or COMException;
+
     private void UnsubscribeCoreEvents()
     {
         if (!_coreEventsHooked || _core is null)
@@ -1113,6 +1256,7 @@ public sealed class BrowserTab : IAsyncDisposable
             _core.DocumentTitleChanged -= OnDocumentTitleChanged;
             _core.IsDocumentPlayingAudioChanged -= OnIsDocumentPlayingAudioChanged;
             _core.IsMutedChanged -= OnIsMutedChanged;
+            _core.ProcessFailed -= OnBrowserProcessFailed;
             if (_webView is not null)
             {
                 _webView.ZoomFactorChanged -= OnZoomFactorChanged;
@@ -1123,6 +1267,8 @@ public sealed class BrowserTab : IAsyncDisposable
             // 中文注释：WebView2 正在 Dispose 时忽略取销异常。
         }
 
+        // 中文注释：核心事件退订后不会再有导航完成回调，这里兜底复位加载态。
+        SetLoadingState(false);
         _coreEventsHooked = false;
     }
 
@@ -1144,6 +1290,8 @@ public sealed class BrowserTab : IAsyncDisposable
 
     private async Task HandleNavigationCompletedAsync()
     {
+        // 中文注释：导航完成（含失败）先收掉加载态，进度条随即冲满并淡出。
+        SetLoadingState(false);
         if (_webView is null || _webView.Source is null)
         {
             return;
@@ -1182,10 +1330,12 @@ public sealed class BrowserTab : IAsyncDisposable
         }
     }
 
-    private void RenderSuspendedHint()
+    private void RenderSuspendedHint(string? message = null)
     {
-        if (TabPage.Controls.ContainsKey(SuspendedHintName))
+        var text = message ?? "标签页已休眠以降低内存占用。\r\n切回该标签页会自动恢复。";
+        if (TabPage.Controls[SuspendedHintName] is Label existing)
         {
+            existing.Text = text;
             return;
         }
 
@@ -1194,10 +1344,11 @@ public sealed class BrowserTab : IAsyncDisposable
             Name = SuspendedHintName,
             Dock = DockStyle.Fill,
             TextAlign = ContentAlignment.MiddleCenter,
-            Text = "标签页已休眠以降低内存占用。\r\n切回该标签页会自动恢复。",
+            Text = text,
             ForeColor = Color.DimGray
         };
         TabPage.Controls.Add(label);
+        label.BringToFront();
     }
 
     private void RemoveSuspendedHint()

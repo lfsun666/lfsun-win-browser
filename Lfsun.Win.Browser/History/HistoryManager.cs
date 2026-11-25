@@ -6,12 +6,20 @@ public sealed class HistoryManager
     private readonly Action<string> _log;
     private readonly int _maxEntries;
     private readonly List<HistoryEntry> _entries = [];
+    private readonly Action<IReadOnlyList<HistoryEntry>>? _persistOverride;
+    private bool _pendingPersist;
+    private DateTime _nextPersistRetryUtc;
 
-    public HistoryManager(string storagePath, Action<string> log, int maxEntries = 3000)
+    public HistoryManager(
+        string storagePath,
+        Action<string> log,
+        int maxEntries = 3000,
+        Action<IReadOnlyList<HistoryEntry>>? persistOverride = null)
     {
         _storagePath = storagePath;
         _log = log;
         _maxEntries = Math.Max(200, maxEntries);
+        _persistOverride = persistOverride;
         Reload();
     }
 
@@ -41,7 +49,7 @@ public sealed class HistoryManager
                 nowUtc - latest.VisitedAtUtc <= TimeSpan.FromSeconds(30))
             {
                 _entries[0] = latest with { Title = normalizedTitle, VisitedAtUtc = nowUtc };
-                PersistSilently();
+                SchedulePersist();
                 return;
             }
         }
@@ -52,13 +60,14 @@ public sealed class HistoryManager
             _entries.RemoveRange(_maxEntries, _entries.Count - _maxEntries);
         }
 
-        PersistSilently();
+        SchedulePersist();
     }
 
     public void Clear()
     {
         _entries.Clear();
-        PersistSilently();
+        _pendingPersist = true;
+        FlushPendingChanges();
     }
 
     public int RemoveEntriesByIds(IEnumerable<Guid> ids)
@@ -75,7 +84,8 @@ public sealed class HistoryManager
         var removed = _entries.RemoveAll(entry => idSet.Contains(entry.Id));
         if (removed > 0)
         {
-            PersistSilently();
+            _pendingPersist = true;
+            FlushPendingChanges();
         }
 
         return removed;
@@ -94,10 +104,30 @@ public sealed class HistoryManager
             string.Equals(uri.Host, host, StringComparison.OrdinalIgnoreCase));
         if (removed > 0)
         {
-            PersistSilently();
+            _pendingPersist = true;
+            FlushPendingChanges();
         }
 
         return removed;
+    }
+
+    /// <summary>中文注释：浏览记录只标记待保存，由主窗口在空闲时合并写盘，避免每次导航都同步写全量 JSON。</summary>
+    private void SchedulePersist()
+    {
+        _pendingPersist = true;
+    }
+
+    /// <summary>中文注释：有待保存变更时立即写入；返回 false 表示写盘失败需要重试。</summary>
+    public bool FlushPendingChanges(bool force = false)
+    {
+        if (!_pendingPersist || (!force && DateTime.UtcNow < _nextPersistRetryUtc))
+        {
+            return true;
+        }
+
+        _pendingPersist = false;
+        PersistSilently();
+        return !_pendingPersist;
     }
 
     public void Reload()
@@ -123,8 +153,16 @@ public sealed class HistoryManager
 
     private void PersistSilently()
     {
-        if (!Core.JsonFileStore.Save(_storagePath, _entries, out var error))
+        if (_persistOverride is not null)
         {
+            _persistOverride(_entries.ToArray());
+            return;
+        }
+
+        if (!Core.JsonFileStore.Save(_storagePath, _entries.ToArray(), out var error))
+        {
+            _pendingPersist = true;
+            _nextPersistRetryUtc = DateTime.UtcNow.AddSeconds(5);
             _log($"保存历史记录失败: {error}");
         }
     }

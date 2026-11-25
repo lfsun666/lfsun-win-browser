@@ -2055,35 +2055,11 @@ public sealed class SettingsWindow : Form
             return;
         }
 
-        var availableWidth = _bodySplitContainer.ClientSize.Width;
-        var splitterWidth = _bodySplitContainer.SplitterWidth;
-        var minDistance = SidebarMinWidth;
-        var maxDistance = availableWidth - ContentMinWidth - splitterWidth;
-        if (availableWidth <= 0 || maxDistance < minDistance)
-        {
-            _bodySplitContainer.Panel1MinSize = 0;
-            _bodySplitContainer.Panel2MinSize = 0;
-            return;
-        }
-
-        var targetDistance = Math.Min(PreferredSidebarWidth, maxDistance);
-        targetDistance = Math.Max(minDistance, targetDistance);
-
-        _bodySplitContainer.Panel1MinSize = 0;
-        _bodySplitContainer.Panel2MinSize = 0;
-        try
-        {
-            if (_bodySplitContainer.SplitterDistance != targetDistance)
-            {
-                _bodySplitContainer.SplitterDistance = targetDistance;
-            }
-        }
-        catch
-        {
-            // 防御性忽略极端 DPI 缩放或临界宽度异常
-        }
-
-
+        SplitLayoutHelper.ApplyDistance(
+            _bodySplitContainer,
+            SidebarMinWidth,
+            ContentMinWidth,
+            PreferredSidebarWidth);
 
     }
 

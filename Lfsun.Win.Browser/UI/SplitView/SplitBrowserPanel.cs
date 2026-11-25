@@ -25,6 +25,8 @@ public sealed class SplitBrowserPanel : Panel
     private Action<Uri>? _navigatePrimary;
     private string _userDataDir = string.Empty;
     private bool _isSplitActive;
+    private bool _splitLayoutInitialized;
+    private int _lastSplitClientWidth = -1;
 
     public event Action? SplitViewClosed;
 
@@ -49,6 +51,7 @@ public sealed class SplitBrowserPanel : Panel
         _splitContainer.Dock = DockStyle.Fill;
         _splitContainer.Orientation = Orientation.Vertical;
         _splitContainer.SplitterWidth = 6;
+        _splitContainer.SplitterMoved += (_, _) => _splitLayoutInitialized = true;
         _splitContainer.Panel1MinSize = 0;
         _splitContainer.Panel2MinSize = 0;
         _splitContainer.BackColor = AppTheme.PanelBorder;
@@ -224,29 +227,21 @@ public sealed class SplitBrowserPanel : Panel
     {
         if (!_isSplitActive) return;
 
-        try
+        const int minSize = 180;
+        var width = _splitContainer.ClientSize.Width;
+        if (_lastSplitClientWidth == width)
         {
-            var totalWidth = _splitContainer.ClientSize.Width;
-            var splitterWidth = _splitContainer.SplitterWidth;
-            const int minSize = 180;
-
-            _splitContainer.Panel1MinSize = 0;
-            _splitContainer.Panel2MinSize = 0;
-
-            if (totalWidth >= minSize * 2 + splitterWidth)
-            {
-                var safeDistance = Math.Clamp(totalWidth / 2, minSize, totalWidth - minSize - splitterWidth);
-                _splitContainer.SplitterDistance = safeDistance;
-            }
-            else if (totalWidth > splitterWidth)
-            {
-                _splitContainer.SplitterDistance = Math.Max(0, (totalWidth - splitterWidth) / 2);
-            }
+            return;
         }
-        catch
-        {
-            // 防御性静默，防止任何 DPI 动态缩放或尺寸突变抛出异常
-        }
+
+        _lastSplitClientWidth = width;
+        var desired = width >= minSize * 2 + _splitContainer.SplitterWidth
+            ? width / 2
+            : Math.Max(0, (width - _splitContainer.SplitterWidth) / 2);
+        SplitLayoutHelper.ApplyDistance(
+            _splitContainer, minSize, minSize, desired,
+            preserveDesiredDistance: _splitLayoutInitialized);
+        _splitLayoutInitialized = true;
     }
 
     public void DeactivateSplit(Control primaryControl, Control originalParent)

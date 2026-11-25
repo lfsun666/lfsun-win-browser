@@ -50,6 +50,11 @@ public sealed class MainWindow : Form
     private readonly ToolStrip _addressBar = new();
     private readonly ToolStrip _bookmarksBar = new();
     private readonly StatusBarPanel _statusBarPanel = new();
+    // 中文注释：内容区顶部细横线进度条，导航时给出"页面在动"的即时反馈。
+    private readonly LoadingProgressStrip _loadingProgress = new();
+    // 中文注释：拖放过程中的提示态标记与静态栏文本快照，用于拖离后还原。
+    private bool _dropHintActive;
+    private string _statusTextBeforeDrop = string.Empty;
     private readonly ToolStripButton _backButton = new("后退");
     private readonly ToolStripButton _forwardButton = new("前进");
     private readonly ToolStripButton _refreshButton = new("刷新");
@@ -105,6 +110,8 @@ public sealed class MainWindow : Form
     private readonly System.Windows.Forms.Timer _windowTransitionTimer = new();
     // 中文注释：窗口尺寸变化后延迟重排标题栏标签，避免拖拽调整窗口时高频重建。
     private readonly System.Windows.Forms.Timer _chromeLayoutTimer = new();
+    // 中文注释：历史记录延迟合并写盘，避免连续导航时反复在 UI 线程序列化全量列表。
+    private readonly System.Windows.Forms.Timer _historyPersistTimer = new() { Interval = 2000 };
     // 中文注释：记录上次标题栏重排时的客户区宽度，纵向拉伸窗口时无需重建标签。
     private int _chromeLayoutWidth = -1;
     private readonly DownloadManager _downloadManager;
@@ -212,6 +219,14 @@ public sealed class MainWindow : Form
         new("Orange", "琥珀"),
         new("Rose", "玫红")
     ];
+    // 中文注释：单次拖放最多打开的标签数，防止误拖整个目录把内存打满（低内存优先）。
+    private const int MaxDropOpenTabs = 8;
+    // 中文注释：允许拖放打开的本地文件类型白名单，仅限浏览器能直接渲染的格式。
+    private static readonly HashSet<string> DroppableFileExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".html", ".htm", ".xhtml", ".svg", ".txt", ".pdf", ".json", ".xml",
+        ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"
+    };
     private static readonly AddressCommandDefinition[] AddressCommandCatalog =
     [
         new("settings", "settings", "打开设置", "打开浏览器设置窗口", ["set", "config", "设置"]),
@@ -492,6 +507,15 @@ public sealed class MainWindow : Form
         _credentialStore = new CredentialStore(credentialPath, Log);
         _credentialAutofillService = new CredentialAutofillService(_config, _credentialStore, Log);
         _historyManager = new HistoryManager(historyPath, Log);
+        _historyPersistTimer.Tick += (_, _) =>
+        {
+            _historyPersistTimer.Stop();
+            // 中文注释：写盘失败保留待保存状态，5 秒后重试；成功则停表，避免空转。
+            if (!_historyManager.FlushPendingChanges())
+            {
+                _historyPersistTimer.Start();
+            }
+        };
         _sessionStore = new BrowserSessionStore(Path.Combine(_launchOptions.ProfileStoragePath, "session.json"), Log);
         _namedSessionStore = new NamedSessionStore(Path.Combine(_launchOptions.ProfileStoragePath, "named-sessions"), Log);
         _launchPayloadStore = new SessionLaunchPayloadStore(
@@ -762,10 +786,15 @@ public sealed class MainWindow : Form
         _addressSuggestionPanel.Controls.Add(_addressSuggestionListBox);
         _addressSuggestionPanel.Controls.Add(_addressSuggestionHintLabel);
 
+        _loadingProgress.Dock = DockStyle.Top;
+        _loadingProgress.Height = AppTheme.IsCompact ? 2 : 3;
+
         Controls.Add(_sidePanel);
         Controls.Add(_verticalTabStrip);
         Controls.Add(_splitPanel);
         Controls.Add(_tabControl);
+        // 中文注释：插在内容区正上方（Dock 顺序在书签栏之后、标签容器之前），窗口最大化也不被裁掉。
+        Controls.Add(_loadingProgress);
         Controls.Add(_bookmarksBar);
         Controls.Add(_addressBar);
         Controls.Add(_topBar);
@@ -775,6 +804,8 @@ public sealed class MainWindow : Form
         Controls.Add(_findBar);
         Controls.Add(_statusBarPanel.Strip);
         UpdateToastLocation();
+        // 中文注释：注册拖放目标，支持把链接/本地网页文件直接拖进浏览器外壳打开。
+        SetupDragDropTargets();
     }
 
     private void BuildBookmarkContextMenu()
@@ -2016,6 +2047,8 @@ public sealed class MainWindow : Form
         _topBar.BackColor = AppTheme.Surface;
         _addressBar.BackColor = AppTheme.SurfaceAlt;
         _bookmarksBar.BackColor = AppTheme.SurfaceAlt;
+        _loadingProgress.Height = compact ? 2 : 3;
+        _loadingProgress.ApplyTheme();
         _statusBarPanel.ApplyTheme(compact);
         _tabControl.Appearance = TabAppearance.Normal;
         _tabControl.Multiline = false;
@@ -2538,6 +2571,8 @@ public sealed class MainWindow : Form
             _isClosingCleanly = true;
             _ambientMotionTimer.Stop();
             _windowTransitionTimer.Stop();
+            _historyPersistTimer.Stop();
+            _historyManager.FlushPendingChanges(force: true);
             Opacity = 1D;
             PersistSessionState();
         };
@@ -2621,6 +2656,33 @@ public sealed class MainWindow : Form
             _statusBarPanel.SetZoomFactor(tab?.ZoomFactor ?? 1.0);
             _statusBarPanel.SetAdBlockedCount(_config.AdBlockEnabled, tab?.AdBlockedCount ?? 0);
             _statusBarPanel.SetLoadTime(tab?.LastLoadMilliseconds ?? -1);
+            // 中文注释：切换标签时把进度条同步到目标标签的真实加载态，避免残留上一页进度。
+            if (tab?.IsLoading == true)
+            {
+                _loadingProgress.StartLoading();
+            }
+            else
+            {
+                _loadingProgress.ResetProgress();
+            }
+        };
+
+        _tabManager.TabLoadingStateChanged += (tab, isLoading) =>
+        {
+            // 中文注释：仅活动标签驱动顶部进度条，后台标签静默加载。
+            if (!ReferenceEquals(tab, _tabManager.ActiveTab))
+            {
+                return;
+            }
+
+            if (isLoading)
+            {
+                _loadingProgress.StartLoading();
+            }
+            else
+            {
+                _loadingProgress.StopLoading();
+            }
         };
 
         _findBar.SearchRequested += async (term, matchCase) =>
@@ -2674,6 +2736,9 @@ public sealed class MainWindow : Form
             if (!_launchOptions.IsPrivateWindow)
             {
                 _historyManager.AddEntry(uri, title);
+                // 中文注释：有待保存变更时启动延迟写盘（约 2 秒），连续导航合并为一次写入。
+                _historyPersistTimer.Stop();
+                _historyPersistTimer.Start();
                 if (_historyWindow is not null && !_historyWindow.IsDisposed)
                 {
                     _historyWindow.RefreshData();
@@ -7992,7 +8057,8 @@ public sealed class MainWindow : Form
 
     private static void CloseVisibleDropDownItems(ToolStripItemCollection items)
     {
-        foreach (ToolStripItem item in items)
+        // 中文注释：Close 会同步触发菜单重建/移除，遍历前必须快照，避免集合被修改后枚举器失效。
+        foreach (var item in items.OfType<ToolStripItem>().ToArray())
         {
             if (item is not ToolStripDropDownItem dropDownItem)
             {
@@ -9991,6 +10057,8 @@ public sealed class MainWindow : Form
         await _tabManager.CloseTabAsync(targetTab);
         RefreshToolbar();
         RefreshMetrics();
+        // 中文注释：关闭后给出可恢复提示，避免用户误以为"关掉就找不回来了"。
+        Log("已关闭标签页 · Ctrl+Shift+T 可恢复");
     }
 
     private async Task DuplicateTabByIndexAsync(int tabIndex)
@@ -10747,6 +10815,280 @@ public sealed class MainWindow : Form
         {
             Log($"打开页面源码失败：{ex.Message}");
         }
+    }
+
+    // ==================== 拖放交互 ====================
+
+    /// <summary>
+    /// 中文注释：把浏览器外壳（标题栏/工具栏/地址栏/书签栏/进度条/标签容器）注册为拖放目标。
+    /// 网页视口由 WebView2 子窗口接管，这里只兜住 WinForms 自己的界面区域。
+    /// </summary>
+    private void SetupDragDropTargets()
+    {
+        foreach (var target in new Control[] { this, _titleBar, _topBar, _addressBar, _bookmarksBar, _loadingProgress, _tabControl })
+        {
+            AttachDropTarget(target);
+        }
+    }
+
+    private void AttachDropTarget(Control target)
+    {
+        target.AllowDrop = true;
+        target.DragEnter += HandleDropDragEnter;
+        target.DragOver += HandleDropDragOver;
+        target.DragLeave += (_, _) => EndDropHint();
+        target.DragDrop += HandleDropDragDrop;
+    }
+
+    private void HandleDropDragEnter(object? sender, DragEventArgs eventArgs)
+    {
+        var supported = TryResolveDropTargets(eventArgs.Data, out _, out _);
+        eventArgs.Effect = supported ? DragDropEffects.Copy : DragDropEffects.None;
+        if (supported)
+        {
+            ShowDropHint();
+        }
+    }
+
+    private void HandleDropDragOver(object? sender, DragEventArgs eventArgs)
+    {
+        // 中文注释：DragOver 需要持续回写 Effect，否则光标会闪回"禁止放置"。
+        eventArgs.Effect = TryResolveDropTargets(eventArgs.Data, out _, out _)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+    }
+
+    private async void HandleDropDragDrop(object? sender, DragEventArgs eventArgs)
+    {
+        EndDropHint();
+
+        try
+        {
+            if (!TryResolveDropTargets(eventArgs.Data, out var uris, out var error) || uris.Count == 0)
+            {
+                if (!string.IsNullOrWhiteSpace(error))
+                {
+                    ShowToast(error);
+                }
+
+                return;
+            }
+
+            // 中文注释：拖到地址栏 = 在当前标签打开；拖到其他外壳区域 = 新标签打开。
+            if (ReferenceEquals(sender, _addressBar))
+            {
+                await NavigateActiveTabAsync(uris[0]);
+                Log($"已打开拖入地址：{FormatDropUrlForLog(uris[0])}");
+                return;
+            }
+
+            var opened = 0;
+            foreach (var uri in uris.Take(MaxDropOpenTabs))
+            {
+                await _tabManager.CreateTabAsync(uri);
+                opened++;
+            }
+
+            RefreshToolbar();
+            RefreshMetrics();
+            PersistSessionState();
+
+            var skipped = uris.Count - opened;
+            var suffix = skipped > 0 ? $"（其余 {skipped} 个已忽略）" : string.Empty;
+            ShowToast(opened == 1
+                ? $"已在新标签页打开{suffix}"
+                : $"已在新标签页打开 {opened} 个链接{suffix}");
+            Log($"拖放打开 {opened} 个目标{suffix}");
+        }
+        catch (Exception ex)
+        {
+            // 中文注释：拖放属于外围增强能力，任何异常都不应该把整个浏览器带崩。
+            Log($"拖放打开失败：{ex.Message}");
+            ShowToast("拖放打开失败，已记录日志");
+        }
+    }
+
+    private void ShowDropHint()
+    {
+        if (_dropHintActive)
+        {
+            return;
+        }
+
+        _dropHintActive = true;
+        _statusTextBeforeDrop = _statusBarPanel.StatusLabel.Text ?? string.Empty;
+        _statusBarPanel.StatusLabel.Text = "松开即可打开：拖到地址栏替换当前页，拖到其他位置新标签打开";
+    }
+
+    private void EndDropHint()
+    {
+        if (!_dropHintActive)
+        {
+            return;
+        }
+
+        _dropHintActive = false;
+        _statusBarPanel.StatusLabel.Text = string.IsNullOrEmpty(_statusTextBeforeDrop) ? "就绪" : _statusTextBeforeDrop;
+    }
+
+    /// <summary>
+    /// 中文注释：解析拖放载荷，支持本地网页文件、.url 快捷方式、链接拖拽与纯文本网址。
+    /// 只放行浏览器能直接渲染的文件类型，避免把可执行文件丢进 WebView2。
+    /// </summary>
+    private static bool TryResolveDropTargets(IDataObject? data, out List<Uri> uris, out string? error)
+    {
+        uris = [];
+        error = null;
+        if (data is null)
+        {
+            return false;
+        }
+
+        if (data.GetDataPresent(DataFormats.FileDrop) && data.GetData(DataFormats.FileDrop) is string[] files)
+        {
+            foreach (var file in files)
+            {
+                if (TryResolveDroppedFile(file, out var fileUri) && fileUri is not null)
+                {
+                    uris.Add(fileUri);
+                }
+                else
+                {
+                    error ??= $"不支持拖放该文件：{Path.GetFileName(file)}";
+                }
+            }
+
+            return uris.Count > 0;
+        }
+
+        var raw = TryGetDroppedText(data);
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return false;
+        }
+
+        if (TryBuildUriFromDroppedText(raw, out var uri) && uri is not null)
+        {
+            uris.Add(uri);
+            return true;
+        }
+
+        error = "拖入的内容不是有效网址";
+        return false;
+    }
+
+    private static string? TryGetDroppedText(IDataObject data)
+    {
+        // 中文注释：浏览器之间互拖链接通常带 UniformResourceLocator，个别实现给的是流。
+        if (data.GetDataPresent("UniformResourceLocator"))
+        {
+            var locator = data.GetData("UniformResourceLocator");
+            if (locator is string locatorText && !string.IsNullOrWhiteSpace(locatorText))
+            {
+                return locatorText.Trim().TrimEnd('\0');
+            }
+
+            if (locator is Stream locatorStream)
+            {
+                using var reader = new StreamReader(locatorStream, System.Text.Encoding.ASCII, true);
+                var value = reader.ReadToEnd().Trim().TrimEnd('\0');
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value;
+                }
+            }
+        }
+
+        foreach (var format in new[] { DataFormats.UnicodeText, DataFormats.Text })
+        {
+            if (data.GetDataPresent(format) && data.GetData(format) is string text && !string.IsNullOrWhiteSpace(text))
+            {
+                return text.Trim().TrimEnd('\0');
+            }
+        }
+
+        return null;
+    }
+
+    private static bool TryBuildUriFromDroppedText(string raw, out Uri? uri)
+    {
+        uri = null;
+        var candidate = raw.Trim().TrimEnd('\0');
+        if (candidate.Length == 0)
+        {
+            return false;
+        }
+
+        if (Uri.TryCreate(candidate, UriKind.Absolute, out var absolute) &&
+            absolute.Scheme is "http" or "https" or "file" or "ftp")
+        {
+            uri = absolute;
+            return true;
+        }
+
+        // 中文注释：容错"example.com/path"这类省略协议的拖放文本。
+        if (!candidate.Contains(' ') &&
+            candidate.Contains('.') &&
+            Uri.TryCreate("https://" + candidate, UriKind.Absolute, out var implied) &&
+            !string.IsNullOrWhiteSpace(implied.Host))
+        {
+            uri = implied;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryResolveDroppedFile(string path, out Uri? uri)
+    {
+        uri = null;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return false;
+        }
+
+        var extension = Path.GetExtension(path);
+        if (string.Equals(extension, ".url", StringComparison.OrdinalIgnoreCase))
+        {
+            // 中文注释：Windows 快捷方式 .url 是 INI 文本，取 URL= 一行作为目标地址。
+            try
+            {
+                foreach (var line in File.ReadLines(path))
+                {
+                    var trimmed = line.Trim();
+                    if (!trimmed.StartsWith("URL=", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    if (TryBuildUriFromDroppedText(trimmed[4..], out var target) && target is not null)
+                    {
+                        uri = target;
+                        return true;
+                    }
+                }
+            }
+            catch
+            {
+                // 中文注释：快捷方式读取失败按"不支持"处理，由外层给出提示。
+            }
+
+            return false;
+        }
+
+        if (!DroppableFileExtensions.Contains(extension))
+        {
+            return false;
+        }
+
+        uri = new Uri(path);
+        return true;
+    }
+
+    private static string FormatDropUrlForLog(Uri uri)
+    {
+        var text = uri.IsFile ? Path.GetFileName(uri.LocalPath) : uri.AbsoluteUri;
+        return text.Length > 64 ? text[..64] + "…" : text;
     }
 
     private void ShowToast(string message)
@@ -12002,6 +12344,8 @@ public sealed class MainWindow : Form
             try { _ambientMotionTimer.Stop(); } catch { }
             try { _windowTransitionTimer.Stop(); } catch { }
             try { _chromeLayoutTimer.Stop(); } catch { }
+            try { _historyPersistTimer.Stop(); } catch { }
+            _historyManager.FlushPendingChanges(force: true);
 
             // 中文注释：取消正在进行的 ToolStripItem 背景色渐变动画，释放静态 Timer。
             try { UI.Chrome.ToolStripItemColorAnimator.CancelAll(); } catch { }

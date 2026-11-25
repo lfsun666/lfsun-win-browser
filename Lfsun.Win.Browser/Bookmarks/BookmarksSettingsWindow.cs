@@ -276,31 +276,8 @@ public sealed class BookmarksSettingsWindow : Form
 
     private void UpdateSplitterDistance()
     {
-        try
-        {
-            if (_splitContainer.Width <= 0)
-            {
-                return;
-            }
-
-            var available = Math.Max(0, _splitContainer.Width - _splitContainer.SplitterWidth);
-            const int panel1Min = 240;
-            const int panel2Min = 340;
-
-            if (available < panel1Min + panel2Min)
-            {
-                return;
-            }
-
-            var desired = Math.Clamp(360, panel1Min, available - panel2Min);
-            _splitContainer.SplitterDistance = desired;
-        }
-        catch
-        {
-            // 防御性忽略异常，等待下一次布局或 Resize 事件重新对齐
-        }
+        SplitLayoutHelper.ApplyDistance(_splitContainer, panel1Min: 240, panel2Min: 340, desired: 360);
     }
-
     private void ApplyTheme()
     {
         BackColor = AppTheme.WindowBackground;

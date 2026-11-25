@@ -686,23 +686,11 @@ public sealed class SessionsWindow : Form
         }
 
         // 中文注释：按实际宽度收紧两侧最小宽度，宽度不足 520+260 时按比例回退，保证取值永远合法。
-        var available = Math.Max(0, split.Width - split.SplitterWidth);
+        var available = Math.Max(0, split.ClientSize.Width - split.SplitterWidth);
         var panel2Min = Math.Min(260, available / 3);
         var panel1Min = Math.Min(520, Math.Max(0, available - panel2Min));
-        var desired = _contentSplitInitialized ? split.SplitterDistance : 680;
-        desired = Math.Clamp(desired, panel1Min, Math.Max(panel1Min, available - panel2Min));
-
-        // 中文注释：先放宽最小宽度再设置分隔位置，避免调整过程中的临时状态触发范围校验异常。
-        split.Panel1MinSize = 0;
-        split.Panel2MinSize = 0;
-        try
-        {
-            split.SplitterDistance = desired;
-        }
-        catch (Exception)
-        {
-            // 中文注释：极端窗口尺寸或 DPI 缩放下兜底忽略，等待下一次 SizeChanged 重新校准。
-        }
+        SplitLayoutHelper.ApplyDistance(split, panel1Min, panel2Min, desired: 680,
+            preserveDesiredDistance: _contentSplitInitialized);
 
         _contentSplitInitialized = true;
     }
